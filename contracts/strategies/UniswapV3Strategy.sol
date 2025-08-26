@@ -1,0 +1,391 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "../utils/SafeTransferLib.sol";
+
+interface IERC20 {
+    function balanceOf(address) external view returns (uint256);
+    function approve(address, uint256) external returns (bool);
+    function transfer(address, uint256) external returns (bool);
+    function decimals() external view returns (uint8);
+}
+
+interface IExchangeHandler {
+    // Implemented in your repo; routes swaps through whitelisted routers
+    function swap(bytes calldata data) external returns (uint256 amountOut);
+}
+
+interface IOracleRouter {
+    // Returns price of token in USD with 1e18 precision (or a common numeraire)
+    function price(address token) external view returns (uint256);
+    function isPriceStale(address token) external view returns (bool);
+}
+
+interface INonfungiblePositionManager {
+    struct MintParams {
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        address recipient;
+        uint256 deadline;
+    }
+    struct DecreaseLiquidityParams {
+        uint256 tokenId;
+        uint128 liquidity;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        uint256 deadline;
+    }
+    struct CollectParams {
+        uint256 tokenId;
+        address recipient;
+        uint128 amount0Max;
+        uint128 amount1Max;
+    }
+
+    function mint(MintParams calldata params)
+        external
+        payable
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
+
+    function decreaseLiquidity(DecreaseLiquidityParams calldata params)
+        external
+        payable
+        returns (uint256 amount0, uint256 amount1);
+
+    function collect(CollectParams calldata params)
+        external
+        payable
+        returns (uint256 amount0, uint256 amount1);
+
+    function positions(uint256 tokenId)
+        external
+        view
+        returns (
+            uint96 nonce,
+            address operator,
+            address token0,
+            address token1,
+            uint24 fee,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        );
+}
+
+interface IUniswapV3Pool {
+    function slot0() external view returns (
+        uint160 sqrtPriceX96, int24 tick, uint16 observationIndex,
+        uint16 observationCardinality, uint16 observationCardinalityNext,
+        uint8 feeProtocol, bool unlocked
+    );
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+}
+
+// If you installed Uniswap libraries, uncomment these and use them.
+// import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+// import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+
+interface IStrategy {
+    function want() external view returns (address);
+    function totalAssets() external view returns (uint256);
+    function deposit(uint256 amountWant) external;
+    function withdraw(uint256 amountWant) external returns (uint256);
+    function withdrawAll() external returns (uint256);
+    function harvest() external returns (uint256);
+}
+
+/// @notice Strategy assumes `want` is either token0 or token1.
+/// Manager/keeper should prepare amounts (swap via ExchangeHandler) before calling deposit here.
+contract UniswapV3Strategy is IStrategy {
+    using SafeTransferLib for address;
+
+    address public immutable vault;
+    address public immutable wantToken;           // e.g., USDC
+    INonfungiblePositionManager public immutable pm;
+    IUniswapV3Pool public immutable pool;         // pool for (token0, token1, fee)
+    IExchangeHandler public immutable exchanger;
+    IOracleRouter public immutable oracle;        // for valuation to `want`
+
+    uint256 public tokenId;                       // LP NFT id held by this strategy
+
+    modifier onlyVault() { require(msg.sender == vault, "NOT_VAULT"); _; }
+
+    constructor(
+        address _vault,
+        address _want,
+        address _pm,
+        address _pool,
+        address _exchanger,
+        address _oracle
+    ) {
+        require(_vault!=address(0) && _want!=address(0) && _pm!=address(0) && _pool!=address(0) && _exchanger!=address(0) && _oracle!=address(0), "BAD_ADDR");
+        vault = _vault;
+        wantToken = _want;
+        pm = INonfungiblePositionManager(_pm);
+        pool = IUniswapV3Pool(_pool);
+        exchanger = IExchangeHandler(_exchanger);
+        oracle = IOracleRouter(_oracle);
+    }
+
+    // ---------------- Views ----------------
+
+    function want() external view override returns (address) { return wantToken; }
+
+    function totalAssets() public view override returns (uint256) {
+        // Value = current liquidity amounts + uncollected fees + idle want, all converted to `want`
+        if (tokenId == 0) {
+            return IERC20(wantToken).balanceOf(address(this));
+        }
+
+        (
+            , , address token0, address token1, , int24 tickLower, int24 tickUpper, uint128 liquidity, , , uint128 fees0, uint128 fees1
+        ) = pm.positions(tokenId);
+
+        if (liquidity == 0 && fees0 == 0 && fees1 == 0) {
+            return IERC20(wantToken).balanceOf(address(this));
+        }
+
+        // Get current price
+        (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
+
+        // Estimate amounts for liquidity.
+        // NOTE: for production, use Uniswap's LiquidityAmounts.getAmountsForLiquidity:
+        // (uint256 amt0, uint256 amt1) = LiquidityAmounts.getAmountsForLiquidity(
+        //     sqrtPriceX96,
+        //     TickMath.getSqrtRatioAtTick(tickLower),
+        //     TickMath.getSqrtRatioAtTick(tickUpper),
+        //     liquidity
+        // );
+        // For MVP, we conservatively value **only** uncollected fees + idle want to avoid complex math:
+        uint256 amt0 = uint256(fees0);
+        uint256 amt1 = uint256(fees1);
+
+        // Convert token0/token1 to `want` using oracle prices.
+        uint256 valueInWant = _convertToWant(token0, amt0) + _convertToWant(token1, amt1);
+
+        // Add idle want in the contract (e.g., dust from mint/collect)
+        valueInWant += IERC20(wantToken).balanceOf(address(this));
+
+        return valueInWant;
+    }
+
+    // ---------------- Vault calls ----------------
+
+    /// @notice Expects manager to have swapped into appropriate token0/token1 proportions beforehand.
+    ///         Here we just mint a position using whatever balances we hold.
+    function deposit(uint256 /*amountWant*/) external override onlyVault {
+        // Read pool tokens
+        address t0 = IUniswapV3Pool(pool).token0();
+        address t1 = IUniswapV3Pool(pool).token1();
+
+        // Use our current balances as "desired" (manager should have funded them)
+        uint256 bal0 = IERC20(t0).balanceOf(address(this));
+        uint256 bal1 = IERC20(t1).balanceOf(address(this));
+        require(bal0 > 0 || bal1 > 0, "NO_FUNDS");
+
+        // Approvals
+        t0.safeApprove(address(pm), 0); t0.safeApprove(address(pm), bal0);
+        t1.safeApprove(address(pm), 0); t1.safeApprove(address(pm), bal1);
+
+        // You must provide configured ticks & fee out of band; for MVP, re-use current pool tick ± range.
+        // In production, choose a policy for tickLower/tickUpper.
+        (, int24 currentTick, , , , , ) = pool.slot0();
+        int24 tickSpacing = 60; // depends on fee tier; set properly for your pool (e.g., 500:10, 3000:60, 10000:200)
+        int24 width = tickSpacing * 100; // wide range MVP
+        int24 lower = (currentTick / tickSpacing - 100) * tickSpacing;
+        int24 upper = (currentTick / tickSpacing + 100) * tickSpacing;
+
+        (uint256 _tokenId,, ,) = pm.mint(
+            INonfungiblePositionManager.MintParams({
+                token0: t0,
+                token1: t1,
+                fee: _poolFeeGuess(),              // set correctly for your pool (e.g., 3000)
+                tickLower: lower,
+                tickUpper: upper,
+                amount0Desired: bal0,
+                amount1Desired: bal1,
+                amount0Min: 0,
+                amount1Min: 0,
+                recipient: address(this),
+                deadline: block.timestamp
+            })
+        );
+
+        if (tokenId == 0) tokenId = _tokenId;
+        else require(tokenId == _tokenId, "MULTI_POS_UNSUPPORTED");
+    }
+
+    /// @notice Withdraws by decreasing liquidity proportionally to get `amountWant` worth of tokens,
+    ///         then swaps to `want` and sends to Vault. This is a simplified MVP.
+    function withdraw(uint256 amountWant) external override onlyVault returns (uint256 withdrawn) {
+        require(tokenId != 0, "NO_POS");
+
+        // For MVP we pull a small portion of liquidity, collect, then swap proceeds to want.
+        // In production, compute required liquidity share using valuation math.
+        uint128 liqToPull = uint128(type(uint128).max / 100); // pull ~1% per call (example)
+        (uint256 out0, uint256 out1) = pm.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: liqToPull,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: block.timestamp
+            })
+        );
+
+        (uint256 fee0, uint256 fee1) = pm.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+
+        address t0 = IUniswapV3Pool(pool).token0();
+        address t1 = IUniswapV3Pool(pool).token1();
+
+        uint256 amt0 = out0 + fee0 + IERC20(t0).balanceOf(address(this));
+        uint256 amt1 = out1 + fee1 + IERC20(t1).balanceOf(address(this));
+
+        // Swap non-want tokens to want via ExchangeHandler. Build calldata off-chain for best routes.
+        withdrawn = _liquidateToWant(t0, t1, amt0, amt1, vault);
+    }
+
+    function withdrawAll() external override onlyVault returns (uint256 withdrawn) {
+        require(tokenId != 0, "NO_POS");
+
+        // Pull all liquidity
+        (, , , , , , , uint128 liquidity, , , , ) = pm.positions(tokenId);
+        (uint256 out0, uint256 out1) = pm.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: block.timestamp
+            })
+        );
+
+        (uint256 fee0, uint256 fee1) = pm.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+
+        address t0 = IUniswapV3Pool(pool).token0();
+        address t1 = IUniswapV3Pool(pool).token1();
+
+        uint256 amt0 = out0 + fee0 + IERC20(t0).balanceOf(address(this));
+        uint256 amt1 = out1 + fee1 + IERC20(t1).balanceOf(address(this));
+
+        withdrawn = _liquidateToWant(t0, t1, amt0, amt1, vault);
+    }
+
+    /// @notice Collect fees and convert to want (realize PnL). Returns realized profit amount in `want`.
+    function harvest() external override onlyVault returns (uint256 profit) {
+        if (tokenId == 0) return 0;
+
+        (uint256 fee0, uint256 fee1) = pm.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+
+        address t0 = IUniswapV3Pool(pool).token0();
+        address t1 = IUniswapV3Pool(pool).token1();
+
+        uint256 amt0 = fee0;
+        uint256 amt1 = fee1;
+
+        // Convert fees to want and send to Vault
+        profit = _liquidateToWant(t0, t1, amt0, amt1, vault);
+    }
+
+    // ---------------- Internals ----------------
+
+    function _poolFeeGuess() internal view returns (uint24) {
+        // TODO: set to actual pool fee tier (e.g., 500, 3000, or 10000).
+        return 3000;
+    }
+
+    function _convertToWant(address token, uint256 amount) internal view returns (uint256) {
+        if (amount == 0) return 0;
+        if (token == wantToken) return amount;
+
+        // Convert via USD as numeraire using oracle
+        uint256 pToken = oracle.price(token);     // 1e18
+        uint256 pWant  = oracle.price(wantToken); // 1e18
+        if (pToken == 0 || pWant == 0) return 0;
+        // value_in_want = amount * pToken / pWant (adjust for token decimals if needed)
+        return (amount * pToken) / pWant;
+    }
+
+    /// @dev Swap non-want balances to `want` and transfer to `to`.
+    ///      Off-chain bots should prepare best-route `exchanger.swap(data)` calls.
+    function _liquidateToWant(
+        address t0,
+        address t1,
+        uint256 amt0,
+        uint256 amt1,
+        address to
+    ) internal returns (uint256 outWant) {
+        // If token0 is not want and amt0>0, swap -> want
+        if (t0 != wantToken && amt0 > 0) {
+            // Build router calldata off-chain; here we assume router sends proceeds back to this strategy
+            bytes memory data0 = _buildSwapData(t0, wantToken, amt0, address(this));
+            outWant += exchanger.swap(data0);
+        } else if (t0 == wantToken) {
+            outWant += amt0;
+        }
+
+        // token1
+        if (t1 != wantToken && amt1 > 0) {
+            bytes memory data1 = _buildSwapData(t1, wantToken, amt1, address(this));
+            outWant += exchanger.swap(data1);
+        } else if (t1 == wantToken) {
+            outWant += amt1;
+        }
+
+        // transfer want to destination (Vault)
+        if (outWant > 0) {
+            wantToken.safeTransfer(to, outWant);
+        }
+        return outWant;
+    }
+
+    function _buildSwapData(address tokenIn, address tokenOut, uint256 amountIn, address recipient)
+        internal pure returns (bytes memory)
+    {
+        // This packs a placeholder; your keeper should construct the *real* calldata for the chosen router.
+        // struct: (router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata)
+        // Use your off-chain bot to set minOut & routerCalldata from a DEX aggregator quote.
+        return abi.encode(
+            address(0),          // router to be filled by keeper
+            tokenIn,
+            tokenOut,
+            amountIn,
+            0,                   // minOut (set by keeper)
+            recipient,
+            bytes("")            // routerCalldata (set by keeper)
+        );
+    }
+}

@@ -1,0 +1,297 @@
+Awesome—here’s a **real-life, end-to-end walk-through** of a Velvet-style DeFAI vault from the moment a user shows up to when capital gets deployed, rebalanced, harvested, and withdrawn. I’ll map **each user action** → **contract function** → **on-chain effects/state changes/tokens moving**, and note **role checks** and **events**.
+
+---
+
+# Scenario
+
+* **Vault asset (`want`)**: USDC
+* **Strategies**:
+
+  1. `AaveV3Strategy` (supplies USDC to Aave)
+  2. `UniswapV3Strategy` (LP in a USDC/WETH pool; simplified)
+* **DEX router**: Uniswap (allow-listed via `ExchangeHandler`)
+* **Oracle**: Chainlink (wrapped by `OracleRouter`, conceptually)
+* **Actors**:
+
+  * **Alice (user)**: deposits/withdraws
+  * **Manager** (address with `AccessController.managers[addr]=true`)
+  * **Keeper bot** (address with `AccessController.keepers[addr]=true`)
+  * **Treasury** (receives fees)
+
+---
+
+# 0) One-time setup (by protocol team/DAO)
+
+### 0.1 Deploy core components
+
+* **Deployer**:
+
+  * `AccessController(owner=DAO)`
+  * `FeeModule(asset=USDC, treasury=Treasury, governor=DAO)` → `setFees(...)`
+  * `ExchangeHandler(owner=DAO)` → `setRouter(UniRouter, true)`
+  * `OracleRouter` (not shown in code, but assumed)
+
+### 0.2 Deploy the Vault via Factory
+
+* **Manager** calls:
+
+  * `PortfolioFactory.deployVault(USDC, "USDC Yield Vault", "vUSDC", access, fees, oracle, cap=5_000_000e6, decimals=6)`
+* **Effects**:
+
+  * New `Vault` instance created with references to Access, Fees, Oracle; TVL cap set.
+  * Events: `VaultDeployed(vault, USDC, ...)`
+
+### 0.3 Deploy strategies & register them
+
+* **Deployer**:
+
+  * `AaveV3Strategy(want=USDC, aavePool, vault=Vault)`
+  * `UniswapV3Strategy(want=USDC, pm=PositionManager, vault=Vault)`
+* **Manager** configures target allocations:
+
+  * `Vault.setStrategy(AaveV3Strategy, 6000)`  // 60% target
+  * `Vault.setStrategy(UniswapV3Strategy, 4000)` // 40% target
+* **Checks/Effects**:
+
+  * Each call checks `onlyManager`
+  * `AaveV3Strategy.want() == USDC`, `UniswapV3Strategy.want() == USDC` enforced
+  * Event: `StrategySet(strategy, bps)`
+
+### 0.4 (Optional) Configure Index targets for token mix
+
+If using `IndexSwap` to maintain a portfolio of component tokens (e.g., USDC/WETH exposure for LP setup), **Manager** deploys:
+
+* `IndexSwap(asset=USDC, oracle, exchanger=ExchangeHandler, manager=Vault/Manager, cooldown=6 hours, targets=[{USDC: 7000}, {WETH: 3000}])`
+* Later, a **Keeper** will call `IndexSwap.rebalance(...)` with encoded route calldata to maintain targets.
+
+---
+
+# 1) Alice deposits
+
+### User action
+
+Alice deposits **10,000 USDC** to earn yield.
+
+### Function called
+
+* `Vault.deposit(assets=10_000e6, receiver=Alice)`
+
+### What happens
+
+1. **Pull funds**: `USDC.transferFrom(Alice → Vault, 10,000e6)`
+2. **Entry fee**: `FeeModule.takeEntryFee(10,000e6)` → fee (e.g., 0.1% = 10 USDC) sent to Treasury; net = 9,990 USDC
+3. **Mint shares**: `shares = convertToShares(9,990e6)`
+
+   * If first depositor, `shares = assets` (1:1) → 9,990 shares
+4. **State**:
+
+   * `totalSupply += shares`
+   * `balanceOf[Alice] += shares`
+   * Vault idle balance = 9,990 USDC
+5. **Events**: `Deposit(Alice, Alice, 10,000e6, 9,990e6)`
+
+---
+
+# 2) Manager invests idle into strategies
+
+### Manager action
+
+Move idle USDC into the two strategies according to targets (60/40).
+
+### Function called
+
+* `Vault.investIdle()`  (requires `onlyManager`)
+
+### What happens
+
+1. Read idle balance (9,990 USDC).
+2. For each strategy, compute allocation:
+
+   * Aave: 60% → 5,994 USDC
+   * UniV3: 40% → 3,996 USDC
+3. **Transfers & external calls**:
+
+   * Approve & call `AaveV3Strategy.deposit(5,994e6)`
+
+     * Strategy approves Aave Pool and calls `aave.supply(USDC, 5,994e6, strategy, 0)`
+     * USDC moves Strategy → Aave
+   * Approve & call `UniswapV3Strategy.deposit(3,996e6)`
+
+     * (Inside, strategy may: swap some USDC to WETH via `ExchangeHandler.swap(...)`, then `pm.mint(...)` a UniV3 position)
+4. **Vault state**: idle USDC close to 0; assets now inside strategies as positions.
+5. **Events**: (your implementation may add `Invested(strategy, amount)` events)
+
+---
+
+# 3) Index/weight rebalance (optional but typical)
+
+### Off-chain keeper/bot action
+
+Market moves; weights drift. Bot decides to rotate some USDC ↔ WETH (for LP composition or index targets).
+
+### Function called
+
+* `IndexSwap.rebalance(bytes[] swapCalldatas)`  (requires `onlyManager` and `cooldownElapsed`)
+
+### What happens
+
+1. **Off-chain calc**: Bot reads:
+
+   * `targets[]` (e.g., USDC 70%, WETH 30%)
+   * Current holdings/valuations (via Vault + Oracle)
+   * Deltas to reach targets
+2. **Build calldata**: For each leg, bot creates encoded router calldata (e.g., UniV2 `swapExactTokensForTokens`) and packs it for `ExchangeHandler.swap(data)` calls.
+3. **Execute**:
+
+   * `IndexSwap` loops `exchanger.swap(data[i])` per leg
+   * `ExchangeHandler` checks router allow-list, sets approvals, performs the swap
+   * Enforces `minOut` to protect against slippage
+4. **State**:
+
+   * Token balances adjust to new target mix
+   * `lastRebalance = block.timestamp`
+5. **Events**: `Rebalanced(timestamp)`
+
+> Note: In many designs, the Vault itself owns tokens. In others, a “portfolio” contract holds them. The MVP shows `IndexSwap` as an orchestrator that assumes custody/allowances are set appropriately.
+
+---
+
+# 4) Keeper harvests rewards (periodic)
+
+### Keeper action
+
+Claim rewards, compound, and accrue management fee.
+
+### Function called
+
+* `Vault.harvestAll()`  (requires `onlyKeeper` and `minHarvestInterval` passed)
+
+### What happens
+
+1. **Pre-state**:
+
+   * `beforeTA = Vault.totalAssets()` (idle + strategy valuations)
+2. **Harvest each strategy**:
+
+   * `AaveV3Strategy.harvest()`
+
+     * (If incentives exist) claim → swap to USDC via `ExchangeHandler` → reinvest or leave as idle in Vault depending on your pattern
+     * Return `profit` in USDC terms
+   * `UniswapV3Strategy.harvest()`
+
+     * `pm.collect(...)` fees → swap fees to USDC via `ExchangeHandler`
+     * (Optionally) adjust tick range; return profit
+3. **TVL & fees**:
+
+   * `tvlAfter = Vault.totalAssets()`
+   * `mgmtFee = FeeModule.computeMgmtFee(tvlAfter)` (pro-rata since `lastFeeTimestamp`)
+   * Transfer mgmt fee to `FeeModule` (which forwards to Treasury per your integration)
+   * `fees.onFeesCharged()` updates accrual timestamp
+4. **State**:
+
+   * `lastHarvest = block.timestamp`
+   * Vault TVL reflects newly realized yield minus mgmt fee
+5. **Events**: `Harvest(totalProfit, tvlAfter)`
+
+---
+
+# 5) Alice withdraws
+
+### User action
+
+Alice wants to redeem **50%** of her position.
+
+### Function called
+
+* `Vault.withdraw(shares=balanceOf[Alice]/2, receiver=Alice)`
+
+### What happens
+
+1. **Burn shares**: `Vault._burn(Alice, shares)`
+2. **Compute assets owed**: `assets = convertToAssets(shares)` (based on current NAV)
+3. **Provide liquidity**:
+
+   * Use idle USDC first. If idle < `assets`, pull from strategies:
+
+     * Call `AaveV3Strategy.withdraw(shortfall)` → strategy calls `aave.withdraw(USDC, amount, vault)`
+     * If still short, `UniswapV3Strategy.withdraw(...)` → reduce liquidity, swap to USDC
+4. **Exit fee**: `FeeModule.takeExitFee(assets)` → Treasury
+5. **Transfer**: send `netAssets` USDC to Alice
+6. **Events**: `Withdraw(Alice, Alice, netAssets, shares)`
+
+---
+
+# 6) Referral/rewards (if you add it)
+
+* **User action**: Alice refers Bob
+* **Flow**: On `deposit`, Vault or a separate `ReferralModule` records the referrer, accumulates fee/volume, and periodically pays a share of fees to referrers (off a mapping and events).
+* **Contracts**: Not in the MVP code yet; you’d add a `ReferralModule` and have `Vault.deposit` call it.
+
+---
+
+# 7) Governance/fees update (controlled change)
+
+* **Governor** (DAO) calls `FeeModule.setFees(mgmtBps, perfBps, entryBps, exitBps)`
+* **Effects**: New fees apply going forward; historical accruals unaffected.
+* **Security**: In production, this should be **time-locked** and signaled in advance.
+
+---
+
+# 8) Emergency / pause (production recommendation)
+
+* **Guardian** calls `pause()` on Vault/Strategies/ExchangeHandler (not included in MVP code, but recommended).
+* **Keeper/Manager** calls `Strategy.withdrawAll()` to bring funds back to Vault quickly.
+* **Users** can still withdraw from Vault if assets are available or after unwind.
+
+---
+
+## What each component contributes during these flows
+
+* **Vault**
+
+  * Holds accounting (shares ↔ assets), enforces fees, invests idle, coordinates withdraws, gates keeper/manager calls.
+* **Strategies (Aave/UniV3)**
+
+  * Custody the working capital inside external protocols, report `totalAssets()`, expose `deposit/withdraw/harvest`.
+* **ExchangeHandler**
+
+  * Centralized DEX adapter; enforces router allow-list and per-swap slippage.
+* **IndexSwap**
+
+  * (Optional) Orchestrates portfolio-level weight targets with cooldown & off-chain prepared swaps.
+* **FeeModule**
+
+  * Takes entry/exit fees on flow, accrues management fee on cadence, and forwards to Treasury.
+* **OracleRouter**
+
+  * Provides prices for valuation & rebalance logic (you’d gate actions on staleness/deviation).
+
+---
+
+## Concrete numbers example (quick)
+
+* Alice deposits **10,000 USDC**
+* Entry fee 0.1% → **10 USDC** to Treasury, **9,990 USDC** minted into shares
+* InvestIdle → Aave **5,994 USDC**, UniV3 **3,996 USDC**
+* After a week, strategies earned **+100 USDC** gross; harvest realizes it; mgmt fee 2% APR → weekly ≈ 0.038% → **TVL × 0.00038** (roughly **\~3.8 USDC** fee for 10k TVL) sent to Treasury; net profit ≈ **96.2 USDC**
+* Alice withdraws half; her shares convert to \~ **(initial 9,990 + profit) / current shares** proportion; exit fee (say 0.1%) applied on redeemed assets.
+
+---
+
+## Where the **technical touchpoints** are most important
+
+* **Auth gates**: `onlyManager`, `onlyKeeper`, `onlyVault` modifiers
+* **Slippage & deadlines** on every swap via `ExchangeHandler`
+* **Cooldowns**: `IndexSwap.cooldown` and Vault `minHarvestInterval`
+* **Oracle checks**: (recommended) block actions if `isPriceStale(token)`
+* **Approvals**: set to 0 before updating, keep router allow-list tight
+* **Share math**: ERC4626-style conversions keep deposits/withdrawals fair
+* **Events**: Log every important mutation for monitoring & accounting
+
+---
+
+If you want, I can also drop a **keeper bot** (Node.js + ethers) that:
+
+* Computes drift vs. `IndexSwap.targets[]`,
+* Fetches quotes from a DEX/aggregator, builds `swapCalldatas`,
+* Triggers `IndexSwap.rebalance(...)` and `Vault.harvestAll()` only when EV > gas + slippage buffer.
