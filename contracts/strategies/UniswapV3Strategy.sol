@@ -352,77 +352,29 @@ contract UniswapV3Strategy is IStrategy {
     // at top of file:
 
     function withdraw(
-        uint256 amountWant
+        uint256 amountWant,
+        bytes[] calldata swapData
     ) external override onlyVault returns (uint256 withdrawn) {
         require(tokenId != 0, "NO_POS");
         if (amountWant == 0) return 0;
 
-        // 0) Use idle want first
-        uint256 idle = IERC20(wantToken).balanceOf(address(this));
-        if (idle >= amountWant) {
-            wantToken.safeTransfer(vault, amountWant);
-            return amountWant;
-        }
-        uint256 needed = amountWant - idle;
+        // 1. Calculate how much liquidity to remove for `amountWant`
+        uint128 liqToPull = _calcLiquidityForAmount(amountWant);
 
-        // 1) Read position
-        (, , , , , int24 tickLower, int24 tickUpper, uint128 liq, , , , ) = pm
-            .positions(tokenId);
-        if (liq == 0) {
-            // nothing staked; just send idle and exit
-            if (idle > 0) {
-                wantToken.safeTransfer(vault, idle);
-                return idle;
-            }
-            return 0;
-        }
+        if (liqToPull == 0) return 0;
 
-        // 2) Value the FULL position at current price
-        (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
-        uint160 sqrtRatioA = TickMath.getSqrtRatioAtTick(tickLower);
-        uint160 sqrtRatioB = TickMath.getSqrtRatioAtTick(tickUpper);
-
-        (uint256 amt0Full, uint256 amt1Full) = LiquidityAmounts
-            .getAmountsForLiquidity(sqrtPriceX96, sqrtRatioA, sqrtRatioB, liq);
-
-        // 3) Convert both legs to `want`
-        address t0 = IUniswapV3Pool(pool).token0();
-        address t1 = IUniswapV3Pool(pool).token1();
-
-        uint256 valueFullInWant = 0;
-        valueFullInWant += (t0 == wantToken)
-            ? amt0Full
-            : _quoteToWant(t0, amt0Full);
-        valueFullInWant += (t1 == wantToken)
-            ? amt1Full
-            : _quoteToWant(t1, amt1Full);
-
-        // Guard: if somehow zero (e.g., bad oracle), bail early with idle
-        if (valueFullInWant == 0) {
-            if (idle > 0) {
-                wantToken.safeTransfer(vault, idle);
-                return idle;
-            }
-            return 0;
-        }
-
-        // 4) Fraction of liquidity to pull to cover `needed` (ceil slightly)
-        uint256 liqToPullU256 = (uint256(liq) * (needed + 1)) / valueFullInWant;
-        if (liqToPullU256 == 0) liqToPullU256 = 1; // ensure progress
-        if (liqToPullU256 > liq) liqToPullU256 = liq; // cap
-        uint128 liqToPull = uint128(liqToPullU256);
-
-        // 5) Decrease liquidity & collect
+        // 2. Decrease proportional liquidity
         (uint256 out0, uint256 out1) = pm.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
                 liquidity: liqToPull,
-                amount0Min: 0, // set slippage in production
+                amount0Min: 0,
                 amount1Min: 0,
                 deadline: block.timestamp
             })
         );
 
+        // 3. Collect fees + tokens from position
         (uint256 fee0, uint256 fee1) = pm.collect(
             INonfungiblePositionManager.CollectParams({
                 tokenId: tokenId,
@@ -432,115 +384,32 @@ contract UniswapV3Strategy is IStrategy {
             })
         );
 
-        // 6) Sum balances & swap to `want`
-        uint256 bal0 = out0 + fee0 + IERC20(t0).balanceOf(address(this));
-        uint256 bal1 = out1 + fee1 + IERC20(t1).balanceOf(address(this));
+        // 4. Swap everything to `want` (USDC) using keeper-provided calldata
+        uint256 before = IERC20(wantToken).balanceOf(address(this));
+        _executeSwaps(swapData); // keeper prepared calldata
+        uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
 
-        // swap non-want legs to want and send to vault
-        withdrawn = _liquidateToWant(t0, t1, bal0, bal1, vault);
+        withdrawn = afterBal > before ? afterBal - before : 0;
 
-        // Optionally: if withdrawn < amountWant, you can loop once more here,
-        // but your Vault already loops across strategies / second calls are OK.
+        // 5. Send to Vault
+        if (withdrawn > 0) {
+            wantToken.safeTransfer(vault, withdrawn);
+        }
+
+        return withdrawn;
     }
 
-    function _quoteToWant(
-        address token,
-        uint256 amount
-    ) internal view returns (uint256) {
-        if (amount == 0 || token == wantToken) return amount;
-        uint256 pTok = oracle.price(token); // 1e18
-        uint256 pWant = oracle.price(wantToken); // 1e18
-        if (pTok == 0 || pWant == 0) return 0;
+    function _calcLiquidityForAmount(
+        uint256 amountWant
+    ) internal view returns (uint128) {
+        (, , , , , , , uint128 totalLiq, , , , ) = pm.positions(tokenId);
+        uint256 totalValue = totalAssets();
+        if (totalValue == 0) return 0;
 
-        // Adjust for decimals if your amounts are raw token units
-        uint8 dTok = IERC20(token).decimals();
-        uint8 dWant = IERC20(wantToken).decimals();
-
-        // Normalize to 1e18, then back to want decimals
-        uint256 amt18 = (amount * 10 ** (18 - dTok));
-        uint256 val18 = (amt18 * pTok) / pWant;
-        return (val18 / 10 ** (18 - dWant));
+        uint256 ratio = (amountWant * 1e18) / totalValue;
+        return uint128((uint256(totalLiq) * ratio) / 1e18);
     }
 
-    // function withdraw(uint256 amountWant) external override onlyVault returns (uint256 withdrawn) {
-    //     require(tokenId != 0, "NO_POS");
-    //     if (amountWant == 0) return 0;
-
-    //     address t0 = IUniswapV3Pool(pool).token0();
-    //     address t1 = IUniswapV3Pool(pool).token1();
-
-    //     // 1) If we already have enough `want` idle, just transfer it.
-    //     uint256 idleWant = IERC20(wantToken).balanceOf(address(this));
-    //     if (idleWant >= amountWant) {
-    //         wantToken.safeTransfer(vault, amountWant);
-    //         return amountWant;
-    //     }
-    //     uint256 needed = amountWant - idleWant;
-
-    //     // 2) Read position state
-    //     (
-    //         , , , , , int24 tickLower, int24 tickUpper, uint128 liquidity, , , ,
-    //     ) = pm.positions(tokenId);
-
-    //     // 3) Value a *unit* of liquidity at current price using Uniswap lib
-    //     (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
-    //     uint160 sqrtRatioA = TickMath.getSqrtRatioAtTick(tickLower);
-    //     uint160 sqrtRatioB = TickMath.getSqrtRatioAtTick(tickUpper);
-
-    //     // amounts for *all* liquidity:
-    //     (uint256 amt0Full, uint256 amt1Full) =
-    //         LiquidityAmounts.getAmountsForLiquidity(
-    //             sqrtPriceX96, sqrtRatioA, sqrtRatioB, liquidity
-    //         );
-
-    //     // 4) Convert those to `want` units (approx); oracle or spot conversions
-    //     //    If want == t0 or t1, this is simpler:
-    //     uint256 valueFullInWant = 0;
-    //     if (t0 == wantToken) valueFullInWant += amt0Full;
-    //     else valueFullInWant += _quoteToWant(t0, amt0Full);
-    //     if (t1 == wantToken) valueFullInWant += amt1Full;
-    //     else valueFullInWant += _quoteToWant(t1, amt1Full);
-
-    //     // Guard: if position has zero value, nothing to pull
-    //     if (valueFullInWant == 0) return 0;
-
-    //     // 5) Fraction of liquidity to pull to meet `needed` (ceil a bit to cover fees/slippage)
-    //     //    liqToPull = liquidity * needed / valueFullInWant
-    //     uint256 liqToPullU256 = (uint256(liquidity) * (needed + 1)) / valueFullInWant;
-    //     if (liqToPullU256 == 0) liqToPullU256 = 1; // pull at least something
-    //     if (liqToPullU256 > liquidity) liqToPullU256 = liquidity;
-    //     uint128 liqToPull = uint128(liqToPullU256);
-
-    //     // 6) Decrease liquidity and collect owed amounts
-    //     (uint256 out0, uint256 out1) = pm.decreaseLiquidity(
-    //         INonfungiblePositionManager.DecreaseLiquidityParams({
-    //             tokenId: tokenId,
-    //             liquidity: liqToPull,
-    //             amount0Min: 0, // set slippage in prod
-    //             amount1Min: 0,
-    //             deadline: block.timestamp
-    //         })
-    //     );
-
-    //     (uint256 fee0, uint256 fee1) = pm.collect(
-    //         INonfungiblePositionManager.CollectParams({
-    //             tokenId: tokenId,
-    //             recipient: address(this),
-    //             amount0Max: type(uint128).max,
-    //             amount1Max: type(uint128).max
-    //         })
-    //     );
-
-    //     // 7) Sum totals we now hold
-    //     uint256 amt0 = out0 + fee0 + IERC20(t0).balanceOf(address(this));
-    //     uint256 amt1 = out1 + fee1 + IERC20(t1).balanceOf(address(this));
-
-    //     // 8) Swap everything non-want to want, transfer to Vault, return actual amount sent
-    //     withdrawn = _liquidateToWant(t0, t1, amt0, amt1, vault);
-
-    //     // If we overshot (withdrew > amountWant), that's fine for MVP. For tighter control,
-    //     // you could keep some want locally by sending exactly `amountWant` and leaving the rest here.
-    // }
 
     function withdrawAll()
         external

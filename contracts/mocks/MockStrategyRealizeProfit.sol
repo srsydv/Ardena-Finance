@@ -50,7 +50,7 @@ contract MockStrategyRealizeProfit is IStrategy {
         wantToken.safeTransferFrom(msg.sender, address(this), amount);
     }
 
-    function withdraw(uint256 amount) external onlyVault returns (uint256) {
+    function withdraw(uint256 amount, bytes[] calldata swapData) external onlyVault returns (uint256) {
         // Send requested amount and reduce principal (clamp to principal)
         if (amount > principal) amount = principal;
         principal -= amount;

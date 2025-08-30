@@ -13,7 +13,7 @@ interface IStrategy {
 
 
     /// @notice withdraw exact `amount` of want back to caller (Vault)
-    function withdraw(uint256 amount) external returns (uint256 withdrawn);
+    function withdraw(uint256 amount, bytes[] calldata swapData) external returns (uint256 withdrawn);
 
     /// @notice withdraw everything to caller (Vault), return amount of want withdrawn
     function withdrawAll() external returns (uint256 withdrawn);

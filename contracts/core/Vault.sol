@@ -137,7 +137,8 @@ contract Vault {
 
     function withdraw(
         uint256 shares,
-        address receiver
+        address receiver,
+        bytes[][] calldata allSwapData // keeper provides swap routes for each strategy
     ) external returns (uint256 assets) {
         require(balanceOf[msg.sender] >= shares, "BALANCE");
         assets = convertToAssets(shares);
@@ -148,8 +149,10 @@ contract Vault {
             // pull shortfall from strategies pro-rata (naive)
             uint256 shortfall = assets - idle;
             for (uint256 i; i < strategies.length && shortfall > 0; i++) {
-                uint256 got = strategies[i].withdraw(shortfall);
-                shortfall -= got;
+                uint256 got = strategies[i].withdraw(shortfall, allSwapData[i]);
+                if (got > 0) {
+                    shortfall = shortfall > got ? shortfall - got : 0;
+                }
             }
         }
         // compute exit fee on assets owed

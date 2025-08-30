@@ -54,7 +54,7 @@ contract MockStrategyMarkToMarket is IStrategy {
         // Vault must have already transferred `amount` here (test will do it), so nothing else to do
     }
 
-    function withdraw(uint256 amount) external onlyVault returns (uint256) {
+    function withdraw(uint256 amount, bytes[] calldata swapData) external onlyVault returns (uint256) {
         IERC20(wantToken).transfer(vault, amount);
         return amount;
     }
