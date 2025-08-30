@@ -202,7 +202,43 @@ contract Vault {
         }
     }
 
-    function harvestAll() external onlyKeeper {
+    /*
+        Keeper role:-
+
+        Keeper just supplies the correct swapData for _executeSwaps.
+
+        Amounts (amountIn) are NOT precomputed — ExchangeHandler uses strategy balances.
+
+        Keeper only ensures the swap is routed through allowed router + safe minOut.
+
+
+        Vault side:-
+
+        Accepts bytes[][] calldata allSwapData → one array of swap routes per strategy.
+        Example:
+
+        allSwapData[0] for Aave (likely empty, since no swaps needed).
+
+        allSwapData[1] for Uniswap v3 (routes to convert WETH→USDC).
+
+        Loops through all strategies, calls their harvest(), aggregates profits.
+
+        Then calculates mgmt + perf fees and pays them.
+
+        Uniswap v3 strategy side:-
+
+        Uses collect() to pull whatever fees exist (fee0, fee1).
+
+        _executeSwaps(swapData) handles conversions to want.
+
+        Measures net profit in want.
+
+        Sends realized profit to the Vault.
+
+
+    */
+
+    function harvestAll(bytes[][] calldata allSwapData) external onlyKeeper {
         require(
             block.timestamp >= lastHarvest + minHarvestInterval,
             "HARVEST_COOLDOWN"
@@ -213,7 +249,7 @@ contract Vault {
 
         // Step 1: call all strategies to realize any rewards
         for (uint i; i < strategies.length; i++) {
-            strategies[i].harvest(); // Uni sends USDC to Vault; Aave does nothing
+            strategies[i].harvest(allSwapData[i]); // Uni sends USDC to Vault; Aave does nothing
         }
 
         uint256 afterTA = totalAssets();

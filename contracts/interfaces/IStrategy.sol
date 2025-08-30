@@ -19,5 +19,5 @@ interface IStrategy {
     function withdrawAll() external returns (uint256 withdrawn);
 
     /// @notice claim and compound rewards; return realized profit in `want`
-    function harvest() external returns (uint256 profit);
+    function harvest(bytes[] calldata swapData) external returns (uint256 profit);
 }

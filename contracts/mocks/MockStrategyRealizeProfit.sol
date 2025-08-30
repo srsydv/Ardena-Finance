@@ -66,7 +66,7 @@ contract MockStrategyRealizeProfit is IStrategy {
         return prin; // returning principal redeemed; test doesn't rely on this value
     }
 
-    function harvest() external onlyVault returns (uint256 realized) {
+    function harvest(bytes[] calldata swapData) external onlyVault returns (uint256 realized) {
         uint256 bal = IERC20(wantToken).balanceOf(address(this));
         // pending = everything above principal
         if (bal > principal) {

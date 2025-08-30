@@ -581,9 +581,12 @@ contract UniswapV3Strategy is IStrategy {
     }
 
     /// @notice Collect fees and convert to want (realize PnL). Returns realized profit amount in `want`.
-    function harvest() external override onlyVault returns (uint256 profit) {
+    function harvest(
+        bytes[] calldata swapData
+    ) external override onlyVault returns (uint256 profit) {
         if (tokenId == 0) return 0;
 
+        // Step 1: Collect all pending fees from Uniswap v3 position
         (uint256 fee0, uint256 fee1) = pm.collect(
             INonfungiblePositionManager.CollectParams({
                 tokenId: tokenId,
@@ -593,14 +596,20 @@ contract UniswapV3Strategy is IStrategy {
             })
         );
 
-        address t0 = IUniswapV3Pool(pool).token0();
-        address t1 = IUniswapV3Pool(pool).token1();
+        // Step 2: Snapshot balance of want before swaps
+        uint256 before = IERC20(wantToken).balanceOf(address(this));
 
-        uint256 amt0 = fee0;
-        uint256 amt1 = fee1;
+        // Step 3: Swap all balances of token0/token1 → want using keeper-provided calldata
+        _executeSwaps(swapData);
 
-        // Convert fees to want and send to Vault
-        profit = _liquidateToWant(t0, t1, amt0, amt1, vault);
+        // Step 4: Snapshot balance after swaps
+        uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
+
+        // Step 5: Profit = net increase in want
+        profit = afterBal > before ? afterBal - before : 0;
+
+        // Step 6: Send realized profit to Vault
+        if (profit > 0) wantToken.safeTransfer(vault, profit);
     }
 
     // ---------------- Internals ----------------
