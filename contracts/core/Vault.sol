@@ -169,7 +169,27 @@ contract Vault {
         emit StrategySet(address(s), bps);
     }
 
-    function investIdle() external onlyManager {
+    /*
+        Q:- why 2d allSwapData bytes[][] calldata allSwapData
+        What’s happening
+
+        Your Vault can have multiple strategies (say AaveV3Strategy, UniswapV3Strategy, maybe others in the future).
+
+        investIdle() loops through all strategies and calls s.deposit(...) on each one.
+
+        Some strategies (like Aave) don’t need swap data at all. Others (like Uniswap v3) may need multiple swaps (e.g. USDC → WETH and USDC → DAI) to set up the right token pair.
+        So the input shape looks like this:
+
+
+        allSwapData = [
+        [ swap1_for_strategy0, swap2_for_strategy0, ... ], // array for strategy[0]
+        [ swap1_for_strategy1 ],                           // array for strategy[1]
+        [ ],                                               // maybe no swaps for strategy[2]
+        ...
+        ]
+
+    */
+    function investIdle(bytes[][] calldata allSwapData) external onlyManager {
         uint256 idle = _assetBal();
         for (uint256 i; i < strategies.length; i++) {
             IStrategy s = strategies[i];
@@ -177,7 +197,7 @@ contract Vault {
             if (toSend > 0) {
                 asset.safeApprove(address(s), 0);
                 asset.safeApprove(address(s), toSend);
-                s.deposit(toSend);
+                s.deposit(toSend, allSwapData[i]);
             }
         }
     }

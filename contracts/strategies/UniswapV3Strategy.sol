@@ -237,98 +237,63 @@ contract UniswapV3Strategy is IStrategy {
 
     /// @notice Expects manager to have swapped into appropriate token0/token1 proportions beforehand.
     ///         Here we just mint a position using whatever balances we hold.
-    function deposit(uint256 amountWant) external override onlyVault {
-        require(amountWant > 0, "ZERO_AMOUNT");
-
-        // 1) Pull want (USDC) from the Vault into this strategy
-        //    (Vault must have approved this strategy for at least amountWant)
-        // bool ok = IERC20(wantToken).transferFrom(
-        //     vault,
-        //     address(this),
-        //     amountWant
-        // );
-
-        wantToken.safeTransferFrom(msg.sender, address(this), amountWant);
-
-        // require(ok, "PULL_FAIL");
-
-        // 2) Identify pool tokens (token0, token1)
-        address t0 = IUniswapV3Pool(pool).token0();
-        address t1 = IUniswapV3Pool(pool).token1();
-
-        // 3) Ensure we hold both sides:
-        //    If want is one leg (USDC), swap about half of want to the other leg (WETH).
-        if (wantToken == t0 || wantToken == t1) {
-            uint256 half = amountWant / 2;
-
-            address other = (wantToken == t0) ? t1 : t0;
-
-            // Build swap data for your ExchangeHandler (your off-chain bot sets router/minOut/calldata)
-            bytes memory data = _buildSwapData(
-                wantToken,
-                other,
-                half,
-                address(this)
-            );
-            // After this call, the strategy should hold ~half in wantToken and ~half in other
-            exchanger.swap(data);
-        } else {
-            // If your 'want' is some other asset, split and swap to both pool legs (rare for USDC/WETH case)
-            uint256 half = amountWant / 2;
-            bytes memory d0 = _buildSwapData(
-                wantToken,
-                t0,
-                half,
-                address(this)
-            );
-            bytes memory d1 = _buildSwapData(
-                wantToken,
-                t1,
-                amountWant - half,
-                address(this)
-            );
-            exchanger.swap(d0);
-            exchanger.swap(d1);
+    function deposit(
+        uint256 amountWant,
+        bytes[] calldata swaps
+    ) external override onlyVault {
+        if (amountWant > 0) {
+            IERC20(wantToken).transferFrom(vault, address(this), amountWant);
         }
 
-        // 4) Read the actual balances we now hold for both legs
+        _executeSwaps(swaps);
+
+        address t0 = pool.token0();
+        address t1 = pool.token1();
         uint256 bal0 = IERC20(t0).balanceOf(address(this));
         uint256 bal1 = IERC20(t1).balanceOf(address(this));
         require(bal0 > 0 || bal1 > 0, "NO_FUNDS");
 
-        // 5) Approve the position manager to pull these tokens
         t0.safeApprove(address(pm), 0);
         t0.safeApprove(address(pm), bal0);
         t1.safeApprove(address(pm), 0);
         t1.safeApprove(address(pm), bal1);
 
-        // 6) Choose a price range (MVP: wide band around current price)
-        (, int24 currentTick, , , , , ) = pool.slot0();
-        // IMPORTANT: set proper tickSpacing by pool fee tier (500:10, 3000:60, 10000:200)
-        int24 tickSpacing = 60; // placeholder for 0.3% pools; change if your pool is different
-        int24 lower = (currentTick / tickSpacing - 100) * tickSpacing;
-        int24 upper = (currentTick / tickSpacing + 100) * tickSpacing;
+        if (tokenId == 0) {
+            // First deposit → mint a new position
+            (, int24 currentTick, , , , , ) = pool.slot0();
+            int24 tickSpacing = 60;
+            int24 lower = (currentTick / tickSpacing - 100) * tickSpacing;
+            int24 upper = (currentTick / tickSpacing + 100) * tickSpacing;
 
-        // 7) Mint / add liquidity using what we have
-        (uint256 _tokenId, , , ) = pm.mint(
-            INonfungiblePositionManager.MintParams({
-                token0: t0,
-                token1: t1,
-                fee: _poolFeeGuess(), // set to actual pool fee tier (e.g., 500/3000/10000)
-                tickLower: lower,
-                tickUpper: upper,
-                amount0Desired: bal0,
-                amount1Desired: bal1,
-                amount0Min: 0, // set slippage thresholds via keeper in production
-                amount1Min: 0,
-                recipient: address(this),
-                deadline: block.timestamp
-            })
-        );
-
-        // 8) Track the NFT id
-        if (tokenId == 0) tokenId = _tokenId;
-        else require(tokenId == _tokenId, "MULTI_POS_UNSUPPORTED");
+            (uint256 _tokenId, , , ) = pm.mint(
+                INonfungiblePositionManager.MintParams({
+                    token0: t0,
+                    token1: t1,
+                    fee: _poolFeeGuess(),
+                    tickLower: lower,
+                    tickUpper: upper,
+                    amount0Desired: bal0,
+                    amount1Desired: bal1,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: address(this),
+                    deadline: block.timestamp
+                })
+            );
+            tokenId = _tokenId;
+        } else {
+            // Subsequent deposits → increase liquidity in the same position
+            pm.increaseLiquidity(
+                INonfungiblePositionManager.IncreaseLiquidityParams({
+                    tokenId: tokenId,
+                    amount0Desired: bal0,
+                    amount1Desired: bal1,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: block.timestamp
+                })
+            );
+        }
     }
 
     /// @notice Withdraws by decreasing liquidity proportionally to get `amountWant` worth of tokens,
@@ -701,6 +666,17 @@ contract UniswapV3Strategy is IStrategy {
             wantToken.safeTransfer(to, outWant);
         }
         return outWant;
+    }
+
+    function _executeSwaps(
+        bytes[] calldata swapCalldatas
+    ) internal returns (uint256 totalOut) {
+        for (uint i; i < swapCalldatas.length; i++) {
+            // Each swapCalldata is ABI-encoded (router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata)
+            // ExchangeHandler enforces router allow-list and pulls `amountIn` from *this* strategy balance.
+            uint256 out = exchanger.swap(swapCalldatas[i]);
+            totalOut += out;
+        }
     }
 
     function _buildSwapData(

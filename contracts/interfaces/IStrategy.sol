@@ -9,7 +9,8 @@ interface IStrategy {
     function totalAssets() external view returns (uint256);
 
     /// @notice deposit `amount` of want from caller (Vault) into external protocol
-    function deposit(uint256 amount) external;
+    function deposit(uint256 amountWant, bytes[] calldata swapCalldatas) external;
+
 
     /// @notice withdraw exact `amount` of want back to caller (Vault)
     function withdraw(uint256 amount) external returns (uint256 withdrawn);
