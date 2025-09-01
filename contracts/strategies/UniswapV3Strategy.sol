@@ -296,60 +296,6 @@ contract UniswapV3Strategy is IStrategy {
         }
     }
 
-    /// @notice Withdraws by decreasing liquidity proportionally to get `amountWant` worth of tokens,
-    ///         then swaps to `want` and sends to Vault. This is a simplified MVP.
-    //     function withdraw(
-    //         uint256 amountWant
-    //     ) external override onlyVault returns (uint256 withdrawn) {
-    //         require(tokenId != 0, "NO_POS");
-
-    //         // For MVP we pull a small portion of liquidity, collect, then swap proceeds to want.
-    //         // In production, compute required liquidity share using valuation math.
-    //         uint128 liqToPull = _calculateLiquidityForAmount(amountWant); // pull ~1% per call (example)
-    //         (uint256 out0, uint256 out1) = pm.decreaseLiquidity(
-    //             INonfungiblePositionManager.DecreaseLiquidityParams({
-    //                 tokenId: tokenId,
-    //                 liquidity: liqToPull,
-    //                 amount0Min: 0,
-    //                 amount1Min: 0,
-    //                 deadline: block.timestamp
-    //             })
-    //         );
-
-    //         (uint256 fee0, uint256 fee1) = pm.collect(
-    //             INonfungiblePositionManager.CollectParams({
-    //                 tokenId: tokenId,
-    //                 recipient: address(this),
-    //                 amount0Max: type(uint128).max,
-    //                 amount1Max: type(uint128).max
-    //             })
-    //         );
-
-    //         address t0 = IUniswapV3Pool(pool).token0();
-    //         address t1 = IUniswapV3Pool(pool).token1();
-
-    //         uint256 amt0 = out0 + fee0 + IERC20(t0).balanceOf(address(this));
-    //         uint256 amt1 = out1 + fee1 + IERC20(t1).balanceOf(address(this));
-
-    //         // Swap non-want tokens to want via ExchangeHandler. Build calldata off-chain for best routes.
-    //         withdrawn = _liquidateToWant(t0, t1, amt0, amt1, vault);
-    //     }
-
-    //     function _calculateLiquidityForAmount(uint256 amountWant) internal view returns (uint128) {
-    //     // This is the complex part - calculate how much liquidity to remove
-    //     // to get approximately amountWant worth of tokens
-
-    //     // For now, let's use a simple approach:
-    //     uint256 totalPositionValue = _getPositionValue();
-    //     uint256 liquidityRatio = amountWant * 1e18 / totalPositionValue;
-
-    //     // Get total liquidity of position
-    //     (, , , , , , , uint128 totalLiquidity, , , , ) = pm.positions(tokenId);
-
-    //     return uint128((totalLiquidity * liquidityRatio) / 1e18);
-    // }
-
-    // at top of file:
 
     function withdraw(
         uint256 amountWant,

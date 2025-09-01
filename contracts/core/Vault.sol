@@ -162,6 +162,17 @@ contract Vault {
         emit Withdraw(msg.sender, receiver, net, shares);
     }
 
+    /// @notice Manager-only: pull funds back from a specific strategy into the Vault.
+    /// Used for rebalancing, not user withdrawals (no share burning).
+    function withdrawFromStrategy(
+        IStrategy strat,
+        uint256 amount,
+        bytes[] calldata swapData
+    ) external onlyManager returns (uint256 got) {
+        require(_hasStrategy(strat), "NOT_STRATEGY");
+        got = strat.withdraw(amount, swapData); // strategy sends USDC back to Vault
+    }
+
     // -----------------
     // Management
     // -----------------

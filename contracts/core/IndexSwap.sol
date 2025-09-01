@@ -1,85 +1,91 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../interfaces/IStrategy.sol";
+import "../core/Vault.sol";
 import "../interfaces/IOracleRouter.sol";
 import "../interfaces/IExchangeHandler.sol";
 
 contract IndexSwap {
     struct TokenWeight {
-        address token;
-        uint32 bps;
-    } // sum bps = 1e4
+        IStrategy strat;
+        uint16 bps; // allocation in basis points (10000 = 100%)
+    }
 
-    address public asset; // vault asset (numeraire for accounting)
-    IOracleRouter public oracle; // price source
-    IExchangeHandler public exchanger; // DEX router adapter
+    Vault public immutable vault;
+    IOracleRouter public oracle;
+    IExchangeHandler public exchanger;
 
-    uint256 public cooldown; // seconds between rebalances
+    uint256 public cooldown;
     uint256 public lastRebalance;
+    TokenWeight[] public targets;
 
-    TokenWeight[] public targets; // target weights for portfolio tokens
+    address public manager;
 
-    address public manager; // vault/manager that can call rebalance
-
+    event TargetsUpdated(TokenWeight[] targets);
     event Rebalanced(uint256 timestamp);
-    event TargetsUpdated();
 
     modifier onlyManager() {
         require(msg.sender == manager, "NOT_MANAGER");
         _;
     }
-    modifier cooldownElapsed() {
-        require(block.timestamp >= lastRebalance + cooldown, "COOLDOWN");
-        _;
-    }
 
     constructor(
-        address _asset,
+        address _vault,
         address _oracle,
         address _exchanger,
         address _manager,
-        uint256 _cooldown,
-        TokenWeight[] memory _targets
+        uint256 _cooldown
     ) {
-        asset = _asset;
+        require(_vault != address(0) && _manager != address(0), "BAD_ADDR");
+        vault = Vault(_vault);
         oracle = IOracleRouter(_oracle);
         exchanger = IExchangeHandler(_exchanger);
         manager = _manager;
         cooldown = _cooldown;
-        _setTargets(_targets);
-        lastRebalance = block.timestamp;
     }
 
-    function _setTargets(TokenWeight[] memory _targets) internal {
+    // ---------------- Config ----------------
+
+    function updateTargets(TokenWeight[] calldata newTargets) external onlyManager {
         delete targets;
         uint256 sum;
-        for (uint256 i; i < _targets.length; i++) {
-            targets.push(_targets[i]);
-            sum += _targets[i].bps;
+        for (uint i; i < newTargets.length; i++) {
+            targets.push(newTargets[i]);
+            sum += newTargets[i].bps;
         }
-        require(sum == 1e4, "BAD_WEIGHTS");
-        emit TargetsUpdated();
+        require(sum == 1e4, "BPS_NOT_100%");
+        emit TargetsUpdated(newTargets);
     }
 
-    function updateTargets(
-        TokenWeight[] calldata _targets
-    ) external onlyManager {
-        _setTargets(_targets);
+    function setCooldown(uint256 t) external onlyManager {
+        cooldown = t;
     }
 
-    function setCooldown(uint256 s) external onlyManager {
-        cooldown = s;
-    }
+    // ---------------- Rebalancing ----------------
 
-    /// @notice simplistic rebalance: bring each token to target weight by swapping via ExchangeHandler.
-    /// Caller must have custody of portfolio tokens (e.g., Vault calling this with allowances set).
+    /// @notice Keeper/manager triggers rebalance. 
+    /// - Prepares calldata off-chain with what to withdraw and deposit.
+    /// - swapData[i] = calldata for strategy[i] (e.g. UniV3 swap routes).
     function rebalance(
-        bytes[] calldata swapCalldatas
-    ) external onlyManager cooldownElapsed {
-        // Off-chain bot computes required deltas and provides encoded swaps in order.
-        for (uint256 i; i < swapCalldatas.length; i++) {
-            exchanger.swap(swapCalldatas[i]);
+        IStrategy[] calldata overweights,
+        uint256[] calldata withdrawAmts,
+        bytes[][] calldata allSwapData
+    ) external onlyManager {
+        require(block.timestamp >= lastRebalance + cooldown, "COOLDOWN");
+
+        require(overweights.length == withdrawAmts.length, "LEN_MISMATCH");
+
+        // Step 1: Withdraw from overweight strategies
+        for (uint i; i < overweights.length; i++) {
+            if (withdrawAmts[i] > 0) {
+                vault.withdrawFromStrategy(overweights[i], withdrawAmts[i], allSwapData[i]);
+            }
         }
+
+        // Step 2: Reinvest idle USDC into target allocations
+        vault.investIdle();
+
         lastRebalance = block.timestamp;
         emit Rebalanced(block.timestamp);
     }

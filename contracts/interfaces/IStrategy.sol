@@ -13,11 +13,11 @@ interface IStrategy {
 
 
     /// @notice withdraw exact `amount` of want back to caller (Vault)
-    function withdraw(uint256 amount, bytes[] calldata swapData) external returns (uint256 withdrawn);
+    function withdraw(uint256 amount, bytes[] calldata swapCalldatas) external returns (uint256 withdrawn);
 
     /// @notice withdraw everything to caller (Vault), return amount of want withdrawn
     function withdrawAll() external returns (uint256 withdrawn);
 
     /// @notice claim and compound rewards; return realized profit in `want`
-    function harvest(bytes[] calldata swapData) external returns (uint256 profit);
+    function harvest(bytes[] calldata swapCalldatas) external returns (uint256 profit);
 }

@@ -5,7 +5,9 @@ import "../utils/SafeTransferLib.sol";
 
 interface IERC20 {
     function balanceOf(address) external view returns (uint256);
-    function approve(address, uint256) external returns (bool);
+    function approve(address spender, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
 interface IAavePool {
@@ -19,7 +21,7 @@ interface IStrategy {
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount) external returns (uint256);
     function withdrawAll() external returns (uint256);
-    function harvest() external returns (uint256);
+    function harvest(bytes[] calldata swapData) external returns (uint256);
 }
 
 contract AaveV3Strategy is IStrategy {
@@ -27,13 +29,19 @@ contract AaveV3Strategy is IStrategy {
 
     address public immutable vault;       // only Vault can call state-changing fns
     address public immutable wantToken;   // underlying (e.g., USDC)
-    address public immutable aToken;      // interest-bearing token 1:1 redeemable to want
+    address public immutable aToken;      // interest-bearing token (principal + interest)
     IAavePool public immutable aave;
 
     modifier onlyVault() { require(msg.sender == vault, "NOT_VAULT"); _; }
 
     constructor(address _vault, address _want, address _aToken, address _aavePool) {
-        require(_vault != address(0) && _want != address(0) && _aToken != address(0) && _aavePool != address(0), "BAD_ADDR");
+        require(
+            _vault != address(0) && 
+            _want != address(0) && 
+            _aToken != address(0) && 
+            _aavePool != address(0), 
+            "BAD_ADDR"
+        );
         vault = _vault;
         wantToken = _want;
         aToken = _aToken;
@@ -44,20 +52,23 @@ contract AaveV3Strategy is IStrategy {
     function want() external view override returns (address) { return wantToken; }
 
     function totalAssets() public view override returns (uint256) {
-        // aToken balance represents our underlying claim (principal + interest)
+        // aToken balance = principal + accrued interest
         return IERC20(aToken).balanceOf(address(this));
     }
 
     // ---- Vault calls ----
-    function deposit(uint256 amount) external override onlyVault {
-        // Vault must transfer `amount` of want to this contract before calling
+    function deposit(uint256 amountWant, bytes[] calldata swapCallData) external override onlyVault {
+        // Vault must transfer `amountWant` to this strategy first
+        IERC20(wantToken).transferFrom(vault, address(this), amountWant);
+
+        // Approve and deposit into Aave
         wantToken.safeApprove(address(aave), 0);
-        wantToken.safeApprove(address(aave), amount);
-        aave.supply(wantToken, amount, address(this), 0);
+        wantToken.safeApprove(address(aave), amountWant);
+        aave.supply(wantToken, amountWant, address(this), 0);
     }
 
-    function withdraw(uint256 amount) external override onlyVault returns (uint256 withdrawn) {
-        // Pull `amount` want back to the Vault
+    function withdraw(uint256 amount, bytes[] calldata swapCalldatas) external override onlyVault returns (uint256 withdrawn) {
+        // Withdraw underlying back to vault
         withdrawn = aave.withdraw(wantToken, amount, vault);
     }
 
@@ -65,8 +76,9 @@ contract AaveV3Strategy is IStrategy {
         withdrawn = aave.withdraw(wantToken, type(uint256).max, vault);
     }
 
-    /// @notice No-op for pure lending: interest accrues in aToken
-    function harvest() external override onlyVault returns (uint256) {
+    /// @notice Aave interest auto-accrues → no action needed
+    /// If rewards exist, claim + swap to `want` (not implemented here)
+    function harvest(bytes[] calldata swapCalldatas) external override onlyVault returns (uint256) {
         return 0;
     }
 }
