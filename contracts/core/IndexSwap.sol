@@ -2,14 +2,14 @@
 pragma solidity ^0.8.24;
 
 import "./Vault.sol";
-import "./interfaces/IStrategy.sol";
-import "./AccessManager.sol";
+import "../interfaces/IStrategy.sol";
+import "./AccessController.sol";
 
 /// @title IndexSwap
 /// @notice Rebalance engine for Vaults, enforcing cooldown and target allocations.
 contract IndexSwap {
     Vault public immutable vault;
-    AccessManager public immutable access;
+    AccessController public immutable access;
 
     uint256 public cooldown;        // min time between rebalances
     uint256 public lastRebalance;   // timestamp of last rebalance
@@ -25,7 +25,7 @@ contract IndexSwap {
     constructor(address _vault, address _access, uint256 _cooldown) {
         require(_vault != address(0) && _access != address(0), "BAD_ADDR");
         vault = Vault(_vault);
-        access = AccessManager(_access);
+        access = AccessController(_access);
         cooldown = _cooldown;
     }
 
@@ -41,7 +41,7 @@ contract IndexSwap {
     /// @param investSwapData calldata to reinvest idle into strategies
     function rebalance(
         uint256[] calldata withdrawAmounts,
-        bytes[][][] calldata withdrawSwapData,
+        bytes[][] calldata withdrawSwapData,
         bytes[][] calldata investSwapData
     ) external onlyManager {
         require(block.timestamp >= lastRebalance + cooldown, "COOLDOWN");

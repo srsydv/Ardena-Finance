@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.7.6;
+pragma abicoder v2;
 
-import "../utils/SafeTransferLib.sol";
+
+import "../utils/v7/SafeTransferLibV7.sol";
+import "../interfaces/v7/IStrategyV7.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 
@@ -11,6 +14,9 @@ interface IERC20 {
     function approve(address, uint256) external returns (bool);
 
     function transfer(address, uint256) external returns (bool);
+
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+
 
     function decimals() external view returns (uint8);
 }
@@ -29,18 +35,28 @@ interface IOracleRouter {
 
 interface INonfungiblePositionManager {
     struct MintParams {
-        address token0; // First token in the pair (e.g., ETH)
-        address token1; // Second token in the pair (e.g., USDC)
-        uint24 fee; // Pool fee tier (500 = 0.05%, 3000 = 0.3%, 10000 = 1%)
-        int24 tickLower; // Lower price boundary
-        int24 tickUpper; // Upper price boundary
-        uint256 amount0Desired; // How much of token0 you want to provide
-        uint256 amount1Desired; // How much of token1 you want to provide
-        uint256 amount0Min; // Minimum amount0 you'll accept
-        uint256 amount1Min; // Minimum amount1 you'll accept
-        address recipient; // Who gets the position NFT
-        uint256 deadline; // When this transaction expires
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickLower;
+        int24 tickUpper;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        address recipient;
+        uint256 deadline;
     }
+
+    struct IncreaseLiquidityParams {
+        uint256 tokenId;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        uint256 deadline;
+    }
+
     struct DecreaseLiquidityParams {
         uint256 tokenId;
         uint128 liquidity;
@@ -48,6 +64,7 @@ interface INonfungiblePositionManager {
         uint256 amount1Min;
         uint256 deadline;
     }
+
     struct CollectParams {
         uint256 tokenId;
         address recipient;
@@ -62,6 +79,17 @@ interface INonfungiblePositionManager {
         payable
         returns (
             uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        );
+
+    function increaseLiquidity(
+        IncreaseLiquidityParams calldata params
+    )
+        external
+        payable
+        returns (
             uint128 liquidity,
             uint256 amount0,
             uint256 amount1
@@ -96,6 +124,7 @@ interface INonfungiblePositionManager {
         );
 }
 
+
 interface IUniswapV3Pool {
     function slot0()
         external
@@ -115,23 +144,7 @@ interface IUniswapV3Pool {
     function token1() external view returns (address);
 }
 
-// If you installed Uniswap libraries, uncomment these and use them.
-// import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-// import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 
-interface IStrategy {
-    function want() external view returns (address);
-
-    function totalAssets() external view returns (uint256);
-
-    function deposit(uint256 amountWant) external;
-
-    function withdraw(uint256 amountWant) external returns (uint256);
-
-    function withdrawAll() external returns (uint256);
-
-    function harvest() external returns (uint256);
-}
 
 /// @notice Strategy assumes `want` is either token0 or token1.
 /// Manager/keeper should prepare amounts (swap via ExchangeHandler) before calling deposit here.
@@ -212,16 +225,17 @@ contract UniswapV3Strategy is IStrategy {
         (uint160 sqrtPriceX96, , , , , , ) = pool.slot0();
 
         // Estimate amounts for liquidity.
-        // NOTE: for production, use Uniswap's LiquidityAmounts.getAmountsForLiquidity:
-        // (uint256 amt0, uint256 amt1) = LiquidityAmounts.getAmountsForLiquidity(
-        //     sqrtPriceX96,
-        //     TickMath.getSqrtRatioAtTick(tickLower),
-        //     TickMath.getSqrtRatioAtTick(tickUpper),
-        //     liquidity
-        // );
+        // Use Uniswap math libs to convert liquidity → token amounts
+        (uint256 amt0, uint256 amt1) = LiquidityAmounts.getAmountsForLiquidity(
+            sqrtPriceX96,
+            TickMath.getSqrtRatioAtTick(tickLower),
+            TickMath.getSqrtRatioAtTick(tickUpper),
+            liquidity
+        );
         // For MVP, we conservatively value **only** uncollected fees + idle want to avoid complex math:
-        uint256 amt0 = uint256(fees0);
-        uint256 amt1 = uint256(fees1);
+        // Add uncollected fees
+        amt0 += fees0;
+        amt1 += fees1;
 
         // Convert token0/token1 to `want` using oracle prices.
         uint256 valueInWant = _convertToWant(token0, amt0) +

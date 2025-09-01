@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.7.6;
+pragma abicoder v2;
 
 interface IStrategy {
     function want() external view returns (address);

@@ -316,6 +316,15 @@ contract Vault {
         totalSupply -= amount;
     }
 
+    function strategiesLength() external view returns (uint256) {
+        return strategies.length;
+    }
+
+    // function strategies(uint256 i) external view returns (IStrategy) {
+    //     return strategies[i];
+    // }
+
+
     function _hasStrategy(IStrategy s) internal view returns (bool) {
         for (uint256 i; i < strategies.length; i++)
             if (address(strategies[i]) == address(s)) return true;

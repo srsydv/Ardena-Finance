@@ -121,7 +121,7 @@ contract ExchangeHandler is IExchangeHandler {
         address a,
         address b
     ) internal pure returns (address[] memory p) {
-        p = new address;
+        p = new address[](2);
         p[0] = a;
         p[1] = b;
     }
