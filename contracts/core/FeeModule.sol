@@ -37,6 +37,11 @@ contract FeeModule {
         emit TreasuryUpdated(t);
     }
 
+     function setGovernor(address g) external onlyGovernor {
+        require(g != address(0), "BAD_GOV");
+        governor = g;
+    }
+
     function setFees(
         uint16 mgmt,
         uint16 perf,
