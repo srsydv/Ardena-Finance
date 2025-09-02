@@ -1,0 +1,103 @@
+Great question — this is where **the off-chain keeper/bot** comes in, and it’s *exactly* how Velvet Capital handles it. Let’s break it down step by step:
+
+---
+
+### 🔑 How the keeper knows what `swapData` to provide
+
+1. **Keeper watches on-chain state**
+
+   * Reads `Vault.totalAssets()`
+   * Reads each `strategy.totalAssets()`
+   * Reads the portfolio target weights (`targetBps` mapping)
+   * Reads user withdraw request (`Vault.Withdraw` event triggered)
+
+2. **Keeper simulates withdrawal**
+
+   * If a user requests `10,000 USDC`:
+
+     * Vault calculates:
+
+       * Aave: 60% = 6,000
+       * UniV3: 40% = 4,000
+
+   * Keeper now knows:
+
+     * **Aave** returns USDC directly → no swapData needed → pass empty `[]`
+     * **UniswapV3** returns WETH+USDC from `decreaseLiquidity()` → must swap WETH → USDC
+
+3. **Keeper fetches live quotes**
+
+   * Keeper calls **DEX aggregator APIs** (1inch, 0x, Paraswap, etc.)
+   * Asks:
+     *“If I swap 2.3 WETH right now, how many USDC do I get?”*
+   * Gets back:
+
+     * Router address
+     * `routerCalldata`
+     * Safe `minOut` amount
+
+4. **Keeper encodes it**
+
+   * For UniV3, keeper ABI-encodes the data like:
+
+     ```js
+     abi.encode(
+       router,        // 1inch router
+       WETH,          // tokenIn
+       USDC,          // tokenOut
+       amountIn,      // strategy’s WETH balance (keeper can read it on-chain)
+       minOut,        // from aggregator quote
+       strategyAddr,  // send back to strategy
+       routerData     // raw router calldata
+     )
+     ```
+   * That becomes `swapData[i]` for the UniV3 strategy.
+
+5. **Keeper sends tx**
+
+   * Calls `Vault.withdraw(..., allSwapData)`
+   * Vault → UniswapV3Strategy → `_executeSwaps(swapData)` → ExchangeHandler → aggregator router → swap executed.
+
+---
+
+### 📦 What you need in contracts
+
+You don’t need to add special functions for the keeper — the pieces already exist:
+
+* `strategy.withdraw(amount, swapData)` expects `swapData`.
+* `ExchangeHandler.swap(data)` enforces router allowlist & slippage.
+* Vault just forwards the keeper-provided `allSwapData`.
+
+So the **contracts don’t compute swapData** — they only *consume* it.
+The keeper does all the heavy lifting off-chain (API calls, encoding).
+
+---
+
+### ✅ How Velvet does it
+
+Velvet Capital also relies on **off-chain automation**:
+
+* Their bots query **0x API** or **1inch API** to get routes.
+* They encode that into `bytes[] calldata swapData`.
+* Pass it into `harvest()` or `withdraw()` exactly like we’re designing.
+
+That’s why their contracts don’t show any price calculations inside — they offload that logic to the keeper.
+
+---
+
+👉 So to answer directly:
+
+* **No new function** is needed on your contracts.
+* Keeper learns amounts by reading `strategy.totalAssets()` and user withdraw size.
+* Keeper learns swap paths & minOut from **DEX aggregator APIs**.
+* Keeper encodes → passes into your existing `allSwapData`.
+
+---
+
+Do you want me to sketch out a **Node.js keeper bot script** that:
+
+1. Listens for `Withdraw` events,
+2. Calculates per-strategy amounts,
+3. Fetches routes from 1inch API,
+4. Encodes `swapData`, and
+5. Calls `Vault.withdraw()` automatically?

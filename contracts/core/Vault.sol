@@ -52,6 +52,7 @@ contract Vault {
         address indexed from,
         address indexed to,
         uint256 assets,
+        uint256 net,
         uint256 shares
     );
     event Withdraw(
@@ -132,7 +133,7 @@ contract Vault {
         if (entryFee > 0) IERC20(asset).transfer(fees.treasury(), entryFee);
         shares = convertToShares(net);
         _mint(receiver, shares);
-        emit Deposit(msg.sender, receiver, assets, shares);
+        emit Deposit(msg.sender, receiver, assets, net, shares);
     }
 
     function withdraw(
@@ -141,24 +142,46 @@ contract Vault {
         bytes[][] calldata allSwapData // keeper provides swap routes for each strategy
     ) external returns (uint256 assets) {
         require(balanceOf[msg.sender] >= shares, "BALANCE");
+
+        // Convert shares → assets owed
         assets = convertToAssets(shares);
+
+        // Burn shares first
         _burn(msg.sender, shares);
-        // try using idle cash first
+
+        // Idle balance available
         uint256 idle = _assetBal();
+
+        // Pro-rata withdrawals from strategies
+        uint256 totalGot = idle;
+
         if (idle < assets) {
-            // pull shortfall from strategies pro-rata (naive)
             uint256 shortfall = assets - idle;
-            for (uint256 i; i < strategies.length && shortfall > 0; i++) {
-                uint256 got = strategies[i].withdraw(shortfall, allSwapData[i]);
-                if (got > 0) {
-                    shortfall = shortfall > got ? shortfall - got : 0;
+
+            // Withdraw proportionally to each strategy's targetBps
+            for (uint256 i; i < strategies.length; i++) {
+                IStrategy s = strategies[i];
+                uint16 bps = targetBps[s];
+                if (bps == 0) continue;
+
+                // Strategy share of shortfall
+                uint256 stratShare = (shortfall * bps) / 1e4;
+
+                if (stratShare > 0) {
+                    uint256 got = s.withdraw(stratShare, allSwapData[i]);
+                    totalGot += got;
                 }
             }
         }
-        // compute exit fee on assets owed
+
+        // Compute exit fee
         (uint256 net, uint256 exitFee) = fees.takeExitFee(assets);
         if (exitFee > 0) IERC20(asset).transfer(fees.treasury(), exitFee);
+
+        // Pay user
+        require(totalGot >= assets, "WITHDRAW_FAILED");
         asset.safeTransfer(receiver, net);
+
         emit Withdraw(msg.sender, receiver, net, shares);
     }
 
@@ -319,11 +342,6 @@ contract Vault {
     function strategiesLength() external view returns (uint256) {
         return strategies.length;
     }
-
-    // function strategies(uint256 i) external view returns (IStrategy) {
-    //     return strategies[i];
-    // }
-
 
     function _hasStrategy(IStrategy s) internal view returns (bool) {
         for (uint256 i; i < strategies.length; i++)
