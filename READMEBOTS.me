@@ -3,7 +3,7 @@ Great question — this is where **the off-chain keeper/bot** comes in, and it�
 ---
 
 ### 🔑 How the keeper knows what `swapData` to provide
-
+{Soln1
 1. **Keeper watches on-chain state**
 
    * Reads `Vault.totalAssets()`
@@ -101,3 +101,83 @@ Do you want me to sketch out a **Node.js keeper bot script** that:
 3. Fetches routes from 1inch API,
 4. Encodes `swapData`, and
 5. Calls `Vault.withdraw()` automatically?
+}
+
+{Soln2
+  Perfect question 👍 This is exactly the tricky part of building a Velvet-style keeper. Let’s walk through how their keeper/bots actually know “how much fee” exists before calling `harvestAll()`:
+
+---
+
+### Step-by-step workflow (Velvet style)
+
+1. **Keeper simulates strategy balances off-chain**
+
+   * The bot queries the chain via JSON-RPC (using `eth_call`, not sending a tx).
+   * Example for UniswapV3Strategy:
+
+     * Call `pm.collect(CollectParams{ … recipient: strategy, amount0Max: max, amount1Max: max })` with `eth_call`.
+       Since it’s a view call (not mined), it **returns the expected fee0 and fee1** without moving tokens.
+     * Alternatively, read `tokensOwed0 / tokensOwed1` from `pm.positions(tokenId)` (Uniswap tracks pending fees in position state).
+   * Now the bot knows:
+     👉 e.g. `fee0 = 0.45 WETH, fee1 = 127 USDC`.
+
+2. **Keeper prepares swap data**
+
+   * With those token amounts, the bot calls a DEX aggregator API (1inch, 0x, Paraswap).
+   * Example: swap `0.45 WETH → USDC`.
+   * Aggregator returns:
+
+     * `router` address,
+     * encoded `routerCalldata` (with exact amountIn, path, etc.),
+     * recommended `minOut` to enforce slippage protection.
+   * Bot ABI-encodes this into the payload your `ExchangeHandler` expects:
+
+     ```js
+     abi.encode(
+       router,
+       WETH,
+       USDC,
+       amountIn,   // e.g. 0.45e18
+       minOut,     // aggregator suggested
+       strategy,   // recipient
+       routerData  // aggregator swap calldata
+     )
+     ```
+
+3. **Keeper calls Vault.harvestAll(allSwapData)**
+
+   * It builds `allSwapData` as an array of arrays:
+
+     * `[[], swapForUniswapV3, …]` (Aave has empty swaps, Uniswap has one or two swaps).
+   * Calls `harvestAll()` with that data.
+
+4. **Strategy executes**
+
+   * Inside `harvest()`, strategy does:
+
+     * `pm.collect()` → actually pulls fees into the contract.
+     * `_executeSwaps(swapData)` → forwards keeper-prepared payloads to ExchangeHandler.
+   * Because keeper already matched `amountIn` with expected balances, routerCalldata is valid.
+
+---
+
+### 🔑 Key insight
+
+* **The strategy itself never calculates fee amounts.**
+* **The keeper simulates them off-chain**, prepares calldata, and strategy just executes it.
+
+This way:
+
+* No mismatch between contract balances and calldata.
+* All slippage protection is off-chain (via aggregator quote).
+* Vault/Strategy stays generic.
+
+---
+
+👉 So to answer:
+Velvet Capital’s keeper **knows fees by simulating Uniswap’s collect() or reading position state**, then builds swapData accordingly. That’s why in your code `harvestAll(bytes[][] calldata allSwapData)` takes swap data as input — it expects the keeper to do all this prep.
+
+---
+
+Do you want me to write you a **Node.js keeper script skeleton** that shows how to simulate `collect()` and prepare the swap calldata for your `harvestAll()`? That way you’ll see exactly how Velvet’s bot does it.
+}

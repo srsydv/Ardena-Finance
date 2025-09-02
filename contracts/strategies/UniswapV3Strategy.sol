@@ -2,7 +2,6 @@
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
-
 import "../utils/v7/SafeTransferLibV7.sol";
 import "../interfaces/v7/IStrategyV7.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
@@ -15,8 +14,11 @@ interface IERC20 {
 
     function transfer(address, uint256) external returns (bool);
 
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) external returns (bool);
 
     function decimals() external view returns (uint8);
 }
@@ -89,11 +91,7 @@ interface INonfungiblePositionManager {
     )
         external
         payable
-        returns (
-            uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1
-        );
+        returns (uint128 liquidity, uint256 amount0, uint256 amount1);
 
     function decreaseLiquidity(
         DecreaseLiquidityParams calldata params
@@ -124,7 +122,6 @@ interface INonfungiblePositionManager {
         );
 }
 
-
 interface IUniswapV3Pool {
     function slot0()
         external
@@ -143,8 +140,6 @@ interface IUniswapV3Pool {
 
     function token1() external view returns (address);
 }
-
-
 
 /// @notice Strategy assumes `want` is either token0 or token1.
 /// Manager/keeper should prepare amounts (swap via ExchangeHandler) before calling deposit here.
@@ -310,7 +305,6 @@ contract UniswapV3Strategy is IStrategy {
         }
     }
 
-
     function withdraw(
         uint256 amountWant,
         bytes[] calldata swapData
@@ -369,7 +363,6 @@ contract UniswapV3Strategy is IStrategy {
         uint256 ratio = (amountWant * 1e18) / totalValue;
         return uint128((uint256(totalLiq) * ratio) / 1e18);
     }
-
 
     function withdrawAll()
         external
@@ -510,8 +503,30 @@ contract UniswapV3Strategy is IStrategy {
         bytes[] calldata swapCalldatas
     ) internal returns (uint256 totalOut) {
         for (uint i; i < swapCalldatas.length; i++) {
-            // Each swapCalldata is ABI-encoded (router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata)
-            // ExchangeHandler enforces router allow-list and pulls `amountIn` from *this* strategy balance.
+            (address router, address tokenIn, , uint256 amountIn, , , ) = abi
+                .decode(
+                    swapCalldatas[i],
+                    (
+                        address,
+                        address,
+                        address,
+                        uint256,
+                        uint256,
+                        address,
+                        bytes
+                    )
+                );
+
+            // Approve ExchangeHandler to pull tokens from THIS strategy
+            if (amountIn == 0 || amountIn == type(uint256).max) {
+                amountIn = IERC20(tokenIn).balanceOf(address(this));
+            }
+            if (amountIn > 0) {
+                IERC20(tokenIn).approve(address(exchanger), 0);
+                IERC20(tokenIn).approve(address(exchanger), amountIn);
+            }
+
+            // Call the exchanger
             uint256 out = exchanger.swap(swapCalldatas[i]);
             totalOut += out;
         }

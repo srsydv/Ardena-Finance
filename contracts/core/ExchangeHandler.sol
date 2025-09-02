@@ -60,24 +60,18 @@ contract ExchangeHandler is IExchangeHandler {
 
         require(routers[router], "ROUTER_NOT_ALLOWED");
 
-        // If keeper passed 0 or max, take full balance
         if (amountIn == 0 || amountIn == type(uint256).max) {
-            amountIn = IERC20(tokenIn).balanceOf(address(this));
+            amountIn = IERC20(tokenIn).balanceOf(msg.sender);
         }
-        require(amountIn > 0, "NO_BALANCE");
 
-        // Snapshot balance of tokenOut BEFORE swap
         uint256 balBefore = IERC20(tokenOut).balanceOf(to);
 
-        // Approve router to spend tokenIn
         tokenIn.safeApprove(router, 0);
         tokenIn.safeApprove(router, amountIn);
 
-        // Low-level call to router
         (bool ok, ) = router.call(routerCalldata);
         require(ok, "ROUTER_CALL_FAIL");
 
-        // Snapshot balance AFTER swap
         uint256 balAfter = IERC20(tokenOut).balanceOf(to);
 
         amountOut = balAfter - balBefore;
