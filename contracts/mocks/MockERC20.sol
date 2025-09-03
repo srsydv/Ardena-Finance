@@ -1,50 +1,27 @@
-// // SPDX-License-Identifier: MIT
-// pragma solidity ^0.8.24;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
 
-// contract MockERC20 {
-//     string public name;
-//     string public symbol;
-//     uint8 public immutable decimals;
-//     uint256 public totalSupply;
-//     mapping(address => uint256) public balanceOf;
-//     mapping(address => mapping(address => uint256)) public allowance;
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-//     constructor(string memory n, string memory s, uint8 d) {
-//         name = n; symbol = s; decimals = d;
-//     }
+/// @notice A simple mintable ERC20 for testing
+contract MockERC20 is ERC20 {
+    uint8 private _decimals;
 
-//     event Transfer(address indexed from, address indexed to, uint256 amount);
-//     event Approval(address indexed owner, address indexed spender, uint256 amount);
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        uint8 decimals_
+    ) ERC20(name_, symbol_) {
+        _decimals = decimals_;
+    }
 
-//     function approve(address sp, uint256 amt) external returns (bool) {
-//         allowance[msg.sender][sp] = amt;
-//         emit Approval(msg.sender, sp, amt);
-//         return true;
-//     }
+    /// @notice Override decimals to allow custom test tokens (USDC=6, DAI=18, etc.)
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
 
-//     function transfer(address to, uint256 amt) external returns (bool) {
-//         _transfer(msg.sender, to, amt);
-//         return true;
-//     }
-
-//     function transferFrom(address from, address to, uint256 amt) external returns (bool) {
-//         uint256 a = allowance[from][msg.sender];
-//         require(a >= amt, "ALLOW");
-//         if (a != type(uint256).max) allowance[from][msg.sender] = a - amt;
-//         _transfer(from, to, amt);
-//         return true;
-//     }
-
-//     function mint(address to, uint256 amt) external {
-//         totalSupply += amt;
-//         balanceOf[to] += amt;
-//         emit Transfer(address(0), to, amt);
-//     }
-
-//     function _transfer(address from, address to, uint256 amt) internal {
-//         require(balanceOf[from] >= amt, "BAL");
-//         balanceOf[from] -= amt;
-//         balanceOf[to] += amt;
-//         emit Transfer(from, to, amt);
-//     }
-// }
+    /// @notice Mint function for tests
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}

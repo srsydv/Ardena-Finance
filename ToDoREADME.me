@@ -7,3 +7,18 @@ swap function in ExchageSwap contact
         in harvest() keeper is putting amountIn=0 from frontend then from above code 
         amountIn would be autometically picked but even here it will be zero because 
         in ExchangeSwap contract there will be no wmount of token of tokenIn address.
+
+
+        Step 3: Find real contract addresses
+
+On Arbitrum One (2025, stable):
+
+USDC → 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
+
+Aave Pool v3 → 0x794a61358D6845594F94dc1DB02A252b5b4814aD
+
+aUSDC (Aave interest-bearing token) → 0x625E7708f30cA75bfd92586e17077590C60eb4cD
+
+Uniswap v3 NonfungiblePositionManager → 0xC36442b4a4522E871399CD717aBDD847Ab11FE88
+
+Uniswap v3 USDC/WETH pool (0.3%) → 0x905dfcd5649217c42684f23958568e533c711aa3

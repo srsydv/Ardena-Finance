@@ -6,22 +6,8 @@ import "../utils/v7/SafeTransferLibV7.sol";
 import "../interfaces/v7/IStrategyV7.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import "../interfaces/v7/IERC20V7.sol";
 
-interface IERC20 {
-    function balanceOf(address) external view returns (uint256);
-
-    function approve(address, uint256) external returns (bool);
-
-    function transfer(address, uint256) external returns (bool);
-
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) external returns (bool);
-
-    function decimals() external view returns (uint8);
-}
 
 interface IExchangeHandler {
     // Implemented in your repo; routes swaps through whitelisted routers
@@ -194,7 +180,7 @@ contract UniswapV3Strategy is IStrategy {
     function totalAssets() public view override returns (uint256) {
         // Value = current liquidity amounts + uncollected fees + idle want, all converted to `want`
         if (tokenId == 0) {
-            return IERC20(wantToken).balanceOf(address(this));
+            return IERC20V7(wantToken).balanceOf(address(this));
         }
 
         (
@@ -213,7 +199,7 @@ contract UniswapV3Strategy is IStrategy {
         ) = pm.positions(tokenId);
 
         if (liquidity == 0 && fees0 == 0 && fees1 == 0) {
-            return IERC20(wantToken).balanceOf(address(this));
+            return IERC20V7(wantToken).balanceOf(address(this));
         }
 
         // Get current price
@@ -237,7 +223,7 @@ contract UniswapV3Strategy is IStrategy {
             _convertToWant(token1, amt1);
 
         // Add idle want in the contract (e.g., dust from mint/collect)
-        valueInWant += IERC20(wantToken).balanceOf(address(this));
+        valueInWant += IERC20V7(wantToken).balanceOf(address(this));
 
         return valueInWant;
     }
@@ -251,15 +237,15 @@ contract UniswapV3Strategy is IStrategy {
         bytes[] calldata swaps
     ) external override onlyVault {
         if (amountWant > 0) {
-            IERC20(wantToken).transferFrom(vault, address(this), amountWant);
+            IERC20V7(wantToken).transferFrom(vault, address(this), amountWant);
         }
 
         _executeSwaps(swaps);
 
         address t0 = pool.token0();
         address t1 = pool.token1();
-        uint256 bal0 = IERC20(t0).balanceOf(address(this));
-        uint256 bal1 = IERC20(t1).balanceOf(address(this));
+        uint256 bal0 = IERC20V7(t0).balanceOf(address(this));
+        uint256 bal1 = IERC20V7(t1).balanceOf(address(this));
         require(bal0 > 0 || bal1 > 0, "NO_FUNDS");
 
         t0.safeApprove(address(pm), 0);
@@ -339,9 +325,9 @@ contract UniswapV3Strategy is IStrategy {
         );
 
         // 4. Swap everything to `want` (USDC) using keeper-provided calldata
-        uint256 before = IERC20(wantToken).balanceOf(address(this));
+        uint256 before = IERC20V7(wantToken).balanceOf(address(this));
         _executeSwaps(swapData); // keeper prepared calldata
-        uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
+        uint256 afterBal = IERC20V7(wantToken).balanceOf(address(this));
 
         withdrawn = afterBal > before ? afterBal - before : 0;
 
@@ -396,8 +382,8 @@ contract UniswapV3Strategy is IStrategy {
         address t0 = IUniswapV3Pool(pool).token0();
         address t1 = IUniswapV3Pool(pool).token1();
 
-        uint256 amt0 = out0 + fee0 + IERC20(t0).balanceOf(address(this));
-        uint256 amt1 = out1 + fee1 + IERC20(t1).balanceOf(address(this));
+        uint256 amt0 = out0 + fee0 + IERC20V7(t0).balanceOf(address(this));
+        uint256 amt1 = out1 + fee1 + IERC20V7(t1).balanceOf(address(this));
 
         withdrawn = _liquidateToWant(t0, t1, amt0, amt1, vault);
     }
@@ -419,13 +405,13 @@ contract UniswapV3Strategy is IStrategy {
         );
 
         // Step 2: Snapshot balance of want before swaps
-        uint256 before = IERC20(wantToken).balanceOf(address(this));
+        uint256 before = IERC20V7(wantToken).balanceOf(address(this));
 
         // Step 3: Swap all balances of token0/token1 → want using keeper-provided calldata
         _executeSwaps(swapData);
 
         // Step 4: Snapshot balance after swaps
-        uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
+        uint256 afterBal = IERC20V7(wantToken).balanceOf(address(this));
 
         // Step 5: Profit = net increase in want
         profit = afterBal > before ? afterBal - before : 0;
@@ -519,11 +505,11 @@ contract UniswapV3Strategy is IStrategy {
 
             // Approve ExchangeHandler to pull tokens from THIS strategy
             if (amountIn == 0 || amountIn == type(uint256).max) {
-                amountIn = IERC20(tokenIn).balanceOf(address(this));
+                amountIn = IERC20V7(tokenIn).balanceOf(address(this));
             }
             if (amountIn > 0) {
-                IERC20(tokenIn).approve(address(exchanger), 0);
-                IERC20(tokenIn).approve(address(exchanger), amountIn);
+                IERC20V7(tokenIn).approve(address(exchanger), 0);
+                IERC20V7(tokenIn).approve(address(exchanger), amountIn);
             }
 
             // Call the exchanger

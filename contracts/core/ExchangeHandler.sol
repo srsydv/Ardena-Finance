@@ -3,12 +3,9 @@ pragma solidity ^0.8.24;
 
 import "../interfaces/IExchangeHandler.sol";
 import "../utils/SafeTransferLib.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface IERC20 {
-    function balanceOf(address) external view returns (uint256);
 
-    function approve(address, uint256) external returns (bool);
-}
 
 contract ExchangeHandler is IExchangeHandler {
     using SafeTransferLib for address;
