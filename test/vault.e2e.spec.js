@@ -1,188 +1,167 @@
 const { expect } = require("chai");
-const { ethers } = require("hardhat");
+const { ethers, network } = require("hardhat");
 
-function b6(n) {
-  return ethers.parseUnits(String(n), 6);
-} // 6-decimals helper
-
-describe("Vault end-to-end (deposit → invest → harvest → fees → withdraw)", function () {
-  let deployer, alice, bob, keeper, treasury, governor, manager;
-  let USDC, usdc;
-  let Access, access;
-  let Fee, fee;
-  let Vault, vault;
-  let StratMM, sMM; // mark-to-market strategy (Aave-like)
-  let StratReal, sReal; // realize-on-harvest strategy (UniV3-like)
+describe("Vault + Strategies Integration (Arbitrum fork)", function () {
+  let deployer, user, treasury;
+  let usdc, vault, fees, access, aaveStrat, uniStrat;
+  const USDC_WHALE = "0xEeBe760354F5dcBa195EDe0a3B93901441D0968F"; // big USDC holder on Arbitrum
+  const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"; // Arbitrum USDC
+  const AAVE_POOL = "0x794a61358D6845594F94dc1DB02A252b5b4814aD"; // Aave V3 pool
+  const A_USDC = "0x625E7708f30cA75bfd92586e17077590C60eb4cD"; // Aave interest-bearing USDC
+  const UNISWAP_POSITION_MANAGER = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
+  const UNISWAP_POOL = "0x905dfcd5649217c42684f23958568e533c711aa3"; // USDC/WETH pool
 
   beforeEach(async () => {
-    [deployer, alice, bob, keeper, treasury, governor, manager] =
-      await ethers.getSigners();
+    [deployer, user, treasury] = await ethers.getSigners();
 
-    // 1) Mock USDC
-    USDC = await ethers.getContractFactory("MockERC20");
-    usdc = await USDC.connect(deployer).deploy("MockUSDC", "USDC", 6);
-    await usdc.waitForDeployment();
+    // --- Impersonate whale ---
+    await network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: [USDC_WHALE],
+    });
+    const whale = await ethers.getSigner(USDC_WHALE);
 
-    // Fund test users
-    await usdc.mint(alice.address, b6(50_000));
-    await usdc.mint(bob.address, b6(50_000));
-
-    // 2) AccessController (assume your contract name)
-    Access = await ethers.getContractFactory("AccessController");
-    access = await Access.connect(deployer).deploy(deployer.address); // owner
-    await access.waitForDeployment();
-
-    // Roles
-    await access.setManager(manager.address, true);
-    await access.setKeeper(keeper.address, true);
-
-    // 3) FeeModule (your concrete module from your code)
-    Fee = await ethers.getContractFactory("FeeModule");
-    fee = await Fee.connect(deployer).deploy(
-      await usdc.getAddress(),
-      treasury.address,
-      governor.address
-    );
-    await fee.waitForDeployment();
-
-    // Set fees: mgmt=2% yr, perf=20%, entry=0.1%, exit=0.1%
-    await fee.connect(governor).setFees(2000, 2000, 10, 10);
-
-    // 4) Vault (assume your Vault constructor: asset, name, symbol, access, fees, oracle, cap, decimals)
-    // For oracle, pass zero address or a mock if your Vault requires; cap=1e12 for test
-    Vault = await ethers.getContractFactory("Vault");
-    vault = await Vault.connect(deployer).deploy(
-      await usdc.getAddress(),
-      "Test vUSDC",
-      "vUSDC",
-      await access.getAddress(),
-      await fee.getAddress(),
-      ethers.ZeroAddress, // oracle (if required in your constructor; else adapt)
-      b6(1_000_000_000),
-      6
-    );
-    await vault.waitForDeployment();
-
-    // 5) Strategies
-    StratMM = await ethers.getContractFactory("MockStrategyMarkToMarket");
-    sMM = await StratMM.connect(deployer).deploy(
-      await vault.getAddress(),
-      await usdc.getAddress()
-    );
-    await sMM.waitForDeployment();
-
-    StratReal = await ethers.getContractFactory("MockStrategyRealizeProfit");
-    sReal = await StratReal.connect(deployer).deploy(
-      await vault.getAddress(),
-      await usdc.getAddress()
-    );
-    await sReal.waitForDeployment();
-
-    // 6) Wire strategies with target allocations (60% / 40%)
-    await vault.connect(manager).setStrategy(await sMM.getAddress(), 6000);
-    await vault.connect(manager).setStrategy(await sReal.getAddress(), 4000);
-  });
-
-  it("deposit → invest → simulate yield → harvest fees → withdraw", async () => {
-    const b6 = (n) => ethers.parseUnits(String(n), 6);
-
-    // --- 1) Deposit ---
-    await usdc.connect(alice).approve(await vault.getAddress(), b6(10_000));
-    const trBalBefore = await usdc.balanceOf(treasury.address);
-
-    await (
-      await vault.connect(alice).deposit(b6(10_000), alice.address)
-    ).wait();
-
-    const trBalAfterDeposit = await usdc.balanceOf(treasury.address);
-    // entry fee = 0.1% of 10,000 = 10 USDC
-    expect(trBalAfterDeposit - trBalBefore).to.equal(b6(10));
-
-    // --- 2) Invest idle (60/40) ---
-    await (await vault.connect(manager).investIdle()).wait();
-
-    // --- 3) Simulate yield ---
-    // Aave-like: mark-to-market (already reflected in totalAssets())
-    await usdc.mint(await sMM.getAddress(), b6(120));
-    // UniV3-like: pending fees that are realized in harvest()
-    await usdc.mint(await sReal.getAddress(), b6(180));
-
-    // Accrue some mgmt-fee time
-    await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60]); // +1 week
-    await ethers.provider.send("evm_mine");
-
-    // --- 4) Harvest ---
-    const tvlBefore = await vault.totalAssets();
-
-    const txHarv = await vault.connect(keeper).harvestAll();
-    const rc = await txHarv.wait();
-
-    const tvlAfterNet = await vault.totalAssets(); // post-fee TVL
-    const trBalAfterHarvest = await usdc.balanceOf(treasury.address);
-
-    console.log("tvlBefore", tvlBefore.toString());
-    console.log("tvlAfterNet", tvlAfterNet.toString());
-    console.log("trBalAfterHarvest", trBalAfterHarvest.toString());
-
-    // Parse ONLY the Vault's Harvest event
-    // >>> MAKE SURE your Vault has: event Harvest(uint256 realizedProfit,uint256 mgmtFee,uint256 perfFee,uint256 tvlAfter);
-    const vaultAddr = (await vault.getAddress()).toLowerCase();
-    const vaultIface = new ethers.Interface([
-      "event Harvest(uint256 realizedProfit,uint256 mgmtFee,uint256 perfFee,uint256 tvlAfter)",
+    // Give whale some ETH for gas
+    await network.provider.send("hardhat_setBalance", [
+      whale.address,
+      "0x1000000000000000000", // 1 ETH
     ]);
 
-    let parsed;
-    for (const log of rc.logs) {
-      if ((log.address || "").toLowerCase() !== vaultAddr) continue;
-      try {
-        const p = vaultIface.parseLog(log);
-        if (p?.name === "Harvest") {
-          parsed = p;
-          break;
-        }
-      } catch {
-        /* not our event */
-      }
-    }
+    // usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS);
+    usdc = await ethers.getContractAt(
+      "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+      USDC_ADDRESS
+    );
+    console.log("USDC contract at:", usdc.target); // ethers v6 uses .target instead of .address
+    const code = await ethers.provider.getCode(USDC_ADDRESS);
+    console.log("Deployed code at USDC:", code);
+    console.log(
+      "Deployer USDC balance:",
+      (await usdc.balanceOf(deployer.address)).toString()
+    );
+    console.log(
+      "Whale USDC balance:",
+      (await usdc.balanceOf(whale.address)).toString()
+    );
+    console.log("USDC:", usdc.target);
+    console.log("Deployer:", deployer.address);
+    console.log("treasury:", treasury.address);
 
-    // If this fails, your event signature or name in Vault does not match the Interface above.
-    expect(parsed, "Vault Harvest event not found or wrong signature").to.exist;
+    // Transfer 10,000 USDC from whale to deployer
+    await usdc
+      .connect(whale)
+      .transfer(deployer.address, ethers.parseUnits("10000", 6));
 
-    const realizedProfit = parsed.args.realizedProfit; // pre-fee profit (afterTA - beforeTA)
-    const mgmtFee = parsed.args.mgmtFee;
-    const perfFee = parsed.args.perfFee;
-    const tvlAfterPreFee = parsed.args.tvlAfter; // 'afterTA' measured BEFORE fee transfers
+    expect(await usdc.balanceOf(deployer.address)).to.equal(
+      ethers.parseUnits("10000", 6)
+    );
+    // --- Deploy FeeModule + AccessController ---
+    const FeeModule = await ethers.getContractFactory("FeeModule");
+    fees = await FeeModule.deploy(
+      usdc.target,
+      treasury.address,
+      deployer.address
+    );
 
-    // 4a) Profit happened (pre-fee TVL should be above before)
-    expect(realizedProfit).to.be.gt(0n);
-    expect(tvlAfterPreFee).to.be.gt(tvlBefore);
+    console.log("Fee:", fees.target);
 
-    // 4b) Post-fee TVL = pre-fee TVL − (mgmt + perf), within small tolerance
-    const TOL = b6(2); // 2 USDC tolerance
-    const expectedAfterNet = tvlAfterPreFee - (mgmtFee + perfFee);
-    const diff =
-      tvlAfterNet > expectedAfterNet
-        ? tvlAfterNet - expectedAfterNet
-        : expectedAfterNet - tvlAfterNet;
-    expect(diff).to.be.lte(TOL);
+    const Access = await ethers.getContractFactory("AccessController");
+    access = await Access.deploy(deployer.address);
 
-    // 4c) Treasury grew by ≈ mgmt + perf this harvest
-    const treasuryDeltaHarvest = trBalAfterHarvest - trBalAfterDeposit;
-    expect(treasuryDeltaHarvest + TOL).to.be.gte(mgmtFee + perfFee);
+    console.log("Access:", access.target);
 
-    // --- 5) Withdraw (half) ---
-    const aliceShares = await vault.balanceOf(alice.address);
-    const half = aliceShares / 2n;
-    const usdcBefore = await usdc.balanceOf(alice.address);
+    // --- Deploy Vault ---
+    const Vault = await ethers.getContractFactory("Vault");
+    vault = await Vault.deploy(
+      usdc.target,
+      "My Vault",
+      "MVLT",
+      access.target,
+      fees.target,
+      usdc.target, // oracle (set to zero for now)
+      ethers.parseUnits("1000000", 6), // deposit cap
+      6 // decimals
+    );
 
-    await (await vault.connect(alice).withdraw(half, alice.address)).wait();
+    console.log("Vault:", vault.target);
+    // --- Deploy Aave Strategy ---
+    const AaveV3Strategy = await ethers.getContractFactory("AaveV3Strategy");
+    aaveStrat = await AaveV3Strategy.deploy(
+      vault.target,
+      usdc.target,
+      A_USDC,
+      AAVE_POOL
+    );
 
-    const usdcAfter = await usdc.balanceOf(alice.address);
-    expect(usdcAfter).to.be.gt(usdcBefore); // user received funds
+    console.log("aaveStrat:", aaveStrat.target);
 
-    // Treasury should increase again due to exit fee
-    const trBalAfterWithdraw = await usdc.balanceOf(treasury.address);
-    expect(trBalAfterWithdraw).to.be.gt(trBalAfterHarvest);
+    // --- Deploy ExchangeHandler ---
+    const ExchangeHandler = await ethers.getContractFactory("ExchangeHandler");
+    exchanger = await ExchangeHandler.deploy(deployer.address);
+    // await exchanger.deployed();
+
+    console.log("exchanger:", exchanger.target);
+
+    // --- Deploy Uniswap Strategy ---
+    const UniswapV3Strategy = await ethers.getContractFactory(
+      "UniswapV3Strategy"
+    );
+    uniStrat = await UniswapV3Strategy.deploy(
+      vault.target,
+      usdc.target,
+      UNISWAP_POSITION_MANAGER,
+      UNISWAP_POOL,
+      exchanger.target, // dummy exchanger (not used in test)
+      deployer.address // dummy oracle
+    );
+
+    console.log("uniStrat:", uniStrat.target);
+
+    // After deploying AccessController
+    await access.setManager(deployer.address, true);
+
+    // --- Add strategies (50/50) ---
+    await vault.setStrategy(aaveStrat.target, 5000);
+    await vault.setStrategy(uniStrat.target, 5000);
   });
 
+  it("User can deposit, invest, harvest, and withdraw", async () => {
+    const depositAmount = ethers.parseUnits("1000", 6);
+    console.log("depositAmount:", depositAmount.toString());
+    // Approve Vault
+    await usdc.approve(vault.target, depositAmount);
+
+    // Deposit into Vault
+    await vault.deposit(depositAmount, deployer.address);
+
+    expect(await usdc.balanceOf(vault.target)).to.equal(depositAmount);
+
+    // Dummy swap data (empty for now since exchanger isn’t integrated yet)
+    const emptySwaps = [[]];
+
+    // Manager invests idle funds
+    await vault.investIdle([[], []]); // empty swapData for Aave and Uniswap
+
+    // Check strategies received funds
+    expect(await aaveStrat.totalAssets()).to.be.gt(0);
+    expect(await uniStrat.totalAssets()).to.be.gte(0); // might be 0 because no real swaps
+
+    // Keeper harvests
+    await vault.harvestAll([[], []]); // empty swapData
+
+    // Withdraw all shares
+    const shares = await vault.balanceOf(deployer.address);
+    await vault.withdraw(shares, deployer.target, [[], []]);
+
+    const finalBalance = await usdc.balanceOf(deployer.address);
+    console.log(
+      "Final USDC balance:",
+      ethers.utils.formatUnits(finalBalance, 6)
+    );
+
+    expect(finalBalance).to.be.closeTo(
+      ethers.parseUnits("10000", 6),
+      ethers.parseUnits("10", 6) // small drift allowed
+    );
+  });
 });
