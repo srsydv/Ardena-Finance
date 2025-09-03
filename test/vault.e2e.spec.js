@@ -4,7 +4,7 @@ const { ethers, network } = require("hardhat");
 describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   let deployer, user, treasury;
   let usdc, vault, fees, access, aaveStrat, uniStrat;
-  const USDC_WHALE = "0xEeBe760354F5dcBa195EDe0a3B93901441D0968F"; // big USDC holder on Arbitrum
+  const USDC_WHALE = "0x463f5D63e5a5EDB8615b0e485A090a18Aba08578"; // big USDC holder on Arbitrum
   const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"; // Arbitrum USDC
   const AAVE_POOL = "0x794a61358D6845594F94dc1DB02A252b5b4814aD"; // Aave V3 pool
   const A_USDC = "0x625E7708f30cA75bfd92586e17077590C60eb4cD"; // Aave interest-bearing USDC
@@ -33,12 +33,9 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       USDC_ADDRESS
     );
     console.log("USDC contract at:", usdc.target); // ethers v6 uses .target instead of .address
-    const code = await ethers.provider.getCode(USDC_ADDRESS);
-    console.log("Deployed code at USDC:", code);
-    console.log(
-      "Deployer USDC balance:",
-      (await usdc.balanceOf(deployer.address)).toString()
-    );
+    // const code = await ethers.provider.getCode(USDC_ADDRESS);
+    // console.log("Deployed code at USDC:", code);
+
     console.log(
       "Whale USDC balance:",
       (await usdc.balanceOf(whale.address)).toString()
@@ -51,6 +48,11 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     await usdc
       .connect(whale)
       .transfer(deployer.address, ethers.parseUnits("10000", 6));
+
+    console.log(
+      "Deployer USDC balance:",
+      (await usdc.balanceOf(deployer.address)).toString()
+    );
 
     expect(await usdc.balanceOf(deployer.address)).to.equal(
       ethers.parseUnits("10000", 6)
