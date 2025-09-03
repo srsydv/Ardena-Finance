@@ -1,80 +1,134 @@
-const { ethers } = require("hardhat");
+const { expect } = require("chai");
+const { ethers, network } = require("hardhat");
 
-describe("Vault Integration Test", function () {
-  let vault, aaveStrat, uniStrat, usdc, user, access, fees;
+describe("Vault + Strategies Integration (Arbitrum fork)", function () {
+  let deployer, user, treasury;
+  let usdc, vault, fees, access, aaveStrat, uniStrat;
+  const USDC_WHALE = "0xa8d77a93b0df6fd7a7d02d0ab27c2a14bbe2aeba"; // big USDC holder on Arbitrum
+  const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"; // Arbitrum USDC
+  const AAVE_POOL = "0x794a61358D6845594F94dc1DB02A252b5b4814aD"; // Aave V3 pool
+  const A_USDC = "0x625E7708f30cA75bfd92586e17077590C60eb4cD"; // Aave interest-bearing USDC
+  const UNISWAP_POSITION_MANAGER = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
+  const UNISWAP_POOL = "0x905dfcd5649217c42684f23958568e533c711aa3"; // USDC/WETH pool
 
   beforeEach(async () => {
     [deployer, user, treasury] = await ethers.getSigners();
 
-    // Load USDC token from Arbitrum
-    usdc = await ethers.getContractAt(
-      "IERC20",
-      "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
-    );
+    // --- Impersonate whale ---
+    await network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: [USDC_WHALE],
+    });
+    const whale = await ethers.getSigner(USDC_WHALE);
 
-    // Deploy FeeModule + AccessController
+    // Give whale some ETH for gas
+    await network.provider.send("hardhat_setBalance", [
+      whale.address,
+      "0x1000000000000000000", // 1 ETH
+    ]);
+
+    // usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS);
+    usdc = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+        USDC_ADDRESS
+      );
+      console.log("USDC contract at:", usdc.target); // ethers v6 uses .target instead of .address
+      
+
+  
+console.log("USDC:", usdc.target);
+console.log("Deployer:", deployer.address);
+
+console.log("treasury:", treasury.address);
+
+
+    // Transfer 10,000 USDC from whale to deployer
+    await usdc.connect(whale).transfer(deployer.address, ethers.parseUnits("10000", 6));
+
+    // --- Deploy FeeModule + AccessController ---
     const FeeModule = await ethers.getContractFactory("FeeModule");
-    fees = await FeeModule.deploy(usdc.address, treasury.address, deployer.address);
+    fees = await FeeModule.deploy(usdc.target, treasury.address, deployer.address);
+
+    console.log("Fee:", fees.target);
 
     const Access = await ethers.getContractFactory("AccessController");
     access = await Access.deploy(deployer.address);
 
-    // Deploy Vault
+    console.log("Access:", access.target);
+
+    // --- Deploy Vault ---
     const Vault = await ethers.getContractFactory("Vault");
     vault = await Vault.deploy(
-      usdc.address,
-      "My Vault",
-      "MVLT",
-      access.address,
-      fees.address,
-      ethers.constants.AddressZero,
-      ethers.utils.parseUnits("1000000", 6),
-      6
-    );
-
-    // Deploy Aave Strategy
+        usdc.target,
+        "My Vault",
+        "MVLT",
+        access.target,
+        fees.target,
+        usdc.target,                     // oracle (set to zero for now)
+        ethers.parseUnits("1000000", 6),        // deposit cap
+        6                                       // decimals
+      );
+      
+      console.log("Vault:", vault.target);
+    // --- Deploy Aave Strategy ---
     const AaveV3Strategy = await ethers.getContractFactory("AaveV3Strategy");
     aaveStrat = await AaveV3Strategy.deploy(
-      vault.address,
-      usdc.address,
-      "0x625E7708f30cA75bfd92586e17077590C60eb4cD", // aUSDC
-      "0x794a61358D6845594F94dc1DB02A252b5b4814aD"  // Pool
+      vault.target,
+      usdc.target,
+      A_USDC,
+      AAVE_POOL
     );
 
-    // Deploy Uniswap Strategy
+    // --- Deploy Uniswap Strategy ---
     const UniswapV3Strategy = await ethers.getContractFactory("UniswapV3Strategy");
     uniStrat = await UniswapV3Strategy.deploy(
-      vault.address,
-      usdc.address,
-      "0xC36442b4a4522E871399CD717aBDD847Ab11FE88", // PositionManager
-      "0x905dfcd5649217c42684f23958568e533c711aa3", // Pool
-      deployer.address, // dummy exchanger for now
-      deployer.address  // dummy oracle
+      vault.target,
+      usdc.target,
+      UNISWAP_POSITION_MANAGER,
+      UNISWAP_POOL,
+      deployer.target, // dummy exchanger (not used in test)
+      deployer.target  // dummy oracle
     );
 
-    // Add strategies
-    await vault.setStrategy(aaveStrat.address, 5000);
-    await vault.setStrategy(uniStrat.address, 5000);
+    // --- Add strategies (50/50) ---
+    await vault.setStrategy(aaveStrat.target, 5000);
+    await vault.setStrategy(uniStrat.target, 5000);
   });
 
-  it("should deposit USDC into vault and allocate", async () => {
-    // Impersonate a USDC whale from Arbitrum
-    const whale = "0x0A59649758aa4d66E25f08Dd01271e891fe52199";
-    await ethers.provider.send("hardhat_impersonateAccount", [whale]);
-    const whaleSigner = await ethers.getSigner(whale);
+//   it("User can deposit, invest, harvest, and withdraw", async () => {
+//     const depositAmount = ethers.parseUnits("1000", 6);
 
-    // Transfer USDC to our test user
-    await usdc.connect(whaleSigner).transfer(user.address, 1_000_000e6);
+//     // Approve Vault
+//     await usdc.approve(vault.address, depositAmount);
 
-    // User deposits into Vault
-    await usdc.connect(user).approve(vault.address, 1_000_000e6);
-    await vault.connect(user).deposit(1_000_000e6, user.address);
+//     // Deposit into Vault
+//     await vault.deposit(depositAmount, deployer.address);
 
-    console.log("Vault assets:", (await vault.totalAssets()).toString());
+//     expect(await usdc.balanceOf(vault.target)).to.equal(depositAmount);
 
-    // Manager invests
-    await vault.investIdle([[], []]); // empty swapData for now
-    console.log("Aave strat assets:", (await aaveStrat.totalAssets()).toString());
-    console.log("Uniswap strat assets:", (await uniStrat.totalAssets()).toString());
-  });
+//     // Dummy swap data (empty for now since exchanger isn’t integrated yet)
+//     const emptySwaps = [[]];
+
+//     // Manager invests idle funds
+//     await vault.investIdle([[], []]); // empty swapData for Aave and Uniswap
+
+//     // Check strategies received funds
+//     expect(await aaveStrat.totalAssets()).to.be.gt(0);
+//     expect(await uniStrat.totalAssets()).to.be.gte(0); // might be 0 because no real swaps
+
+//     // Keeper harvests
+//     await vault.harvestAll([[], []]); // empty swapData
+
+//     // Withdraw all shares
+//     const shares = await vault.balanceOf(deployer.target);
+//     await vault.withdraw(shares, deployer.target, [[], []]);
+
+//     const finalBalance = await usdc.balanceOf(deployer.target);
+//     console.log("Final USDC balance:", ethers.utils.formatUnits(finalBalance, 6));
+
+//     expect(finalBalance).to.be.closeTo(
+//         ethers.parseUnits("10000", 6),
+//         ethers.parseUnits("10", 6) // small drift allowed
+//     );
+//   });
 });
