@@ -11,6 +11,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   const A_USDC = "0x625E7708f30cA75bfd92586e17077590C60eb4cD"; // Aave interest-bearing USDC
   const UNISWAP_POSITION_MANAGER = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
   const UNISWAP_POOL = "0xC6962004f452bE9203591991D15f6b388e09E8D0"; // USDC/WETH pool
+  const CHAINLINK = "0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3";
   // routers
   const SUSHI_ROUTER = "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"; // UniswapV2-like
 
@@ -62,9 +63,15 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       (await usdc.balanceOf(deployer.address)).toString()
     );
 
+    const code = await ethers.provider.getCode(CHAINLINK);
+console.log("Oracle code:", code !== "0x" ? "exists" : "empty!");
+
     expect(await usdc.balanceOf(deployer.address)).to.equal(
       ethers.parseUnits("10000", 6)
     );
+
+    
+
     // --- Deploy FeeModule + AccessController ---
     const FeeModule = await ethers.getContractFactory("FeeModule");
     fees = await FeeModule.deploy(
@@ -122,7 +129,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       UNISWAP_POSITION_MANAGER,
       UNISWAP_POOL,
       exchanger.target, // dummy exchanger (not used in test)
-      deployer.address // dummy oracle
+      CHAINLINK // dummy oracle
     );
 
     console.log("uniStrat:", uniStrat.target);
