@@ -268,17 +268,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     // 5) Assertions – now UniV3 has USDC + WETH balances (no NO_FUNDS)
     expect(await uniStrat.totalAssets()).to.be.gt(0n);
-    // expect(await aaveStrat.totalAssets()).to.be.gt(0n);
-
-    // Dummy swap data (empty for now since exchanger isn’t integrated yet)
-    // const emptySwaps = [[]];
-
-    // // Manager invests idle funds
-    // await vault.investIdle([[], []]); // empty swapData for Aave and Uniswap
-
-    // Check strategies received funds
-    // expect(await aaveStrat.totalAssets()).to.be.gt(0);
-    // expect(await uniStrat.totalAssets()).to.be.gte(0); // might be 0 because no real swaps
+    expect(await aaveStrat.totalAssets()).to.be.gt(0n);
 
     // // Keeper harvests
     // await vault.harvestAll([[], []]); // empty swapData
