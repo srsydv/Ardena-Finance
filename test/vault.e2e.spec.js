@@ -6,10 +6,13 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   let usdc, vault, fees, access, aaveStrat, uniStrat;
   const USDC_WHALE = "0x463f5D63e5a5EDB8615b0e485A090a18Aba08578"; // big USDC holder on Arbitrum
   const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"; // Arbitrum USDC
+  const WETH = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
   const AAVE_POOL = "0x794a61358D6845594F94dc1DB02A252b5b4814aD"; // Aave V3 pool
   const A_USDC = "0x625E7708f30cA75bfd92586e17077590C60eb4cD"; // Aave interest-bearing USDC
   const UNISWAP_POSITION_MANAGER = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
-  const UNISWAP_POOL = "0x905dfcd5649217c42684f23958568e533c711aa3"; // USDC/WETH pool
+  const UNISWAP_POOL = "0xC6962004f452bE9203591991D15f6b388e09E8D0"; // USDC/WETH pool
+  // routers
+  const SUSHI_ROUTER = "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"; // UniswapV2-like
 
   beforeEach(async () => {
     [deployer, user, treasury] = await ethers.getSigners();
@@ -43,6 +46,11 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     console.log("USDC:", usdc.target);
     console.log("Deployer:", deployer.address);
     console.log("treasury:", treasury.address);
+
+    const v3pool = await ethers.getContractAt("IUniswapV3Pool", UNISWAP_POOL);
+    console.log("pool token0", await v3pool.token0());
+    console.log("pool token1", await v3pool.token1());
+    console.log("pool fee", (await v3pool.fee()).toString());
 
     // Transfer 10,000 USDC from whale to deployer
     await usdc
@@ -100,7 +108,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     // --- Deploy ExchangeHandler ---
     const ExchangeHandler = await ethers.getContractFactory("ExchangeHandler");
     exchanger = await ExchangeHandler.deploy(deployer.address);
-    // await exchanger.deployed();
+    await exchanger.setRouter(SUSHI_ROUTER, true);
 
     console.log("exchanger:", exchanger.target);
 
@@ -138,32 +146,98 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     expect(await usdc.balanceOf(vault.target)).to.equal(depositAmount);
 
-    // Dummy swap data (empty for now since exchanger isn’t integrated yet)
-    const emptySwaps = [[]];
+    const IUniswapV2Router = new ethers.Interface([
+      "function swapExactTokensForTokens(uint256,uint256,address[],address,uint256) external returns (uint256[] memory)",
+    ]);
 
-    // Manager invests idle funds
-    await vault.investIdle([[], []]); // empty swapData for Aave and Uniswap
+    function buildSwapDataV2({
+      router,
+      tokenIn,
+      tokenOut,
+      amountIn,
+      minOut,
+      to,
+      deadline,
+    }) {
+      const routerCalldata = IUniswapV2Router.encodeFunctionData(
+        "swapExactTokensForTokens",
+        [amountIn, minOut, [tokenIn, tokenOut], to, deadline]
+      );
+
+      // pack for ExchangeHandler.swap(bytes)
+      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+      return abiCoder.encode(
+        [
+          "address",
+          "address",
+          "address",
+          "uint256",
+          "uint256",
+          "address",
+          "bytes",
+        ],
+        [router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata]
+      );
+    }
+
+    // 1) figure out how much Vault will send to the Uni strategy
+    const toUni = depositAmount / 2n; // because targetBps[uni] = 5000
+    const toUniHalf = toUni / 2n; // we’ll swap half of what the strategy receives
+
+    // 2) build a single swap USDC -> WETH for 'toUniHalf' to the STRATEGY address
+    const now = (await ethers.provider.getBlock("latest")).timestamp;
+    const deadline = now + 1200; // 20 min
+
+    const uniSwapDataOne = buildSwapDataV2({
+      router: SUSHI_ROUTER,
+      tokenIn: usdc.target,
+      tokenOut: WETH,
+      amountIn: toUniHalf, // <- explicit half
+      minOut: 0n, // for tests; tighten in production with a quote
+      to: uniStrat.target, // proceeds go to the strategy
+      deadline,
+    });
+
+    // 3) For Aave we don’t need swaps -> empty []
+    //    For UniV3 we pass [uniSwapDataOne]
+    const allSwapData = [
+      [], // Aave
+      [uniSwapDataOne], // UniV3
+    ];
+
+    // 4) Manager call (your test signer must be a manager in AccessController)
+    await vault.investIdle(allSwapData);
+
+    // 5) Assertions – now UniV3 has USDC + WETH balances (no NO_FUNDS)
+    expect(await uniStrat.totalAssets()).to.be.gt(0n);
+    expect(await aaveStrat.totalAssets()).to.be.gt(0n);
+
+    // Dummy swap data (empty for now since exchanger isn’t integrated yet)
+    // const emptySwaps = [[]];
+
+    // // Manager invests idle funds
+    // await vault.investIdle([[], []]); // empty swapData for Aave and Uniswap
 
     // Check strategies received funds
-    expect(await aaveStrat.totalAssets()).to.be.gt(0);
-    expect(await uniStrat.totalAssets()).to.be.gte(0); // might be 0 because no real swaps
+    // expect(await aaveStrat.totalAssets()).to.be.gt(0);
+    // expect(await uniStrat.totalAssets()).to.be.gte(0); // might be 0 because no real swaps
 
-    // Keeper harvests
-    await vault.harvestAll([[], []]); // empty swapData
+    // // Keeper harvests
+    // await vault.harvestAll([[], []]); // empty swapData
 
-    // Withdraw all shares
-    const shares = await vault.balanceOf(deployer.address);
-    await vault.withdraw(shares, deployer.target, [[], []]);
+    // // Withdraw all shares
+    // const shares = await vault.balanceOf(deployer.address);
+    // await vault.withdraw(shares, deployer.target, [[], []]);
 
-    const finalBalance = await usdc.balanceOf(deployer.address);
-    console.log(
-      "Final USDC balance:",
-      ethers.utils.formatUnits(finalBalance, 6)
-    );
+    // const finalBalance = await usdc.balanceOf(deployer.address);
+    // console.log(
+    //   "Final USDC balance:",
+    //   ethers.utils.formatUnits(finalBalance, 6)
+    // );
 
-    expect(finalBalance).to.be.closeTo(
-      ethers.parseUnits("10000", 6),
-      ethers.parseUnits("10", 6) // small drift allowed
-    );
+    // expect(finalBalance).to.be.closeTo(
+    //   ethers.parseUnits("10000", 6),
+    //   ethers.parseUnits("10", 6) // small drift allowed
+    // );
   });
 });

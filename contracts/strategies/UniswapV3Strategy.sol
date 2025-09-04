@@ -8,7 +8,6 @@ import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import "../interfaces/v7/IERC20V7.sol";
 
-
 interface IExchangeHandler {
     // Implemented in your repo; routes swaps through whitelisted routers
     function swap(bytes calldata data) external returns (uint256 amountOut);
@@ -125,6 +124,10 @@ interface IUniswapV3Pool {
     function token0() external view returns (address);
 
     function token1() external view returns (address);
+
+    function fee() external view returns (uint24);
+
+    function tickSpacing() external view returns (int24);
 }
 
 /// @notice Strategy assumes `want` is either token0 or token1.
@@ -244,6 +247,8 @@ contract UniswapV3Strategy is IStrategy {
 
         address t0 = pool.token0();
         address t1 = pool.token1();
+        uint24 poolFee = pool.fee();
+        int24 spacing = pool.tickSpacing();
         uint256 bal0 = IERC20V7(t0).balanceOf(address(this));
         uint256 bal1 = IERC20V7(t1).balanceOf(address(this));
         require(bal0 > 0 || bal1 > 0, "NO_FUNDS");
@@ -256,15 +261,15 @@ contract UniswapV3Strategy is IStrategy {
         if (tokenId == 0) {
             // First deposit → mint a new position
             (, int24 currentTick, , , , , ) = pool.slot0();
-            int24 tickSpacing = 60;
-            int24 lower = (currentTick / tickSpacing - 100) * tickSpacing;
-            int24 upper = (currentTick / tickSpacing + 100) * tickSpacing;
+            // int24 tickSpacing = 60;
+            int24 lower = (currentTick / spacing - 100) * spacing;
+            int24 upper = (currentTick / spacing + 100) * spacing;
 
             (uint256 _tokenId, , , ) = pm.mint(
                 INonfungiblePositionManager.MintParams({
                     token0: t0,
                     token1: t1,
-                    fee: _poolFeeGuess(),
+                    fee: poolFee,
                     tickLower: lower,
                     tickUpper: upper,
                     amount0Desired: bal0,
@@ -421,11 +426,6 @@ contract UniswapV3Strategy is IStrategy {
     }
 
     // ---------------- Internals ----------------
-
-    function _poolFeeGuess() internal view returns (uint24) {
-        // TODO: set to actual pool fee tier (e.g., 500, 3000, or 10000).
-        return 3000;
-    }
 
     function _convertToWant(
         address token,

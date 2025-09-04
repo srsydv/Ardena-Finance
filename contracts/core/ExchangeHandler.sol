@@ -5,8 +5,6 @@ import "../interfaces/IExchangeHandler.sol";
 import "../utils/SafeTransferLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-
-
 contract ExchangeHandler is IExchangeHandler {
     using SafeTransferLib for address;
 
@@ -57,20 +55,34 @@ contract ExchangeHandler is IExchangeHandler {
 
         require(routers[router], "ROUTER_NOT_ALLOWED");
 
+        // If amountIn not provided, take caller's full balance (the strategy’s balance)
         if (amountIn == 0 || amountIn == type(uint256).max) {
             amountIn = IERC20(tokenIn).balanceOf(msg.sender);
         }
+        require(amountIn > 0, "NO_BALANCE");
 
+        // ***** NEW: pull the tokens from the strategy into the handler *****
+        // Strategy must have approved this handler for at least `amountIn`
+        bool okPull = IERC20(tokenIn).transferFrom(
+            msg.sender,
+            address(this),
+            amountIn
+        );
+        require(okPull, "PULL_FAIL");
+
+        // Snapshot BEFORE
         uint256 balBefore = IERC20(tokenOut).balanceOf(to);
 
+        // Approve router to spend handler's tokens
         tokenIn.safeApprove(router, 0);
         tokenIn.safeApprove(router, amountIn);
 
+        // Call the router with the pre-encoded calldata (swapExactTokensForTokens, etc.)
         (bool ok, ) = router.call(routerCalldata);
         require(ok, "ROUTER_CALL_FAIL");
 
+        // AFTER
         uint256 balAfter = IERC20(tokenOut).balanceOf(to);
-
         amountOut = balAfter - balBefore;
         require(amountOut >= minOut, "SLIPPAGE");
     }
