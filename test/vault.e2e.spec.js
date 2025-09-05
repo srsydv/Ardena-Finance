@@ -23,8 +23,8 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   // routers
   const SUSHI_ROUTER = "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506"; // UniswapV2-like
 
-  const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
-  const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
+  // const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
+  // const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
 
   beforeEach(async () => {
     [deployer, user, treasury] = await ethers.getSigners();
@@ -186,14 +186,27 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   });
 
   it("User can deposit, invest", async () => {
-    const QuoterV2ABI = [
-      "function quoteExactInputSingle((address,address,uint24,uint256,uint160)) external returns (uint256 amountOut)",
-    ];
+    const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
+  const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
+  const QuoterV2ABI = [
+    "function quoteExactInputSingle(tuple(address tokenIn,address tokenOut,uint24 fee,uint256 amountIn,uint160 sqrtPriceLimitX96) params) external view returns (uint256 amountOut)"
+  ];
+  
+  
+  
+  
     const SwapRouterABI = [
       "function exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160)) external payable returns (uint256 amountOut)",
     ];
 
-    const quoter = new ethers.Contract(QUOTER_V2, QuoterV2ABI, deployer);
+    const quoter = new ethers.Contract(QUOTER_V2, QuoterV2ABI, deployer.address);
+    console.log("deployerdeployer:", deployer.address);
+
+    const QUOTER_V2_code = await ethers.provider.getCode(QUOTER_V2);
+    console.log(
+      "QUOTER_V2 code:",
+      QUOTER_V2_code !== "0x" ? "QUOTER_V2exists" : "QUOTER_V2empty!"
+    );
 
     const depositAmount = ethers.parseUnits("1000", 6);
     console.log("depositAmount:", depositAmount.toString());
@@ -205,71 +218,153 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     expect(await usdc.balanceOf(vault.target)).to.equal(depositAmount);
 
-    const IUniswapV2Router = new ethers.Interface([
-      "function swapExactTokensForTokens(uint256,uint256,address[],address,uint256) external returns (uint256[] memory)",
-      "function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory)",
-    ]);
+    // const IUniswapV2Router = new ethers.Interface([
+    //   "function swapExactTokensForTokens(uint256,uint256,address[],address,uint256) external returns (uint256[] memory)",
+    //   "function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory)",
+    // ]);
 
-    function buildSwapDataV2({
-      router,
-      tokenIn,
-      tokenOut,
-      amountIn,
-      minOut,
-      to,
-      deadline,
-    }) {
-      const routerCalldata = IUniswapV2Router.encodeFunctionData(
-        "swapExactTokensForTokens",
-        [amountIn, minOut, [tokenIn, tokenOut], to, deadline]
-      );
+    // function buildSwapDataV2({
+    //   router,
+    //   tokenIn,
+    //   tokenOut,
+    //   amountIn,
+    //   minOut,
+    //   to,
+    //   deadline,
+    // }) {
+    //   const routerCalldata = IUniswapV2Router.encodeFunctionData(
+    //     "swapExactTokensForTokens",
+    //     [amountIn, minOut, [tokenIn, tokenOut], to, deadline]
+    //   );
 
       // pack for ExchangeHandler.swap(bytes)
-      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
-      return abiCoder.encode(
-        [
-          "address",
-          "address",
-          "address",
-          "uint256",
-          "uint256",
-          "address",
-          "bytes",
-        ],
-        [router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata]
-      );
-    }
+    //   const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+    //   return abiCoder.encode(
+    //     [
+    //       "address",
+    //       "address",
+    //       "address",
+    //       "uint256",
+    //       "uint256",
+    //       "address",
+    //       "bytes",
+    //     ],
+    //     [router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata]
+    //   );
+    // }
 
     // 1) figure out how much Vault will send to the Uni strategy
     const toUni = depositAmount / 2n; // because targetBps[uni] = 5000
     const toUniHalf = toUni / 2n; // we’ll swap half of what the strategy receives
 
+
+    const amountIn = toUniHalf;
+    console.log("amountInamountIn",amountIn);
+
+    const pool = await ethers.getContractAt("IUniswapV3Pool", UNISWAP_POOL);
+const poolFee = (await pool.fee());
+
+console.log("feeeeee",poolFee);
+console.log("usdc.target", usdc.target);
+
+// 2) confirm the pool you're targeting actually exists and its fee
+const factoryAddr = "0x1F98431c8aD98523631AE4a59f267346ea31F984"; // UniswapV3 factory (mainnet/Arbitrum)
+const factory = await ethers.getContractAt(
+  ["function getPool(address,address,uint24) view returns (address)"],
+  factoryAddr
+);
+const poolAddr = await factory.getPool(usdc.target, WETH, await (await ethers.getContractAt("IUniswapV3Pool", UNISWAP_POOL)).fee());
+console.log("factory.getPool returned:", poolAddr);
+console.log("expected UNISWAP_POOL:", UNISWAP_POOL);
+
+const paramsTuple = {
+  tokenIn: usdc,
+  tokenOut: WETH,
+  fee: poolFee,
+  amountIn: amountIn,
+  sqrtPriceLimitX96: 0,
+};
+
+const quoted2 = await quoter.callStatic[
+  "quoteExactInputSingle((address,address,uint24,uint256,uint160))"
+](paramsTuple);
+console.log("quoted2:", quoted2.toString());
+
+
+// 4) Make a simulated call to the Quoter (no tx, pure read)
+// const res = await ethers.provider.call({
+//   to: QUOTER_V2,
+//   data,
+// });
+
+// // 5) Decode the result and take the amountOut (first return value)
+// const decoded = quoterIface.decodeFunctionResult("quoteExactInputSingle", res);
+// // decoded is an array-like/tuple: [amountOut, gasEstimate, initializedTicksCrossed]
+// const quotedOut = decoded[0];
+
+
+// try {
+  // IMPORTANT: use callStatic to do a view-style call (no tx) which will not revert with gas issues
+//   quotedOut = await quoter.callStatic[
+//     "quoteExactInputSingle((address,address,uint24,uint256,uint160))"
+//   ](params);
+// } catch (err) {
+//   console.error("quoter failed:", err);
+//   throw err;
+// }
+
+// console.log("Quoted WETH out (raw):", quotedOut.toString());
+// console.log("Quoted WETH out (ETH):", ethers.formatEther(quotedOut));
+
+const minOut = (quotedOut * 95n) / 100n; // allow 5% slippage
+
     // 2) build a single swap USDC -> WETH for 'toUniHalf' to the STRATEGY address
-    const now = (await ethers.provider.getBlock("latest")).timestamp;
-    const deadline = now + 1200; // 20 min
+    // const now = (await ethers.provider.getBlock("latest")).timestamp;
+    // const deadline = now + 1200; // 20 min
+    const routerIface = new ethers.Interface(SwapRouterABI);
+const deadline = (await ethers.provider.getBlock("latest")).timestamp + 1200;
 
-    const router1 = new ethers.Contract(
-      SUSHI_ROUTER,
-      IUniswapV2Router,
-      deployer
-    );
-    const amountsOut = await router1.getAmountsOut(toUniHalf, [
-      usdc.target,
-      WETH,
-    ]);
-    console.log("Expected WETH out:", amountsOut[1].toString());
-    const quote = await router1.getAmountsOut(toUniHalf, [usdc.target, WETH]);
-    const minOut = (quote[1] * 95n) / 100n; // allow 5% slippage
+const swapCalldata = routerIface.encodeFunctionData("exactInputSingle", [[
+  usdc.target,
+  WETH,
+  500,                 // fee tier must match your UNISWAP_POOL
+  uniStrat.target,     // recipient is the strategy
+  deadline,
+  amountIn,
+  minOut,
+  0
+]]);
 
-    const uniSwapDataOne = buildSwapDataV2({
-      router: SUSHI_ROUTER,
-      tokenIn: usdc.target,
-      tokenOut: WETH,
-      amountIn: toUniHalf, // <- explicit half
-      minOut, // for tests; tighten in production with a quote
-      to: uniStrat.target, // proceeds go to the strategy
-      deadline,
-    });
+
+    // const router1 = new ethers.Contract(
+    //   SUSHI_ROUTER,
+    //   IUniswapV2Router,
+    //   deployer
+    // );
+    // const amountsOut = await router1.getAmountsOut(toUniHalf, [
+    //   usdc.target,
+    //   WETH,
+    // ]);
+    // console.log("Expected WETH out:", amountsOut[1].toString());
+    // const quote = await router1.getAmountsOut(toUniHalf, [usdc.target, WETH]);
+    // const minOut = (quote[1] * 95n) / 100n; // allow 5% slippage
+
+    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+const uniSwapDataOne = abiCoder.encode(
+  ["address","address","address","uint256","uint256","address","bytes"],
+  [SWAPROUTER_V2, usdc.target, WETH, amountIn, minOut, uniStrat.target, swapCalldata]
+);
+
+
+    // const uniSwapDataOne = buildSwapDataV2({
+    //   router: SUSHI_ROUTER,
+    //   tokenIn: usdc.target,
+    //   tokenOut: WETH,
+    //   amountIn: toUniHalf, // <- explicit half
+    //   minOut, // for tests; tighten in production with a quote
+    //   to: uniStrat.target, // proceeds go to the strategy
+    //   deadline,
+    // });
 
     // 3) For Aave we don’t need swaps -> empty []
     //    For UniV3 we pass [uniSwapDataOne]
@@ -309,21 +404,21 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     await usdc
       .connect(whale)
       .approve(SUSHI_ROUTER, ethers.parseUnits("1000000", 6));
-    const IUniswapV2Router02 = new ethers.Interface([
-      "function swapExactTokensForTokens(uint256 amountIn,uint256 amountOutMin,address[] calldata path,address to,uint256 deadline) external returns (uint256[] memory amounts)",
-    ]);
+    // const IUniswapV2Router02 = new ethers.Interface([
+    //   "function swapExactTokensForTokens(uint256 amountIn,uint256 amountOutMin,address[] calldata path,address to,uint256 deadline) external returns (uint256[] memory amounts)",
+    // ]);
 
-    const router = new ethers.Contract(SUSHI_ROUTER, IUniswapV2Router02, whale);
+    // const router = new ethers.Contract(SUSHI_ROUTER, IUniswapV2Router02, whale);
 
     // Do a big swap to simulate whale trading in the pool
     // const router = await ethers.getContractAt("IUniswapV2Router02", SUSHI_ROUTER);
-    await router.connect(whale).swapExactTokensForTokens(
-      ethers.parseUnits("1000000", 6), // 1000k USDC
-      0, // minOut
-      [usdc.target, WETH], // path
-      whale.address,
-      Math.floor(Date.now() / 1000) + 60 * 20
-    );
+    // await router.connect(whale).swapExactTokensForTokens(
+    //   ethers.parseUnits("1000000", 6), // 1000k USDC
+    //   0, // minOut
+    //   [usdc.target, WETH], // path
+    //   whale.address,
+    //   Math.floor(Date.now() / 1000) + 60 * 20
+    // );
 
     const vaultIdle = await usdc.balanceOf(vault.target);
     const vaultTVL = await vault.totalAssets();
@@ -388,58 +483,5 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     // Treasury balance snapshot (in want)
     const treasuryBal = await usdc.balanceOf(treasury.address);
   });
-  it("User can harvest, and withdraw", async () => {
-    // async function snapshotState() {
-    console.log(
-      "Aave totalAssets1:",
-      (await aaveStrat.totalAssets()).toString()
-    );
-    const vaultIdle = await usdc.balanceOf(vault.target);
-    const vaultTVL = await vault.totalAssets();
 
-    // Aave: aToken balance held by the strategy (interest accrues to aToken)
-    // The Aave strategy exposes aToken() in your test earlier — if not, derive from getReserveData
-    const aTokenAddr = await aaveStrat.aToken();
-    const aToken = await ethers.getContractAt(
-      "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-      aTokenAddr
-    );
-    const aTokenBal = await aToken.balanceOf(aaveStrat.target);
-
-    // Uniswap: idle want in strategy + LP position owed fees
-    const uniWantIdle = await usdc.balanceOf(uniStrat.target);
-    // if Uniswap strategy exposes tokenId
-    const tokenId = await uniStrat.tokenId();
-    console.log("tokenId", tokenId.toString());
-    let uniFees0 = 0n,
-      uniFees1 = 0n;
-    if (tokenId !== 0n) {
-      const pm = await ethers.getContractAt(
-        "INonfungiblePositionManager",
-        UNISWAP_POSITION_MANAGER
-      );
-      const pos = await pm.positions(tokenId);
-      // tokensOwed0 is pos[10], tokensOwed1 is pos[11] (per your interface)
-      uniFees0 = pos[10];
-      uniFees1 = pos[11];
-      console.log("uniFees0", uniFees0);
-      console.log("uniFees1", uniFees1);
-    }
-
-    // Treasury balance snapshot (in want)
-    const treasuryBal = await usdc.balanceOf(treasury.address);
-
-    //   return {
-    //     vaultIdle,
-    //     vaultTVL,
-    //     aTokenAddr,
-    //     aTokenBal,
-    //     uniWantIdle,
-    //     tokenId,
-    //     uniFees0,
-    //     uniFees1,
-    //     treasuryBal
-    //   };
-    // }
-  });
 });
