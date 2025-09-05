@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import "../utils/SafeTransferLib.sol";
 import "../interfaces/IStrategy.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 // Minimal Aave v3 types to read aToken from getReserveData
 library DataTypes {
@@ -83,7 +84,13 @@ contract AaveV3Strategy is IStrategy {
     }
 
     function totalAssets() public view override returns (uint256) {
-        return IERC20(aToken).balanceOf(address(this));
+        // return IERC20(aToken).balanceOf(address(this));
+        uint256 raw = IERC20(address(aToken)).balanceOf(address(this));
+
+    uint8 aDec = IERC20Metadata(address(aToken)).decimals();
+    uint8 wantDec = IERC20Metadata(wantToken).decimals();
+
+    return _scaleDecimals(raw, aDec, wantDec);
     }
 
     // --- Vault calls ---
@@ -121,4 +128,18 @@ contract AaveV3Strategy is IStrategy {
         // No manual harvest in Aave (interest auto-accrues)
         return 0;
     }
+
+    function _scaleDecimals(
+    uint256 amount,
+    uint8 fromDec,
+    uint8 toDec
+) internal pure returns (uint256) {
+    if (fromDec == toDec) return amount;
+    if (fromDec < toDec) {
+        return amount * (10 ** (toDec - fromDec));
+    } else {
+        return amount / (10 ** (fromDec - toDec));
+    }
+}
+
 }

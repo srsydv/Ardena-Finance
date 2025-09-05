@@ -434,13 +434,37 @@ contract UniswapV3Strategy is IStrategy {
         if (amount == 0) return 0;
         if (token == wantToken) return amount;
 
-        // Convert via USD as numeraire using oracle
+        //Find the decimals
+        uint8 tokenDec = IERC20V7(token).decimals();
+        uint8 wantDec = IERC20V7(wantToken).decimals();
+
+        // convert token amount to 18 decimals
+        uint256 amt18 = _scaleDecimals(amount, tokenDec, 18);
+
+        // Convert via USD as numeraire using oracle and get prices (both 1e18)
         uint256 pToken = oracle.price(token); // 1e18
         uint256 pWant = oracle.price(wantToken); // 1e18
         if (pToken == 0 || pWant == 0) return 0;
+
+        // value in want (scaled to 18 decimals)
+        uint256 value18 = (amt18 * pToken) / pWant;
         // value_in_want = amount * pToken / pWant (adjust for token decimals if needed)
-        return (amount * pToken) / pWant;
+        return _scaleDecimals(value18, 18, wantDec);
     }
+
+    function _scaleDecimals(
+    uint256 amount,
+    uint8 fromDec,
+    uint8 toDec
+) internal pure returns (uint256) {
+    if (fromDec == toDec) return amount;
+    if (fromDec < toDec) {
+        return amount * (10 ** (toDec - fromDec));
+    } else {
+        return amount / (10 ** (fromDec - toDec));
+    }
+}
+
 
     /// @dev Swap non-want balances to `want` and transfer to `to`.
     ///      Off-chain bots should prepare best-route `exchanger.swap(data)` calls.
