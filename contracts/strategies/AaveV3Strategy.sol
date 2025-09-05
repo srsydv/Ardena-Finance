@@ -87,10 +87,10 @@ contract AaveV3Strategy is IStrategy {
         // return IERC20(aToken).balanceOf(address(this));
         uint256 raw = IERC20(address(aToken)).balanceOf(address(this));
 
-    uint8 aDec = IERC20Metadata(address(aToken)).decimals();
-    uint8 wantDec = IERC20Metadata(wantToken).decimals();
+        uint8 aDec = IERC20Metadata(address(aToken)).decimals();
+        uint8 wantDec = IERC20Metadata(wantToken).decimals();
 
-    return _scaleDecimals(raw, aDec, wantDec);
+        return _scaleDecimals(raw, aDec, wantDec);
     }
 
     // --- Vault calls ---
@@ -130,16 +130,15 @@ contract AaveV3Strategy is IStrategy {
     }
 
     function _scaleDecimals(
-    uint256 amount,
-    uint8 fromDec,
-    uint8 toDec
-) internal pure returns (uint256) {
-    if (fromDec == toDec) return amount;
-    if (fromDec < toDec) {
-        return amount * (10 ** (toDec - fromDec));
-    } else {
-        return amount / (10 ** (fromDec - toDec));
+        uint256 amount,
+        uint8 fromDec,
+        uint8 toDec
+    ) internal pure returns (uint256) {
+        if (fromDec == toDec) return amount;
+        if (fromDec < toDec) {
+            return amount * (10 ** (toDec - fromDec));
+        } else {
+            return amount / (10 ** (fromDec - toDec));
+        }
     }
-}
-
 }

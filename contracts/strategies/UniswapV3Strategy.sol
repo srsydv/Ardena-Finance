@@ -453,18 +453,17 @@ contract UniswapV3Strategy is IStrategy {
     }
 
     function _scaleDecimals(
-    uint256 amount,
-    uint8 fromDec,
-    uint8 toDec
-) internal pure returns (uint256) {
-    if (fromDec == toDec) return amount;
-    if (fromDec < toDec) {
-        return amount * (10 ** (toDec - fromDec));
-    } else {
-        return amount / (10 ** (fromDec - toDec));
+        uint256 amount,
+        uint8 fromDec,
+        uint8 toDec
+    ) internal pure returns (uint256) {
+        if (fromDec == toDec) return amount;
+        if (fromDec < toDec) {
+            return amount * (10 ** (toDec - fromDec));
+        } else {
+            return amount / (10 ** (fromDec - toDec));
+        }
     }
-}
-
 
     /// @dev Swap non-want balances to `want` and transfer to `to`.
     ///      Off-chain bots should prepare best-route `exchanger.swap(data)` calls.
