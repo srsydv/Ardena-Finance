@@ -55,10 +55,10 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     // const code = await ethers.provider.getCode(USDC_ADDRESS);
     // console.log("Deployed code at USDC:", code);
 
-    // console.log(
-    //   "Whale USDC balance:",
-    //   (await usdc.balanceOf(whale.address)).toString()
-    // );
+    console.log(
+      "Whale USDC balance:",
+      (await usdc.balanceOf(whale.address)).toString()
+    );
     // console.log("USDC:", usdc.target);
     // console.log("Deployer:", deployer.address);
     // console.log("treasury:", treasury.address);
@@ -253,22 +253,179 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     // console.log("payload",payload);
     await exchanger.setRouter(quote.transaction.to, true);
 
-     // --- DEBUG BLOCK: inspect state, run investIdle and catch revert with revertData ---
-    console.log("==== DEBUG BEFORE investIdle ====");
-    console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
-    console.log("vault allowance -> aaveStrat:", (await usdc.allowance(vault.target, aaveStrat.target)).toString());
-    console.log("vault allowance -> uniStrat:", (await usdc.allowance(vault.target, uniStrat.target)).toString());
-    console.log("uniStrat USDC balance (before):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-    console.log("uniStrat allowance -> exchanger (before):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
-    console.log("exchanger USDC balance (before):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
-
     // now pack into allSwapData as before
     const allSwapData = [[], [payload]];
     await vault.investIdle(allSwapData);
 
-    console.log("Vault idle:", (await usdc.balanceOf(vault.target)).toString());
-    console.log("Aave aToken:", await aaveStrat.aToken()); // or reserveData check
-    console.log(
+
+    // const tx = await uniStrat.knowYourAssets();  
+    // const receipt = await tx.wait();
+  
+    // Parse logs for `totalAsset` event
+    // const iface = new ethers.Interface([
+    //   "event totalAsset(uint256 amt0, uint256 amt1, uint256 fees0, uint256 fees1)"
+    // ]);
+  
+    // for (const log of receipt.logs) {
+    //   try {
+    //     const parsed = iface.parseLog(log);
+    //     if (parsed.name === "totalAsset") {
+    //       console.log("Event values:");
+    //       console.log("amt0 (WETH raw):", parsed.args[0].toString());
+    //       console.log("amt1 (USDC raw):", parsed.args[1].toString());
+    //       console.log("fees0:", parsed.args[2].toString());
+    //       console.log("fees1:", parsed.args[3].toString());
+    //     }
+    //   } catch (err) {
+    //     // ignore unrelated logs
+    //   }
+    // }
+
+    // console.log("Vault idle:", (await usdc.balanceOf(vault.target)).toString());
+    // console.log("Aave aToken:", await aaveStrat.aToken()); // or reserveData check
+    // console.log(
+    //   "Uniswap totalAssets:",
+    //   (await uniStrat.totalAssets()).toString()
+    // );
+    // console.log(
+    //   "Aave totalAssets:",
+    //   (await aaveStrat.totalAssets()).toString()
+    // );
+
+
+
+    // const vaultTVL = await vault.totalAssets();
+
+    // console.log("vaultTVL (raw):", vaultTVL.toString());
+// console.log("vaultTVL (USDC):", ethers.formatUnits(vaultTVL, 6)); // USDC human-readable
+
+// console.log("Vault totalAssets (USDC):", ethers.formatUnits(await vault.totalAssets(), 6));
+// console.log("Aave strat assets:", ethers.formatUnits(await aaveStrat.totalAssets(), 6));
+// console.log("Uni strat assets:", ethers.formatUnits(await uniStrat.totalAssets(), 6));
+// console.log("Uni idle USDC:", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
+// console.log("Uni WETH balance:", ethers.formatEther(await ethers.getContractAt("IERC20", WETH).then(c => c.balanceOf(uniStrat.target))));
+
+
+//*********from here whale will trade into the same pool and we will earn some money **********/
+   
+// requires: axios installed, ethers, network from hardhat
+
+async function whaleExec0xSwap({
+  sellToken,
+  buyToken,
+  sellAmount,        // BigInt or string in minor units (e.g. "250000000")
+  whaleAddr,
+  chainId  ,   // Arbitrum
+  zeroXEndpoint ,
+  zeroXApiKey
+}) {
+  // 1) request 0x quote with taker=whale
+  const res = await axios.get(zeroXEndpoint, {
+    headers: {
+      "0x-api-key": zeroXApiKey,
+      "0x-version": "v2",
+    },
+    params: {
+      sellToken,
+      buyToken,
+      sellAmount: sellAmount.toString(),
+      taker: whaleAddr,
+      chainId
+    },
+  });
+
+  const quote = res.data;
+  if (!quote.liquidityAvailable) throw new Error("0x: liquidity not available");
+  // inspect route to ensure it's acceptable for your objectives
+  console.log("0x route summary:", {
+    sellToken: quote.sellToken,
+    buyToken: quote.buyToken,
+    buyAmount: quote.buyAmount,
+    minBuyAmount: quote.minBuyAmount,
+    routeTokensCount: quote.route?.tokens?.length || 0,
+    fillsCount: quote.route?.fills?.length || 0,
+  });
+
+  // Look into fills to see the sources used (e.g. "UniswapV3", "SushiSwap", aggregator names).
+  // If you need the trade to pass through *your specific pool* you can inspect fills[].type or fills[].router or fills[].poolAddress if provided by 0x.
+  console.log("fills:", quote.route?.fills?.map(f => ({source: f.source, pool: f.poolAddress || f.pool || f.router})) );
+
+  // 2) impersonate whale + top up ETH
+  await network.provider.request({
+    method: "hardhat_impersonateAccount", params: [whaleAddr]
+  });
+  const whaleSigner = await ethers.getSigner(whaleAddr);
+
+  // Give whale ETH for gas on hardhat
+  await network.provider.send("hardhat_setBalance", [whaleAddr, "0xDE0B6B3A7640000"]); // 1 ETH
+
+  // 3) Ensure allowanceTarget is approved (0x often needs allowanceTarget approval for token pulls)
+  // allowanceTarget is in quote.allowanceTarget
+  if (quote.allowanceTarget && quote.allowanceTarget !== ethers.ZeroAddress) {
+    const token = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", sellToken);
+    // Check current allowance
+    const current = await token.allowance(whaleAddr, quote.allowanceTarget);
+    if (BigInt(current.toString()) < BigInt(sellAmount.toString())) {
+      // approve from whale
+      const approveTx = await token.connect(whaleSigner).approve(quote.allowanceTarget, sellAmount.toString());
+      await approveTx.wait();
+      console.log("Approved allowanceTarget", quote.allowanceTarget);
+    } else {
+      console.log("Allowance already present");
+    }
+  } else {
+    console.log("No allowanceTarget provided by 0x (or zero address) — maybe quote is prebuilt.");
+  }
+
+  // 4) optionally verify quote.transaction.to == expected router address and route includes Uniswap V3 pool you want
+  console.log("quote.to:", quote.transaction.to);
+  // If you want to whitelist the router in your ExchangeHandler
+  try {
+    await exchanger.setRouter(quote.transaction.to, true);
+  } catch (e) {
+    // ignore if not relevant to your flow
+    console.log("setRouter may fail if not needed:", e.message);
+  }
+
+  // 5) Execute the raw transaction as the whale (send tx using quote.transaction.to + data)
+  const txReq = {
+    to: quote.transaction.to,
+    data: quote.transaction.data,
+    value: quote.transaction.value ? quote.transaction.value : 0
+  };
+  // If quote.transaction.gasPrice provided you can set gasPrice, but on forks default is fine.
+  console.log("Sending swap tx from whale:", txReq);
+  const tx = await whaleSigner.sendTransaction(txReq);
+  const receipt = await tx.wait();
+  console.log("Swap tx mined:", receipt.transactionHash);
+
+  // 6) Post-swap: check your LP tokensOwed for fees (position manager)
+  const pm = await ethers.getContractAt("INonfungiblePositionManager", UNISWAP_POSITION_MANAGER);
+  const tokenId = await uniStrat.tokenId(); // or whatever tokenId you want to check
+  const pos = await pm.positions(tokenId);
+  const tokensOwed0 = BigInt(pos[10].toString());
+  const tokensOwed1 = BigInt(pos[11].toString());
+
+  console.log("tokensOwed0:", tokensOwed0.toString(), "tokensOwed1:", tokensOwed1.toString());
+  return { quote, receipt, tokensOwed0, tokensOwed1 };
+}
+
+
+let res1 = await whaleExec0xSwap(usdc.target, WETH,3050173774855, whale.address, 42161, "https://api.0x.org/swap/allowance-holder/quote", process.env.ZeroXAPI )
+
+console.log("reeeeeeeee",res1)
+
+
+
+
+
+
+
+  });
+
+  it("User can deposit", async () => {
+
+ console.log(
       "Uniswap totalAssets:",
       (await uniStrat.totalAssets()).toString()
     );
@@ -276,129 +433,29 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       "Aave totalAssets:",
       (await aaveStrat.totalAssets()).toString()
     );
-
-
-
-    const vaultTVL = await vault.totalAssets();
-
-    console.log("vaultTVL (raw):", vaultTVL.toString());
-console.log("vaultTVL (USDC):", ethers.formatUnits(vaultTVL, 6)); // USDC human-readable
-
-console.log("Vault totalAssets (USDC):", ethers.formatUnits(await vault.totalAssets(), 6));
-console.log("Aave strat assets:", ethers.formatUnits(await aaveStrat.totalAssets(), 6));
-console.log("Uni strat assets:", ethers.formatUnits(await uniStrat.totalAssets(), 6));
-console.log("Uni idle USDC:", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-console.log("Uni WETH balance:", ethers.formatEther(await ethers.getContractAt("IERC20", WETH).then(c => c.balanceOf(uniStrat.target))));
-
-   
-
-      console.log("==== DEBUG AFTER investIdle (SUCCESS) ====");
-      console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
-      console.log("uniStrat USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-      console.log("uniStrat allowance -> exchanger (after):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
-      console.log("exchanger USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
-    // } catch (err) {
-    //   console.log("investIdle REVERT. raw err:", err.message || err);
-
-    //   // try to extract revert data
-    //   let revertData = null;
-    //   if (err && err.data) revertData = err.data;
-    //   else if (err && err.error && err.error.data) revertData = err.error.data;
-    //   else if (err && err.body) {
-    //     try {
-    //       const b = JSON.parse(err.body);
-    //       revertData = b && b.error && b.error.data ? b.error.data : null;
-    //     } catch (e) {}
-    //   }
-    //   console.log("investIdle revertData:", revertData);
-
-    //   // If there's revert data, try decode Error(string)
-    //   if (revertData && revertData !== "0x") {
-    //     try {
-    //       const reason = ethers.decodeErrorResult("Error(string)", revertData);
-    //       console.log("Decoded revert reason:", reason[0]);
-    //     } catch (e) {
-    //       try {
-    //         console.log("Revert utf8:", ethers.toUtf8String(revertData));
-    //       } catch (u) {
-    //         console.log("Couldn't decode revertData");
-    //       }
+    const tx = await uniStrat.knowYourAssets();  
+    const receipt = await tx.wait();
+    // console.log("receipt",receipt);
+  
+    // Parse logs for `totalAsset` event
+    // const iface = new ethers.Interface([
+    //   "event totalAsset(uint256 amt0, uint256 amt1, uint256 fees0, uint256 fees1)"
+    // ]);
+  
+    // for (const log of receipt.logs) {
+    //   try {
+    //     const parsed = iface.parseLog(log);
+    //     if (parsed.name === "totalAsset") {
+    //       console.log("Event values:");
+    //       console.log("amt0 (WETH raw):", parsed.args[0].toString());
+    //       console.log("amt1 (USDC raw):", parsed.args[1].toString());
+    //       console.log("fees0:", parsed.args[2].toString());
+    //       console.log("fees1:", parsed.args[3].toString());
     //     }
+    //   } catch (err) {
+    //     console.log("err:", err.message);
+    //     // ignore unrelated logs
     //   }
-
-    //   // print post-mortem balances anyway
-    //   console.log("==== DEBUG AFTER investIdle (REVERT) ====");
-    //   console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
-    //   console.log("uniStrat USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-    //   console.log("uniStrat allowance -> exchanger (after):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
-    //   console.log("exchanger USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
     // }
-
-    ///////
-
-    // const whale = await ethers.getSigner(USDC_WHALE);
-
-    // const vaultIdle = await usdc.balanceOf(vault.target);
-    // const vaultTVL = await vault.totalAssets();
-
-    // console.log("vaultTVL (raw):", vaultTVL.toString());
-    // console.log("vaultTVL (USDC):", ethers.formatUnits(vaultTVL, 6)); // USDC human-readable
-
-    // console.log(
-    //   "Vault totalAssets (USDC):",
-    //   ethers.formatUnits(await vault.totalAssets(), 6)
-    // );
-    // console.log(
-    //   "Aave strat assets:",
-    //   ethers.formatUnits(await aaveStrat.totalAssets(), 6)
-    // );
-    // console.log(
-    //   "Uni strat assets:",
-    //   ethers.formatUnits(await uniStrat.totalAssets(), 6)
-    // );
-    // console.log(
-    //   "Uni idle USDC:",
-    //   ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6)
-    // );
-    // console.log(
-    //   "Uni WETH balance:",
-    //   ethers.formatEther(
-    //     await ethers
-    //       .getContractAt("IERC20", WETH)
-    //       .then((c) => c.balanceOf(uniStrat.target))
-    //   )
-    // );
-
-    // // Aave: aToken balance held by the strategy (interest accrues to aToken)
-    // // The Aave strategy exposes aToken() in your test earlier — if not, derive from getReserveData
-    // const aTokenAddr = await aaveStrat.aToken();
-    // const aToken = await ethers.getContractAt(
-    //   "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-    //   aTokenAddr
-    // );
-    // const aTokenBal = await aToken.balanceOf(aaveStrat.target);
-
-    // // Uniswap: idle want in strategy + LP position owed fees
-    // const uniWantIdle = await usdc.balanceOf(uniStrat.target);
-    // // if Uniswap strategy exposes tokenId
-    // const tokenId = await uniStrat.tokenId();
-    // console.log("tokenId", tokenId.toString());
-    // let uniFees0 = 0n,
-    //   uniFees1 = 0n;
-    // if (tokenId !== 0n) {
-    //   const pm = await ethers.getContractAt(
-    //     "INonfungiblePositionManager",
-    //     UNISWAP_POSITION_MANAGER
-    //   );
-    //   const pos = await pm.positions(tokenId);
-    //   // tokensOwed0 is pos[10], tokensOwed1 is pos[11] (per your interface)
-    //   uniFees0 = pos[10];
-    //   uniFees1 = pos[11];
-    //   console.log("uniFees0", uniFees0);
-    //   console.log("uniFees1", uniFees1);
-    // }
-
-    // // Treasury balance snapshot (in want)
-    // const treasuryBal = await usdc.balanceOf(treasury.address);
   });
 });
