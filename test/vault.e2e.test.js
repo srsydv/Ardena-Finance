@@ -4,7 +4,6 @@ const fetch = require("node-fetch");
 const axios = require("axios");
 require("dotenv").config();
 
-
 describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   let deployer, user, treasury;
   let usdc, vault, fees, access, aaveStrat, uniStrat, mockRouter;
@@ -182,7 +181,6 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     // console.log("uniStrat:", uniStrat.target);
 
-
     // After deploying AccessController
     await access.setManager(deployer.address, true);
 
@@ -192,7 +190,6 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   });
 
   it("User can deposit, invest", async () => {
-
     // const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
     const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const UNISWAP_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
@@ -208,237 +205,236 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     expect(await usdc.balanceOf(vault.target)).to.equal(depositAmount);
 
+    // How much goes to Uni strategy (vault will send to strategy in investIdle)
+    const toUni = depositAmount / 2n; // 50% to uni strategy as per setStrategy
+    const toUniHalf = toUni / 2n; // we plan to swap half of strategy allocation to WETH
 
+    const axios = require("axios");
+    // const { ethers } = require("hardhat");
 
-// How much goes to Uni strategy (vault will send to strategy in investIdle)
-const toUni = depositAmount / 2n;       // 50% to uni strategy as per setStrategy
-const toUniHalf = toUni / 2n;           // we plan to swap half of strategy allocation to WETH
+    // Constants for Arbitrum
+    const ZEROX_ARBITRUM_QUOTE = "https://arbitrum.api.0x.org/swap/v1/quote";
+    // UniswapV3 quoter address used earlier in your tests (Arbitrum)
+    const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
+    // UniswapV3 Swap Router (periphery) — used only if falling back to building exactInputSingle calldata
+    // On Arbitrum common swap router: 0xE592427A0AEce92De3Edee1F18E0157C05861564 (mainnet UniswapV3 router) or your chosen router.
+    // Replace with the router you will actually call on the fork (or your mock router address)
+    const SWAP_ROUTER_V3 = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+    console.log("params", {
+      sellToken: usdc.target,
+      buyToken: WETH,
+      chainId: 42161,
+      sellAmount: toUniHalf.toString(),
+      taker: uniStrat.target,
+    });
+    const res = await axios.get(
+      "https://api.0x.org/swap/allowance-holder/quote",
+      {
+        headers: {
+          "0x-api-key": process.env.ZeroXAPI,
+          "0x-version": "v2",
+        },
+        params: {
+          sellAmount: toUniHalf.toString(),
+          taker: uniStrat.target,
+          chainId: 42161,
+          sellToken: usdc.target,
+          buyToken: WETH,
+        },
+      }
+    );
+    const quote = res.data;
 
-const axios = require("axios");
-// const { ethers } = require("hardhat");
+    // Pack into your ExchangeHandler format
+    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+    const payload = abiCoder.encode(
+      [
+        "address",
+        "address",
+        "address",
+        "uint256",
+        "uint256",
+        "address",
+        "bytes",
+      ],
+      [
+        quote.transaction.to, // router
+        usdc.target, // tokenIn
+        WETH, // tokenOut
+        toUniHalf, // amountIn
+        quote.minBuyAmount, // minOut
+        uniStrat.target, // recipient
+        quote.transaction.data, // raw calldata from 0x
+      ]
+    );
+    // console.log("payload",payload);
+    await exchanger.setRouter(quote.transaction.to, true);
+    // now pack into allSwapData as before
+    const allSwapData = [[], [payload]];
+    await vault.investIdle(allSwapData);
+    // console.log("used quoteSource:", quoteSource, "meta:", meta);
 
-// Constants for Arbitrum
-const ZEROX_ARBITRUM_QUOTE = "https://arbitrum.api.0x.org/swap/v1/quote";
-// UniswapV3 quoter address used earlier in your tests (Arbitrum)
-const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
-// UniswapV3 Swap Router (periphery) — used only if falling back to building exactInputSingle calldata
-// On Arbitrum common swap router: 0xE592427A0AEce92De3Edee1F18E0157C05861564 (mainnet UniswapV3 router) or your chosen router.
-// Replace with the router you will actually call on the fork (or your mock router address)
-const SWAP_ROUTER_V3 = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
-console.log("params",{sellToken: usdc.target,
-  buyToken: WETH,
-  chainId: 42161,
-  sellAmount: toUniHalf.toString(),
-  taker: uniStrat.target})
-const res = await axios.get("https://api.0x.org/swap/allowance-holder/quote", {
-  headers:{
-     "0x-api-key": process.env.ZeroXAPI ,
-  "0x-version": "v2"
-  },
-  params: {
-    sellAmount: toUniHalf.toString(),
-    taker: uniStrat.target,
-    chainId: 42161,
-    sellToken: usdc.target,
-    buyToken: WETH
-  }
-});
-const quote = res.data;
+    // async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) {
+    //   const url = "https://arbitrum.api.0x.org/swap/v1/quote";
 
+    //   const res = await axios.get(url, {
+    //     params: {
+    //       sellToken,
+    //       buyToken,
+    //       sellAmount: amountIn.toString(),
+    //       takerAddress: recipient
+    //     }
+    //   });
+    //   const quote = res.data;
 
+    //   const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+    //   const payload = abiCoder.encode(
+    //     ["address","address","address","uint256","uint256","address","bytes"],
+    //     [
+    //       quote.to,
+    //       sellToken,
+    //       buyToken,
+    //       amountIn,
+    //       quote.buyAmount,
+    //       recipient,
+    //       quote.data
+    //     ]
+    //   );
 
-// Pack into your ExchangeHandler format
-const abiCoder = ethers.AbiCoder.defaultAbiCoder();
-const payload = abiCoder.encode(
-  ["address","address","address","uint256","uint256","address","bytes"],
-  [
-    quote.transaction.to,           // router
-    usdc.target,        // tokenIn
-    WETH,               // tokenOut
-    toUniHalf,          // amountIn
-    quote.minBuyAmount,    // minOut
-    uniStrat.target,    // recipient
-    quote.transaction.data          // raw calldata from 0x
-  ]
-);
-// console.log("payload",payload);
-await exchanger.setRouter(quote.transaction.to, true);
-// now pack into allSwapData as before
-const allSwapData = [ [], [ payload ] ];
-await vault.investIdle(allSwapData);
-// console.log("used quoteSource:", quoteSource, "meta:", meta);
+    //   return { payload, quote };
+    // }
 
+    // const axios = require("axios");
 
-// async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) {
-//   const url = "https://arbitrum.api.0x.org/swap/v1/quote";
+    // const url1 = "https://arbitrum.api.0x.org/swap/v1/price";
+    // const res = await axios.get(url1, {
+    //   params: {
+    //     sellToken: usdc.target,
+    //     buyToken: WETH,
+    //     sellAmount: "1000000"
+    //   }
+    // });
+    // console.log(res.data);
 
-//   const res = await axios.get(url, {
-//     params: {
-//       sellToken,
-//       buyToken,
-//       sellAmount: amountIn.toString(),
-//       takerAddress: recipient
-//     }
-//   });
-//   const quote = res.data;
+    // async function debug0xQuote({ sellToken, buyToken, amountIn, takerAddress }) {
 
-//   const abiCoder = ethers.AbiCoder.defaultAbiCoder();
-//   const payload = abiCoder.encode(
-//     ["address","address","address","uint256","uint256","address","bytes"],
-//     [
-//       quote.to,
-//       sellToken,
-//       buyToken,
-//       amountIn,
-//       quote.buyAmount,
-//       recipient,
-//       quote.data
-//     ]
-//   );
+    //   const url = "https://arbitrum.api.0x.org/swap/v1/quote";
+    //   const params = {
+    //     sellToken: sellToken,
+    //     buyToken: buyToken,
+    //     sellAmount: amountIn.toString(), // MUST be string
+    //     // takerAddress: takerAddress,     // try with and without
+    //     // slippagePercentage: 0.01
+    //   };
 
-//   return { payload, quote };
-// }
+    //   console.log("0x quote request url:", url);
+    //   console.log("0x quote request params:", params);
 
-// const axios = require("axios");
+    //   try {
+    //     const resp = await axios.get(url, { params, timeout: 15000 });
+    //     console.log("0x quote status:", resp.status);
+    //     console.log("0x quote data keys:", Object.keys(resp.data));
+    //     // print smaller important fields
+    //     console.log("to:", resp.data.to);
+    //     console.log("buyAmount:", resp.data.buyAmount);
+    //     console.log("data length:", resp.data.data ? resp.data.data.length : 0);
+    //     return resp.data;
+    //   } catch (err) {
+    //     console.error("0x quote FAILED");
+    //     if (err.response) {
+    //       // server responded with non-2xx
+    //       console.error("status:", err.response.status);
+    //       console.error("headers:", err.response.headers && JSON.stringify(err.response.headers).slice(0, 200));
+    //       console.error("body:", err.response.data);
+    //     } else if (err.request) {
+    //       // request sent but no response
+    //       console.error("no response; request:", err.request);
+    //     } else {
+    //       // something else
+    //       console.error("err.message:", err.message);
+    //     }
+    //     throw err; // rethrow so your test stops here
+    //   }
+    // }
 
-// const url1 = "https://arbitrum.api.0x.org/swap/v1/price";
-// const res = await axios.get(url1, {
-//   params: {
-//     sellToken: usdc.target,
-//     buyToken: WETH,
-//     sellAmount: "1000000"
-//   }
-// });
-// console.log(res.data);
+    // console.log(">>> debug start");
+    // await debug0xQuote({
+    //   sellToken: usdc.target,
+    //   buyToken: WETH,
+    //   amountIn: (toUniHalf).toString(),
+    //   takerAddress: uniStrat.target
+    // });
+    // console.log(">>> debug end");
 
-// async function debug0xQuote({ sellToken, buyToken, amountIn, takerAddress }) {
+    // const { payload, quote } = await build0xSwapPayload({
+    //   sellToken: usdc.target,
+    //   buyToken: WETH,
+    //   amountIn: (toUniHalf).toString(),
+    //   recipient: uniStrat.target
+    // });
 
+    // --- DEBUG BLOCK: inspect state, run investIdle and catch revert with revertData ---
+    // console.log("==== DEBUG BEFORE investIdle ====");
+    // console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
+    // console.log("vault allowance -> aaveStrat:", (await usdc.allowance(vault.target, aaveStrat.target)).toString());
+    // console.log("vault allowance -> uniStrat:", (await usdc.allowance(vault.target, uniStrat.target)).toString());
+    // console.log("uniStrat USDC balance (before):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
+    // console.log("uniStrat allowance -> exchanger (before):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
+    // console.log("exchanger USDC balance (before):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
+    // console.log("exchanger allowance -> router (before):", (await usdc.allowance(exchanger.target, mockRouter.target)).toString());
+    // console.log("mockRouter WETH balance:", ethers.formatEther(await (await ethers.getContractAt("IERC20", WETH)).balanceOf(mockRouter.target)));
 
+    // try {
 
-//   const url = "https://arbitrum.api.0x.org/swap/v1/quote";
-//   const params = {
-//     sellToken: sellToken,
-//     buyToken: buyToken,
-//     sellAmount: amountIn.toString(), // MUST be string
-//     // takerAddress: takerAddress,     // try with and without
-//     // slippagePercentage: 0.01
-//   };
+    //   const tx = await vault.investIdle([[], [uniPayload]]);
+    //   const rc = await tx.wait();
+    //   console.log("investIdle OK tx:", rc.transactionHash);
 
-//   console.log("0x quote request url:", url);
-//   console.log("0x quote request params:", params);
+    //   console.log("==== DEBUG AFTER investIdle (SUCCESS) ====");
+    //   console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
+    //   console.log("uniStrat USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
+    //   console.log("uniStrat allowance -> exchanger (after):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
+    //   console.log("exchanger USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
+    // } catch (err) {
+    //   console.log("investIdle REVERT. raw err:", err.message || err);
 
-//   try {
-//     const resp = await axios.get(url, { params, timeout: 15000 });
-//     console.log("0x quote status:", resp.status);
-//     console.log("0x quote data keys:", Object.keys(resp.data));
-//     // print smaller important fields
-//     console.log("to:", resp.data.to);
-//     console.log("buyAmount:", resp.data.buyAmount);
-//     console.log("data length:", resp.data.data ? resp.data.data.length : 0);
-//     return resp.data;
-//   } catch (err) {
-//     console.error("0x quote FAILED");
-//     if (err.response) {
-//       // server responded with non-2xx
-//       console.error("status:", err.response.status);
-//       console.error("headers:", err.response.headers && JSON.stringify(err.response.headers).slice(0, 200));
-//       console.error("body:", err.response.data);
-//     } else if (err.request) {
-//       // request sent but no response
-//       console.error("no response; request:", err.request);
-//     } else {
-//       // something else
-//       console.error("err.message:", err.message);
-//     }
-//     throw err; // rethrow so your test stops here
-//   }
-// }
+    //   // try to extract revert data
+    //   let revertData = null;
+    //   if (err && err.data) revertData = err.data;
+    //   else if (err && err.error && err.error.data) revertData = err.error.data;
+    //   else if (err && err.body) {
+    //     try {
+    //       const b = JSON.parse(err.body);
+    //       revertData = b && b.error && b.error.data ? b.error.data : null;
+    //     } catch (e) {}
+    //   }
+    //   console.log("investIdle revertData:", revertData);
 
+    //   // If there's revert data, try decode Error(string)
+    //   if (revertData && revertData !== "0x") {
+    //     try {
+    //       const reason = ethers.decodeErrorResult("Error(string)", revertData);
+    //       console.log("Decoded revert reason:", reason[0]);
+    //     } catch (e) {
+    //       try {
+    //         console.log("Revert utf8:", ethers.toUtf8String(revertData));
+    //       } catch (u) {
+    //         console.log("Couldn't decode revertData");
+    //       }
+    //     }
+    //   }
 
-// console.log(">>> debug start");
-// await debug0xQuote({
-//   sellToken: usdc.target,
-//   buyToken: WETH,
-//   amountIn: (toUniHalf).toString(),
-//   takerAddress: uniStrat.target
-// });
-// console.log(">>> debug end");
+    //   // print post-mortem balances anyway
+    //   console.log("==== DEBUG AFTER investIdle (REVERT) ====");
+    //   console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
+    //   console.log("uniStrat USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
+    //   console.log("uniStrat allowance -> exchanger (after):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
+    //   console.log("exchanger USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
+    // }
 
-
-// const { payload, quote } = await build0xSwapPayload({
-//   sellToken: usdc.target,
-//   buyToken: WETH,
-//   amountIn: (toUniHalf).toString(),
-//   recipient: uniStrat.target
-// });
-
-
-// --- DEBUG BLOCK: inspect state, run investIdle and catch revert with revertData ---
-// console.log("==== DEBUG BEFORE investIdle ====");
-// console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
-// console.log("vault allowance -> aaveStrat:", (await usdc.allowance(vault.target, aaveStrat.target)).toString());
-// console.log("vault allowance -> uniStrat:", (await usdc.allowance(vault.target, uniStrat.target)).toString());
-// console.log("uniStrat USDC balance (before):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-// console.log("uniStrat allowance -> exchanger (before):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
-// console.log("exchanger USDC balance (before):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
-// console.log("exchanger allowance -> router (before):", (await usdc.allowance(exchanger.target, mockRouter.target)).toString());
-// console.log("mockRouter WETH balance:", ethers.formatEther(await (await ethers.getContractAt("IERC20", WETH)).balanceOf(mockRouter.target)));
-
-// try {
-
-  
-//   const tx = await vault.investIdle([[], [uniPayload]]);
-//   const rc = await tx.wait();
-//   console.log("investIdle OK tx:", rc.transactionHash);
-
-//   console.log("==== DEBUG AFTER investIdle (SUCCESS) ====");
-//   console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
-//   console.log("uniStrat USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-//   console.log("uniStrat allowance -> exchanger (after):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
-//   console.log("exchanger USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
-// } catch (err) {
-//   console.log("investIdle REVERT. raw err:", err.message || err);
-
-//   // try to extract revert data
-//   let revertData = null;
-//   if (err && err.data) revertData = err.data;
-//   else if (err && err.error && err.error.data) revertData = err.error.data;
-//   else if (err && err.body) {
-//     try {
-//       const b = JSON.parse(err.body);
-//       revertData = b && b.error && b.error.data ? b.error.data : null;
-//     } catch (e) {}
-//   }
-//   console.log("investIdle revertData:", revertData);
-
-//   // If there's revert data, try decode Error(string)
-//   if (revertData && revertData !== "0x") {
-//     try {
-//       const reason = ethers.decodeErrorResult("Error(string)", revertData);
-//       console.log("Decoded revert reason:", reason[0]);
-//     } catch (e) {
-//       try {
-//         console.log("Revert utf8:", ethers.toUtf8String(revertData));
-//       } catch (u) {
-//         console.log("Couldn't decode revertData");
-//       }
-//     }
-//   }
-
-//   // print post-mortem balances anyway
-//   console.log("==== DEBUG AFTER investIdle (REVERT) ====");
-//   console.log("vault USDC balance:", ethers.formatUnits(await usdc.balanceOf(vault.target), 6));
-//   console.log("uniStrat USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-//   console.log("uniStrat allowance -> exchanger (after):", (await usdc.allowance(uniStrat.target, exchanger.target)).toString());
-//   console.log("exchanger USDC balance (after):", ethers.formatUnits(await usdc.balanceOf(exchanger.target), 6));
-// }
-
-
-///////
+    ///////
 
     // const whale = await ethers.getSigner(USDC_WHALE);
-
-    
 
     // const vaultIdle = await usdc.balanceOf(vault.target);
     // const vaultTVL = await vault.totalAssets();
