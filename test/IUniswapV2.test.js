@@ -26,7 +26,6 @@
 //   const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
 //   const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
 
-
 //   beforeEach(async () => {
 //     [deployer, user, treasury] = await ethers.getSigners();
 
@@ -194,10 +193,9 @@
 //     const SwapRouterABI = [
 //       "function exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160)) external payable returns (uint256 amountOut)"
 //     ];
-    
+
 //     const quoter = new ethers.Contract(QUOTER_V2, QuoterV2ABI, deployer);
 
-    
 //     const depositAmount = ethers.parseUnits("1000", 6);
 //     // console.log("depositAmount:", depositAmount.toString());
 //     // Approve Vault
@@ -251,7 +249,6 @@
 //     const now = (await ethers.provider.getBlock("latest")).timestamp;
 //     const deadline = now + 1200; // 20 min
 
-
 //     const router1 = new ethers.Contract(SUSHI_ROUTER, IUniswapV2Router, deployer);
 //     const amountsOut = await router1.getAmountsOut(toUniHalf, [usdc.target, WETH]);
 //     console.log("Expected WETH out:", amountsOut[1].toString());
@@ -289,7 +286,6 @@
 //       (await aaveStrat.totalAssets()).toString()
 //     );
 
-
 //     // 5) Assertions – now UniV3 has USDC + WETH balances (no NO_FUNDS)
 //     expect(await uniStrat.totalAssets()).to.be.gt(0n);
 //     expect(await aaveStrat.totalAssets()).to.be.gt(0n);
@@ -311,7 +307,6 @@
 
 // const router = new ethers.Contract(SUSHI_ROUTER, IUniswapV2Router02, whale);
 
-
 // // Do a big swap to simulate whale trading in the pool
 // // const router = await ethers.getContractAt("IUniswapV2Router02", SUSHI_ROUTER);
 // await router.connect(whale).swapExactTokensForTokens(
@@ -322,15 +317,11 @@
 //   Math.floor(Date.now() / 1000) + 60 * 20
 // );
 
-
-
 //     const vaultIdle = await usdc.balanceOf(vault.target);
 //       const vaultTVL = await vault.totalAssets();
 
 //       console.log("vaultTVL (raw):", vaultTVL.toString());
 // console.log("vaultTVL (USDC):", ethers.formatUnits(vaultTVL, 6)); // USDC human-readable
-
-    
 
 // console.log("Vault totalAssets (USDC):", ethers.formatUnits(await vault.totalAssets(), 6));
 // console.log("Aave strat assets:", ethers.formatUnits(await aaveStrat.totalAssets(), 6));
@@ -338,13 +329,12 @@
 // console.log("Uni idle USDC:", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
 // console.log("Uni WETH balance:", ethers.formatEther(await ethers.getContractAt("IERC20", WETH).then(c => c.balanceOf(uniStrat.target))));
 
-
 //       // Aave: aToken balance held by the strategy (interest accrues to aToken)
 //       // The Aave strategy exposes aToken() in your test earlier — if not, derive from getReserveData
 //       const aTokenAddr = await aaveStrat.aToken();
 //       const aToken = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", aTokenAddr);
 //       const aTokenBal = await aToken.balanceOf(aaveStrat.target);
-    
+
 //       // Uniswap: idle want in strategy + LP position owed fees
 //       const uniWantIdle = await usdc.balanceOf(uniStrat.target);
 //       // if Uniswap strategy exposes tokenId
@@ -360,10 +350,9 @@
 //         console.log("uniFees0", uniFees0);
 //         console.log("uniFees1", uniFees1);
 //       }
-    
+
 //       // Treasury balance snapshot (in want)
 //       const treasuryBal = await usdc.balanceOf(treasury.address);
-    
 
 //   });
 //   it("User can harvest, and withdraw", async () => {
@@ -374,13 +363,13 @@
 //       );
 //       const vaultIdle = await usdc.balanceOf(vault.target);
 //       const vaultTVL = await vault.totalAssets();
-    
+
 //       // Aave: aToken balance held by the strategy (interest accrues to aToken)
 //       // The Aave strategy exposes aToken() in your test earlier — if not, derive from getReserveData
 //       const aTokenAddr = await aaveStrat.aToken();
 //       const aToken = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", aTokenAddr);
 //       const aTokenBal = await aToken.balanceOf(aaveStrat.target);
-    
+
 //       // Uniswap: idle want in strategy + LP position owed fees
 //       const uniWantIdle = await usdc.balanceOf(uniStrat.target);
 //       // if Uniswap strategy exposes tokenId
@@ -396,10 +385,10 @@
 //         console.log("uniFees0", uniFees0);
 //         console.log("uniFees1", uniFees1);
 //       }
-    
+
 //       // Treasury balance snapshot (in want)
 //       const treasuryBal = await usdc.balanceOf(treasury.address);
-    
+
 //     //   return {
 //     //     vaultIdle,
 //     //     vaultTVL,
@@ -412,6 +401,6 @@
 //     //     treasuryBal
 //     //   };
 //     // }
-    
+
 //   });
 // });
