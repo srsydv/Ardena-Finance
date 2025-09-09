@@ -11,6 +11,7 @@
 //             enabled: true,
 //             runs: 200,
 //           },
+//           viaIR: true,   // <--- add this line
 //         },
 //       },
 //       {
@@ -28,6 +29,7 @@
 
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+require("hardhat-tracer");
 
 module.exports = {
   solidity: {
@@ -69,7 +71,8 @@ module.exports = {
     hardhat: {
       forking: {
         url: process.env.ALCHEMY_ARBITRUM_URL, // your fork
-        blockNumber: 120000000, // optional
+        enabled: true
+        // blockNumber: 120000000, // optional
       },
     },
   },

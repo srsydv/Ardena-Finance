@@ -11,6 +11,8 @@ contract ExchangeHandler is IExchangeHandler {
     address public owner;
     event OwnerUpdated(address indexed);
     event RouterSet(address indexed router, bool allowed);
+    event SwapDebug(address router, address tokenIn, address tokenOut, uint256 amountIn, address to);
+
 
     // Whitelisted routers
     mapping(address => bool) public routers;
@@ -78,13 +80,26 @@ contract ExchangeHandler is IExchangeHandler {
         tokenIn.safeApprove(router, amountIn);
 
         // Call the router with the pre-encoded calldata (swapExactTokensForTokens, etc.)
-        (bool ok, ) = router.call(routerCalldata);
-        require(ok, "ROUTER_CALL_FAIL");
+        // (bool ok, ) = router.call(routerCalldata);
+        // require(ok, "ROUTER_CALL_FAIL");
+
+        // Call the router with the pre-encoded calldata (swapExactTokensForTokens, etc.)
+        (bool ok, bytes memory returnData) = router.call(routerCalldata);
+        if (!ok) {
+            // bubble revert reason from router if present
+            if (returnData.length > 0) {
+                assembly {
+                    revert(add(returnData, 32), mload(returnData))
+                }
+            }
+            revert("ROUTER_CALL_FAIL");
+        }
 
         // AFTER
         uint256 balAfter = IERC20(tokenOut).balanceOf(to);
         amountOut = balAfter - balBefore;
         require(amountOut >= minOut, "SLIPPAGE");
+        emit SwapDebug(router, tokenIn, tokenOut, amountIn, to);
     }
 
     function swapExact(

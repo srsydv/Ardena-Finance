@@ -22,6 +22,9 @@
     "@openzeppelin/contracts": "^5.4.0",
     "@uniswap/v3-core": "^1.0.1",
     "@uniswap/v3-periphery": "^1.4.4",
-    "dotenv": "^17.2.2"
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.2",
+    "hardhat-tracer": "^3.2.1",
+    "node-fetch": "^3.3.2"
   }
 }
