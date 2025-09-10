@@ -294,119 +294,117 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       ethers.formatEther(wethBal)
     );
 
-// Constants
+    // Constants
 
- // give uniStrat some ETH so it can pay gas
- await network.provider.request({
-  method: "hardhat_setBalance",
-  params: [USDC_WHALE_TWO, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
-});
+    // give uniStrat some ETH so it can pay gas
+    await network.provider.request({
+      method: "hardhat_setBalance",
+      params: [USDC_WHALE_TWO, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
+    });
 
-// impersonate the account
-await network.provider.request({
-  method: "hardhat_impersonateAccount",
-  params: [USDC_WHALE_TWO],
-});
-const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // official V3 router
-const UNISWAP_POOL = "0xC6962004f452bE9203591991D15f6b388e09E8D0";     // USDC/WETH pool
-const poolFee = 500; // you confirmed this is the fee tier
-const whale = await ethers.getSigner(USDC_WHALE);
-const whale2 = await ethers.getSigner(USDC_WHALE_TWO);
+    // impersonate the account
+    await network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: [USDC_WHALE_TWO],
+    });
+    const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // official V3 router
+    const UNISWAP_POOL = "0xC6962004f452bE9203591991D15f6b388e09E8D0"; // USDC/WETH pool
+    const poolFee = 500; // you confirmed this is the fee tier
+    const whale = await ethers.getSigner(USDC_WHALE);
+    const whale2 = await ethers.getSigner(USDC_WHALE_TWO);
 
-// const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS, whale);
-const amountIn = ethers.parseUnits("1000000", 6); // whale will trade 1000 USDC
+    // const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS, whale);
+    const amountIn = ethers.parseUnits("1000000", 6); // whale will trade 1000 USDC
 
-// const SWAP_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // replace with the router you plan to call on fork
-const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
-const iface = new ethers.Interface(artifact.abi);
+    // const SWAP_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // replace with the router you plan to call on fork
+    const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
+    const iface = new ethers.Interface(artifact.abi);
 
-const usdcContract = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
-await usdcContract.connect(whale).approve(UNISWAP_V3_ROUTER, amountIn);
-await usdcContract.connect(whale2).approve(UNISWAP_V3_ROUTER, amountIn);
+    const usdcContract = await ethers.getContractAt(
+      "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+      usdc.target
+    );
+    await usdcContract.connect(whale).approve(UNISWAP_V3_ROUTER, amountIn);
+    await usdcContract.connect(whale2).approve(UNISWAP_V3_ROUTER, amountIn);
 
-const params = {
-  tokenIn: USDC_ADDRESS,
-  tokenOut: WETH,
-  fee: poolFee,
-  recipient: USDC_WHALE,
-  deadline: Math.floor(Date.now()/1000) + 60*20,
-  amountIn: amountIn,
-  amountOutMinimum: 0n,
-  sqrtPriceLimitX96: 0n
-};
+    const params = {
+      tokenIn: USDC_ADDRESS,
+      tokenOut: WETH,
+      fee: poolFee,
+      recipient: USDC_WHALE,
+      deadline: Math.floor(Date.now() / 1000) + 60 * 20,
+      amountIn: amountIn,
+      amountOutMinimum: 0n,
+      sqrtPriceLimitX96: 0n,
+    };
 
+    const calldata = iface.encodeFunctionData("exactInputSingle", [params]);
 
-const calldata = iface.encodeFunctionData("exactInputSingle", [params]);
+    const IUniswapV3PoolABI = [
+      "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
+      "function token0() view returns (address)",
+      "function token1() view returns (address)",
+      "function fee() view returns (uint24)",
+      "function liquidity() view returns (uint128)",
+    ];
 
-const IUniswapV3PoolABI = [
-  "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
-  "function token0() view returns (address)",
-  "function token1() view returns (address)",
-  "function fee() view returns (uint24)",
-  "function liquidity() view returns (uint128)"
-];
+    // Instantiate pool contract (this is the step you were missing)
+    const pool = await ethers.getContractAt(IUniswapV3PoolABI, UNISWAP_POOL);
 
-// Instantiate pool contract (this is the step you were missing)
-const pool = await ethers.getContractAt(IUniswapV3PoolABI, UNISWAP_POOL);
+    const slot0 = await pool.slot0();
+    console.log("Current tick:", slot0.tick.toString());
+    // console.log("your tickLower:", tickLower.toString(), "tickUpper:", tickUpper.toString());
+    const poolFee1 = await pool.fee();
+    console.log("fee:", poolFee1.toString());
+    // simulate call
+    // 6) Simulate via provider.call from whale
+    try {
+      const sim = await ethers.provider.call({
+        to: UNISWAP_V3_ROUTER,
+        data: calldata,
+        from: whale.address,
+        // value: 0 // only set value if swapping ETH
+      });
+      console.log("Sim returned (hex):", sim);
 
-const slot0 = await pool.slot0();
-console.log("Current tick:", slot0.tick.toString());
-// console.log("your tickLower:", tickLower.toString(), "tickUpper:", tickUpper.toString());
-const poolFee1 = await pool.fee();
-console.log( "fee:", poolFee1.toString());
-// simulate call
-// 6) Simulate via provider.call from whale
-try {
-  const sim = await ethers.provider.call({
-    to: UNISWAP_V3_ROUTER,
-    data: calldata,
-    from: whale.address,
-    // value: 0 // only set value if swapping ETH
-  });
-  console.log("Sim returned (hex):", sim);
+      console.log(
+        "Sim success — router would not revert for these exact params."
+      );
+    } catch (err) {
+      console.error("Sim reverted — full error:", err);
+      // attempt to show revert data if present
+      if (err && err.data) {
+        console.error("revert data (hex):", err.data);
+      }
+    }
 
-  console.log("Sim success — router would not revert for these exact params.");
-} catch (err) {
-  console.error("Sim reverted — full error:", err);
-  // attempt to show revert data if present
-  if (err && err.data) {
-    console.error("revert data (hex):", err.data);
-  }
-}
+    try {
+      const sim = await ethers.provider.call({
+        to: UNISWAP_V3_ROUTER,
+        data: calldata,
+        from: whale2.address,
+        // value: 0 // only set value if swapping ETH
+      });
+      console.log("Sim returned (hex):", sim);
 
+      console.log(
+        "Sim success — router would not revert for these exact params."
+      );
+    } catch (err) {
+      console.error("Sim reverted — full error:", err);
+      // attempt to show revert data if present
+      if (err && err.data) {
+        console.error("revert data (hex):", err.data);
+      }
+    }
 
-try {
-  const sim = await ethers.provider.call({
-    to: UNISWAP_V3_ROUTER,
-    data: calldata,
-    from: whale2.address,
-    // value: 0 // only set value if swapping ETH
-  });
-  console.log("Sim returned (hex):", sim);
-
-  console.log("Sim success — router would not revert for these exact params.");
-} catch (err) {
-  console.error("Sim reverted — full error:", err);
-  // attempt to show revert data if present
-  if (err && err.data) {
-    console.error("revert data (hex):", err.data);
-  }
-}
-
-
-
-await mineBlocks(10);
-
-
-
-    
+    await mineBlocks(10);
 
     // Give whale some ETH for gas
     await network.provider.send("hardhat_setBalance", [
       whale.address,
       "0x1000000000000000000", // 1 ETH
     ]);
-
 
     // require at top of file: const { ethers, network } = require("hardhat");
 
