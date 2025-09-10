@@ -5,6 +5,7 @@ const axios = require("axios");
 require("dotenv").config();
 
 describe("Vault + Strategies Integration (Arbitrum fork)", function () {
+  this.timeout(200_000);
   let deployer, user, treasury;
   let usdc, vault, fees, access, aaveStrat, uniStrat, mockRouter;
   const USDC_WHALE = "0x463f5D63e5a5EDB8615b0e485A090a18Aba08578"; // big USDC holder on Arbitrum
@@ -190,6 +191,8 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   });
 
   it("User can deposit, invest", async () => {
+
+    this.timeout(180_000);
     // const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
     const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const UNISWAP_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
@@ -210,6 +213,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     const toUniHalf = toUni / 2n; // we plan to swap half of strategy allocation to WETH
 
     const axios = require("axios");
+    console.log("before axios");
     const res = await axios.get(
       "https://api.0x.org/swap/allowance-holder/quote",
       {
@@ -224,9 +228,13 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
           sellToken: usdc.target,
           buyToken: WETH,
         },
+        timeout: 200000
       }
     );
     const quote = res.data;
+    console.log("After axios");
+
+    console.log("quote.transaction.to for investIdle()", quote.transaction.to)
 
     // Pack into your ExchangeHandler format
     const abiCoder = ethers.AbiCoder.defaultAbiCoder();
@@ -255,7 +263,14 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     // now pack into allSwapData as before
     const allSwapData = [[], [payload]];
+    console.log("!Excuting vault.investIdle()")
     await vault.investIdle(allSwapData);
+    console.log("!Excuted vault.investIdle()")
+
+    const weth = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", WETH);
+    const usdcBal = await usdc.balanceOf(uniStrat.target);
+  const wethBal = await weth.balanceOf(uniStrat.target);
+  console.log("uniStrat balances after collect -> USDC after investIdle:", ethers.formatUnits(usdcBal, 6), "WETH:", ethers.formatEther(wethBal));
 
 
     // const tx = await uniStrat.knowYourAssets();  
@@ -319,60 +334,96 @@ async function whaleExec0xSwap({
   zeroXEndpoint ,
   zeroXApiKey
 }) {
-  // 1) request 0x quote with taker=whale
-  const res = await axios.get(zeroXEndpoint, {
-    headers: {
-      "0x-api-key": zeroXApiKey,
-      "0x-version": "v2",
-    },
-    params: {
-      sellToken,
-      buyToken,
-      sellAmount: sellAmount.toString(),
-      taker: whaleAddr,
-      chainId
-    },
-  });
 
+
+
+  // params: {
+  //   sellAmount: toUniHalf.toString(),
+  //   taker: uniStrat.target,
+  //   chainId: 42161,
+  //   sellToken: usdc.target,
+  //   buyToken: WETH,
+  // },
+  // const whaleSigner = await ethers.getSigner(whale.address);
+  // const token = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
+  // const approveTx = await token.connect(whaleSigner).approve("0x0000000000001ff3684f28c67538d4d072c22734", "25127259878587");
+  // await approveTx.wait();
+
+  console.log("before axios");
+  const res = await axios.get(
+    "https://api.0x.org/swap/allowance-holder/quote",
+    {
+      headers: {
+        "0x-api-key": process.env.ZeroXAPI,
+        "0x-version": "v2",
+      },
+      params: {
+        sellAmount: "10127259800",
+        taker: USDC_WHALE,
+        chainId: 42161,
+        sellToken: usdc.target,
+        buyToken: WETH,
+      },
+      timeout: 200000
+    }
+  );
   const quote = res.data;
+  console.log("After axios");
+
   if (!quote.liquidityAvailable) throw new Error("0x: liquidity not available");
-  // inspect route to ensure it's acceptable for your objectives
-  console.log("0x route summary:", {
-    sellToken: quote.sellToken,
-    buyToken: quote.buyToken,
-    buyAmount: quote.buyAmount,
-    minBuyAmount: quote.minBuyAmount,
-    routeTokensCount: quote.route?.tokens?.length || 0,
-    fillsCount: quote.route?.fills?.length || 0,
-  });
+  // // inspect route to ensure it's acceptable for your objectives
+  // console.log("0x route summary:", {
+  //   sellToken: quote.sellToken,
+  //   buyToken: quote.buyToken,
+  //   buyAmount: quote.buyAmount,
+  //   minBuyAmount: quote.minBuyAmount,
+  //   routeTokensCount: quote.route?.tokens?.length || 0,
+  //   fillsCount: quote.route?.fills?.length || 0,
+  // });
 
   // Look into fills to see the sources used (e.g. "UniswapV3", "SushiSwap", aggregator names).
   // If you need the trade to pass through *your specific pool* you can inspect fills[].type or fills[].router or fills[].poolAddress if provided by 0x.
-  console.log("fills:", quote.route?.fills?.map(f => ({source: f.source, pool: f.poolAddress || f.pool || f.router})) );
+  // console.log("fills:", quote.route?.fills?.map(f => ({source: f.source, pool: f.poolAddress || f.pool || f.router})) );
 
   // 2) impersonate whale + top up ETH
-  await network.provider.request({
-    method: "hardhat_impersonateAccount", params: [whaleAddr]
-  });
-  const whaleSigner = await ethers.getSigner(whaleAddr);
+  // await network.provider.request({
+  //   method: "hardhat_impersonateAccount", params: [whaleAddr]
+  // });
+  const whaleSigner = await ethers.getSigner(whale.address);
 
-  // Give whale ETH for gas on hardhat
-  await network.provider.send("hardhat_setBalance", [whaleAddr, "0xDE0B6B3A7640000"]); // 1 ETH
+  // // Give whale ETH for gas on hardhat
+  // await network.provider.send("hardhat_setBalance", [whaleAddr.address, "0xDE0B6B3A7640000"]); // 1 ETH
 
   // 3) Ensure allowanceTarget is approved (0x often needs allowanceTarget approval for token pulls)
   // allowanceTarget is in quote.allowanceTarget
+
+
   if (quote.allowanceTarget && quote.allowanceTarget !== ethers.ZeroAddress) {
-    const token = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", sellToken);
+    const token = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
+    const whaleBal = await token.balanceOf(USDC_WHALE);
+    console.log("Whale USDC balance:---", whaleBal.toString());
+
+    const currentAllowance = await token.allowance(USDC_WHALE, quote.allowanceTarget);
+  console.log("Current allowance:", currentAllowance.toString());
+
     // Check current allowance
-    const current = await token.allowance(whaleAddr, quote.allowanceTarget);
-    if (BigInt(current.toString()) < BigInt(sellAmount.toString())) {
+    const current = await token.allowance(whale.address, quote.allowanceTarget);
+    // if (BigInt(current.toString()) < BigInt(whaleBal)) {
       // approve from whale
-      const approveTx = await token.connect(whaleSigner).approve(quote.allowanceTarget, sellAmount.toString());
+      const approveTx = await token.connect(whaleSigner).approve(quote.allowanceTarget, whaleBal);
       await approveTx.wait();
       console.log("Approved allowanceTarget", quote.allowanceTarget);
-    } else {
-      console.log("Allowance already present");
-    }
+
+      const AfterAllowance = await token.allowance(USDC_WHALE, quote.allowanceTarget);
+  console.log("After allowance:", AfterAllowance.toString());
+    // } else {
+    //   console.log("Allowance already present");
+    // }
+    const weth = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", WETH);
+    const usdcBal = await usdc.balanceOf(uniStrat.target);
+  const wethBal = await weth.balanceOf(uniStrat.target);
+  console.log("uniStrat balances after collect -> USDC:", ethers.formatUnits(usdcBal, 6), "WETH:", ethers.formatEther(wethBal));
+
   } else {
     console.log("No allowanceTarget provided by 0x (or zero address) — maybe quote is prebuilt.");
   }
@@ -380,25 +431,57 @@ async function whaleExec0xSwap({
   // 4) optionally verify quote.transaction.to == expected router address and route includes Uniswap V3 pool you want
   console.log("quote.to:", quote.transaction.to);
   // If you want to whitelist the router in your ExchangeHandler
-  try {
-    await exchanger.setRouter(quote.transaction.to, true);
-  } catch (e) {
-    // ignore if not relevant to your flow
-    console.log("setRouter may fail if not needed:", e.message);
-  }
-
+  // try {
+  //   await exchanger.setRouter(quote.transaction.to, true);
+  // } catch (e) {
+  //   // ignore if not relevant to your flow
+  //   console.log("setRouter may fail if not needed:", e.message);
+  // }
+console.log("quote.transaction.value",quote.transaction.value)
   // 5) Execute the raw transaction as the whale (send tx using quote.transaction.to + data)
   const txReq = {
     to: quote.transaction.to,
     data: quote.transaction.data,
-    value: quote.transaction.value ? quote.transaction.value : 0
+    value: quote.transaction.value
+    ? BigInt(quote.transaction.value)
+    : undefined,
   };
+
+
   // If quote.transaction.gasPrice provided you can set gasPrice, but on forks default is fine.
-  console.log("Sending swap tx from whale:", txReq);
+  // console.log("Sending swap tx from whale:", txReq);
   const tx = await whaleSigner.sendTransaction(txReq);
   const receipt = await tx.wait();
   console.log("Swap tx mined:", receipt.transactionHash);
+//////////////
 
+
+
+// assume `tx` is the TransactionResponse returned by sendTransaction
+console.log("tx status:", receipt.status, "blockNumber", receipt.blockNumber);
+console.log("logs length:", receipt.logs.length);
+
+// Decode Swap events for your pool
+const swapIface = new ethers.Interface([
+  "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)"
+]);
+
+const poolAddr = UNISWAP_POOL.toLowerCase();
+for (const log of receipt.logs) {
+  if (log.address.toLowerCase() === poolAddr) {
+    try {
+      const parsed = swapIface.parseLog(log);
+      console.log("Found Swap on pool:", parsed.args);
+    } catch (e) {
+      console.log("Found log for pool but failed to parse:", e);
+    }
+  }
+}
+
+
+
+
+//////////////////
   // 6) Post-swap: check your LP tokensOwed for fees (position manager)
   const pm = await ethers.getContractAt("INonfungiblePositionManager", UNISWAP_POSITION_MANAGER);
   const tokenId = await uniStrat.tokenId(); // or whatever tokenId you want to check
@@ -410,10 +493,106 @@ async function whaleExec0xSwap({
   return { quote, receipt, tokensOwed0, tokensOwed1 };
 }
 
+const whale = await ethers.getSigner(USDC_WHALE);
 
-let res1 = await whaleExec0xSwap(usdc.target, WETH,3050173774855, whale.address, 42161, "https://api.0x.org/swap/allowance-holder/quote", process.env.ZeroXAPI )
+    // Give whale some ETH for gas
+    await network.provider.send("hardhat_setBalance", [
+      whale.address,
+      "0x1000000000000000000", // 1 ETH
+    ]);
+let res1 = await whaleExec0xSwap(usdc.target, WETH, "25127259878587", whale.address, 42161, "https://api.0x.org/swap/allowance-holder/quote", process.env.ZeroXAPI )
 
-console.log("reeeeeeeee",res1)
+// console.log("reeeeeeeee",res1)     
+
+
+
+// require at top of file: const { ethers, network } = require("hardhat");
+
+async function collectFeesAndShow() {
+  const pm = await ethers.getContractAt("INonfungiblePositionManager", UNISWAP_POSITION_MANAGER);
+  const usdc = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", USDC_ADDRESS);
+  const weth = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", WETH);
+
+  const tokenId = await uniStrat.tokenId();
+  console.log("tokenId:", tokenId.toString());
+
+  // 1) show position storage BEFORE collect
+  const posBefore = await pm.positions(tokenId);
+  console.log("position before (liquidity,fees):", {
+    liquidity: posBefore[7].toString(),
+    tokensOwed0: posBefore[10].toString(),
+    tokensOwed1: posBefore[11].toString(),
+    tickLower: posBefore[5].toString(),
+    tickUpper: posBefore[6].toString()
+  });
+
+  // 2) impersonate uniStrat (position owner) and fund it with ETH for gas
+  await network.provider.request({ method: "hardhat_impersonateAccount", params: [uniStrat.target] });
+  // const uniSigner = await ethers.getSigner(uniStrat.target);
+
+  const uniAddress = uniStrat.target;
+
+// give uniStrat some ETH so it can pay gas
+await network.provider.request({
+  method: "hardhat_setBalance",
+  params: [uniAddress, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
+});
+
+// impersonate the account
+await network.provider.request({
+  method: "hardhat_impersonateAccount",
+  params: [uniAddress],
+});
+const uniSigner = await ethers.getSigner(uniAddress);
+
+  // 3) collect (max amounts)
+  const max128 = (BigInt(1) << 128n) - 1n; // uint128 max
+
+  let tx;
+  try {
+    // Preferred: pass struct-like object (named fields)
+    tx = await pm.connect(uniSigner).collect({
+      tokenId: tokenId,
+      recipient: uniAddress,
+      amount0Max: max128,
+      amount1Max: max128
+    });
+  } catch (err1) {
+    console.log("collect(object) failed, trying tuple/positional form (err1.message):", err1.message);
+
+    try {
+      // Alternative: pass as tuple array [tokenId, recipient, amount0Max, amount1Max]
+      tx = await pm.connect(uniSigner).collect([tokenId, uniAddress, max128, max128]);
+    } catch (err2) {
+      console.error("collect(tuple) also failed:", err2);
+      throw err2; // rethrow so test shows it
+    }
+  }
+  // const collectTx = await pm.connect(uniSigner).collect({
+  //   tokenId: tokenId,
+  //   recipient: uniStrat.target,
+  //   amount0Max: max128,
+  //   amount1Max: max128
+  // });
+  // const rec = await collectTx.wait();
+  // console.log("collect tx mined:", rec.transactionHash, "status:", rec.status);
+
+  // 4) position storage AFTER collect (tokensOwed fields should be zeroed or smaller)
+  const posAfter = await pm.positions(tokenId);
+  console.log("position after (liquidity,fees):", {
+    liquidity: posAfter[7].toString(),
+    tokensOwed0: posAfter[10].toString(),
+    tokensOwed1: posAfter[11].toString()
+  });
+
+  // 5) balances on the uniStrat contract after collect
+  const usdcBal = await usdc.balanceOf(uniStrat.target);
+  const wethBal = await weth.balanceOf(uniStrat.target);
+  console.log("uniStrat balances after collect -> USDC:", ethers.formatUnits(usdcBal, 6), "WETH:", ethers.formatEther(wethBal));
+}
+
+
+await collectFeesAndShow()
 
 
 
