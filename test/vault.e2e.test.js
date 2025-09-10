@@ -192,6 +192,18 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
   it("User can deposit, invest", async () => {
     this.timeout(180_000);
+
+    async function mineBlocks(n) {
+      try {
+        await network.provider.request({
+          method: "hardhat_mine",
+          params: ["0x" + n.toString(16)],
+        });
+      } catch {
+        for (let i = 0; i < n; i++)
+          await network.provider.request({ method: "evm_mine", params: [] });
+      }
+    }
     // const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
     const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const UNISWAP_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
@@ -266,6 +278,8 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     await vault.investIdle(allSwapData);
     console.log("!Excuted vault.investIdle()");
 
+    await mineBlocks(3);
+
     const weth = await ethers.getContractAt(
       "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
       WETH
@@ -279,269 +293,231 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       ethers.formatEther(wethBal)
     );
 
-    // const tx = await uniStrat.knowYourAssets();
-    // const receipt = await tx.wait();
+// Constants
+const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // official V3 router
+const UNISWAP_POOL = "0xC6962004f452bE9203591991D15f6b388e09E8D0";     // USDC/WETH pool
+const poolFee = 500; // you confirmed this is the fee tier
+const whale = await ethers.getSigner(USDC_WHALE);
 
-    // Parse logs for `totalAsset` event
-    // const iface = new ethers.Interface([
-    //   "event totalAsset(uint256 amt0, uint256 amt1, uint256 fees0, uint256 fees1)"
-    // ]);
+// const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS, whale);
+const amountIn = ethers.parseUnits("1000", 6); // whale will trade 1000 USDC
 
-    // for (const log of receipt.logs) {
-    //   try {
-    //     const parsed = iface.parseLog(log);
-    //     if (parsed.name === "totalAsset") {
-    //       console.log("Event values:");
-    //       console.log("amt0 (WETH raw):", parsed.args[0].toString());
-    //       console.log("amt1 (USDC raw):", parsed.args[1].toString());
-    //       console.log("fees0:", parsed.args[2].toString());
-    //       console.log("fees1:", parsed.args[3].toString());
-    //     }
-    //   } catch (err) {
-    //     // ignore unrelated logs
-    //   }
-    // }
+// const SWAP_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // replace with the router you plan to call on fork
+const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
+const iface = new ethers.Interface(artifact.abi);
 
-    // console.log("Vault idle:", (await usdc.balanceOf(vault.target)).toString());
-    // console.log("Aave aToken:", await aaveStrat.aToken()); // or reserveData check
-    // console.log(
-    //   "Uniswap totalAssets:",
-    //   (await uniStrat.totalAssets()).toString()
-    // );
-    // console.log(
-    //   "Aave totalAssets:",
-    //   (await aaveStrat.totalAssets()).toString()
-    // );
+const usdcContract = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
+await usdcContract.connect(whale).approve(UNISWAP_V3_ROUTER, amountIn);
 
-    // const vaultTVL = await vault.totalAssets();
+const params = {
+  tokenIn: USDC_ADDRESS,
+  tokenOut: WETH,
+  fee: poolFee,
+  recipient: USDC_WHALE,
+  deadline: Math.floor(Date.now()/1000) + 60*20,
+  amountIn: amountIn,
+  amountOutMinimum: 0n,
+  sqrtPriceLimitX96: 0n
+};
 
-    // console.log("vaultTVL (raw):", vaultTVL.toString());
-    // console.log("vaultTVL (USDC):", ethers.formatUnits(vaultTVL, 6)); // USDC human-readable
 
-    // console.log("Vault totalAssets (USDC):", ethers.formatUnits(await vault.totalAssets(), 6));
-    // console.log("Aave strat assets:", ethers.formatUnits(await aaveStrat.totalAssets(), 6));
-    // console.log("Uni strat assets:", ethers.formatUnits(await uniStrat.totalAssets(), 6));
-    // console.log("Uni idle USDC:", ethers.formatUnits(await usdc.balanceOf(uniStrat.target), 6));
-    // console.log("Uni WETH balance:", ethers.formatEther(await ethers.getContractAt("IERC20", WETH).then(c => c.balanceOf(uniStrat.target))));
+const calldata = iface.encodeFunctionData("exactInputSingle", [params]);
 
-    //*********from here whale will trade into the same pool and we will earn some money **********/
+// simulate call
+// 6) Simulate via provider.call from whale
+try {
+  const sim = await ethers.provider.call({
+    to: UNISWAP_V3_ROUTER,
+    data: calldata,
+    from: whale.address,
+    // value: 0 // only set value if swapping ETH
+  });
+  console.log("Sim returned (hex):", sim);
+  console.log("Sim success — router would not revert for these exact params.");
+} catch (err) {
+  console.error("Sim reverted — full error:", err);
+  // attempt to show revert data if present
+  if (err && err.data) {
+    console.error("revert data (hex):", err.data);
+  }
+}
 
-    // requires: axios installed, ethers, network from hardhat
 
-    async function whaleExec0xSwap({
-      sellToken,
-      buyToken,
-      sellAmount, // BigInt or string in minor units (e.g. "250000000")
-      whaleAddr,
-      chainId, // Arbitrum
-      zeroXEndpoint,
-      zeroXApiKey,
-    }) {
-      // params: {
-      //   sellAmount: toUniHalf.toString(),
-      //   taker: uniStrat.target,
-      //   chainId: 42161,
-      //   sellToken: usdc.target,
-      //   buyToken: WETH,
-      // },
-      // const whaleSigner = await ethers.getSigner(whale.address);
-      // const token = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
-      // const approveTx = await token.connect(whaleSigner).approve("0x0000000000001ff3684f28c67538d4d072c22734", "25127259878587");
-      // await approveTx.wait();
 
-      console.log("before axios");
-      const res = await axios.get(
-        "https://api.0x.org/swap/allowance-holder/quote",
-        {
-          headers: {
-            "0x-api-key": process.env.ZeroXAPI,
-            "0x-version": "v2",
-          },
-          params: {
-            sellAmount: "10127259800",
-            taker: USDC_WHALE,
-            chainId: 42161,
-            sellToken: usdc.target,
-            buyToken: WETH,
-          },
-          timeout: 200000,
-        }
-      );
-      const quote = res.data;
-      console.log("After axios");
 
-      if (!quote.liquidityAvailable)
-        throw new Error("0x: liquidity not available");
-      // // inspect route to ensure it's acceptable for your objectives
-      // console.log("0x route summary:", {
-      //   sellToken: quote.sellToken,
-      //   buyToken: quote.buyToken,
-      //   buyAmount: quote.buyAmount,
-      //   minBuyAmount: quote.minBuyAmount,
-      //   routeTokensCount: quote.route?.tokens?.length || 0,
-      //   fillsCount: quote.route?.fills?.length || 0,
-      // });
 
-      // Look into fills to see the sources used (e.g. "UniswapV3", "SushiSwap", aggregator names).
-      // If you need the trade to pass through *your specific pool* you can inspect fills[].type or fills[].router or fills[].poolAddress if provided by 0x.
-      // console.log("fills:", quote.route?.fills?.map(f => ({source: f.source, pool: f.poolAddress || f.pool || f.router})) );
+// usage:
 
-      // 2) impersonate whale + top up ETH
-      // await network.provider.request({
-      //   method: "hardhat_impersonateAccount", params: [whaleAddr]
-      // });
-      const whaleSigner = await ethers.getSigner(whale.address);
+//  // --- Impersonate whale ---
+//  await network.provider.request({
+//   method: "hardhat_impersonateAccount",
+//   params: [USDC_WHALE],
+// });
+// const whaleAddr = await ethers.getSigner(USDC_WHALE);
 
-      // // Give whale ETH for gas on hardhat
-      // await network.provider.send("hardhat_setBalance", [whaleAddr.address, "0xDE0B6B3A7640000"]); // 1 ETH
+// // Give whale some ETH for gas
+// await network.provider.send("hardhat_setBalance", [
+//   whale.address,
+//   "0x1000000000000000000", // 1 ETH
+// ]);
 
-      // 3) Ensure allowanceTarget is approved (0x often needs allowanceTarget approval for token pulls)
-      // allowanceTarget is in quote.allowanceTarget
 
-      if (
-        quote.allowanceTarget &&
-        quote.allowanceTarget !== ethers.ZeroAddress
-      ) {
-        const token = await ethers.getContractAt(
-          "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-          usdc.target
-        );
-        const whaleBal = await token.balanceOf(USDC_WHALE);
-        console.log("Whale USDC balance:---", whaleBal.toString());
+// const whaleAddr = await ethers.getSigner(USDC_WHALE);
+// await network.provider.request({ method: "hardhat_impersonateAccount", params: [whaleAddr] });
+// await network.provider.send("hardhat_setBalance", [whaleAddr, "0x1000000000000000000"]); // 1 ETH for gas
+// const sim = await simulateExactInputSingleAs();
+// if (!sim.ok) {
+//   // handle revert: print and bail
+//   throw new Error("swap simulation failed; see logs above");
+// }
+// else send for real (if you want):
+// const rc = await sendExactInputSingleAs();
 
-        const currentAllowance = await token.allowance(
-          USDC_WHALE,
-          quote.allowanceTarget
-        );
-        console.log("Current allowance:", currentAllowance.toString());
 
-        // Check current allowance
-        const current = await token.allowance(
-          whale.address,
-          quote.allowanceTarget
-        );
-        // if (BigInt(current.toString()) < BigInt(whaleBal)) {
-        // approve from whale
-        const approveTx = await token
-          .connect(whaleSigner)
-          .approve(quote.allowanceTarget, whaleBal);
-        await approveTx.wait();
-        console.log("Approved allowanceTarget", quote.allowanceTarget);
+///////////
 
-        const AfterAllowance = await token.allowance(
-          USDC_WHALE,
-          quote.allowanceTarget
-        );
-        console.log("After allowance:", AfterAllowance.toString());
-        // } else {
-        //   console.log("Allowance already present");
-        // }
-        const weth = await ethers.getContractAt(
-          "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-          WETH
-        );
-        const usdcBal = await usdc.balanceOf(uniStrat.target);
-        const wethBal = await weth.balanceOf(uniStrat.target);
-        console.log(
-          "uniStrat balances after collect -> USDC:",
-          ethers.formatUnits(usdcBal, 6),
-          "WETH:",
-          ethers.formatEther(wethBal)
-        );
-      } else {
-        console.log(
-          "No allowanceTarget provided by 0x (or zero address) — maybe quote is prebuilt."
-        );
-      }
 
-      // 4) optionally verify quote.transaction.to == expected router address and route includes Uniswap V3 pool you want
-      console.log("quote.to:", quote.transaction.to);
-      // If you want to whitelist the router in your ExchangeHandler
-      // try {
-      //   await exchanger.setRouter(quote.transaction.to, true);
-      // } catch (e) {
-      //   // ignore if not relevant to your flow
-      //   console.log("setRouter may fail if not needed:", e.message);
-      // }
-      console.log("quote.transaction.value", quote.transaction.value);
-      // 5) Execute the raw transaction as the whale (send tx using quote.transaction.to + data)
-      const txReq = {
-        to: quote.transaction.to,
-        data: quote.transaction.data,
-        value: quote.transaction.value
-          ? BigInt(quote.transaction.value)
-          : undefined,
-      };
 
-      // If quote.transaction.gasPrice provided you can set gasPrice, but on forks default is fine.
-      // console.log("Sending swap tx from whale:", txReq);
-      const tx = await whaleSigner.sendTransaction(txReq);
-      const receipt = await tx.wait();
-      console.log("Swap tx mined:", receipt.transactionHash);
-      //////////////
+// const whaleSigner = await ethers.getSigner(USDC_WHALE);
+//       const token = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
+//       const approveTx = await token.connect(whaleSigner).approve(UNISWAP_V3_ROUTER, amountIn);
+//       await approveTx.wait();
 
-      // assume `tx` is the TransactionResponse returned by sendTransaction
-      console.log(
-        "tx status:",
-        receipt.status,
-        "blockNumber",
-        receipt.blockNumber
-      );
-      console.log("logs length:", receipt.logs.length);
+//       const router = new ethers.Contract(UNISWAP_V3_ROUTER, SwapRouterABI, ethers.provider);
 
-      // Decode Swap events for your pool
-      const swapIface = new ethers.Interface([
-        "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)",
-      ]);
+// const params = {
+//   tokenIn: USDC_ADDRESS,
+//   tokenOut: WETH,
+//   fee: poolFee,
+//   recipient: USDC_WHALE,                       // just send output to whale
+//   deadline: Math.floor(Date.now() / 1000) + 60*20,
+//   amountIn: (amountIn).toString(),
+//   amountOutMinimum: 0,                            // no slippage check for test
+//   sqrtPriceLimitX96: 0                            // no price limit
+// };
 
-      const poolAddr = UNISWAP_POOL.toLowerCase();
-      for (const log of receipt.logs) {
-        if (log.address.toLowerCase() === poolAddr) {
-          try {
-            const parsed = swapIface.parseLog(log);
-            console.log("Found Swap on pool:", parsed.args);
-          } catch (e) {
-            console.log("Found log for pool but failed to parse:", e);
-          }
-        }
-      }
+// // console.log("parmmm",params);
 
-      //////////////////
-      // 6) Post-swap: check your LP tokensOwed for fees (position manager)
-      const pm = await ethers.getContractAt(
-        "INonfungiblePositionManager",
-        UNISWAP_POSITION_MANAGER
-      );
-      const tokenId = await uniStrat.tokenId(); // or whatever tokenId you want to check
-      const pos = await pm.positions(tokenId);
-      const tokensOwed0 = BigInt(pos[10].toString());
-      const tokensOwed1 = BigInt(pos[11].toString());
 
-      console.log(
-        "tokensOwed0:",
-        tokensOwed0.toString(),
-        "tokensOwed1:",
-        tokensOwed1.toString()
-      );
-      return { quote, receipt, tokensOwed0, tokensOwed1 };
-    }
 
-    const whale = await ethers.getSigner(USDC_WHALE);
+//   // For tuple-ABI quirky cases, we can call using the fully qualified signature
+//   const fqName = "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))";
+
+//   // 1) simulate via callStatic (connected to whale)
+//   try {
+//     // attach whale as signer for call context (callStatic doesn't send)
+//     const routerWithWhale = router.connect(whale);
+//     console.log("Simulating callStatic...");
+//     // try both convenient name and fully-qualified name if one not found
+//     let simulated;
+//     if (routerWithWhale.callStatic && routerWithWhale.callStatic.exactInputSingle) {
+//       simulated = await routerWithWhale.callStatic.exactInputSingle(params, { gasLimit: 5_000_000 });
+//     } else if (routerWithWhale.callStatic && routerWithWhale.callStatic[fqName]) {
+//       simulated = await routerWithWhale.callStatic[fqName](params, { gasLimit: 5_000_000 });
+//     } else {
+//       // fallback: try positional array (some ABIs map tuple to single array arg)
+//       if (routerWithWhale.callStatic[fqName]) {
+//         simulated = await routerWithWhale.callStatic[fqName]([
+//           USDC_ADDR,
+//           WETH_ADDR,
+//           poolFee,
+//           whaleAddr,
+//           params.deadline,
+//           amountIn,
+//           0n,
+//           0n
+//         ], { gasLimit: 5_000_000 });
+//       } else {
+//         throw new Error("callStatic exactInputSingle method not found on contract object (ABI mismatch)");
+//       }
+//     }
+//     console.log("callStatic succeeded, amountOut:", simulated.toString());
+//   } catch (simErr) {
+//     console.log("callStatic reverted. simErr.message:", simErr.message || simErr);
+//     // attempt to extract revert data (ethers v6 sometimes places it in error.error.data or error.data)
+//     const raw = simErr.error?.data || simErr.data || simErr.body || simErr.receipt?.revertReason || simErr.reason;
+//     console.log("raw revert data (may be hex):", raw);
+//     const hex = typeof raw === "string" && raw.startsWith("0x") ? raw : (raw && raw.data ? raw.data : null);
+//     console.log("decoded revert:", await decodeRevert(hex));
+//     throw simErr; // stop here — simulation failed
+//   }
+
+//   // 2) If simulation passed, send the tx for real
+//   try {
+//     // need router connected to whale to send
+//     const routerSigner = new ethers.Contract(SWAP_ROUTER, swapAbi, whale);
+//     console.log("Sending transaction...");
+//     const tx = await routerSigner.exactInputSingle(params, { gasLimit: 5_000_000 });
+//     const rcpt = await tx.wait();
+//     console.log("Swap tx mined. status:", rcpt.status, "txHash:", rcpt.transactionHash);
+//   } catch (sendErr) {
+//     console.log("sendErr.message:", sendErr.message || sendErr);
+//     const raw2 = sendErr.error?.data || sendErr.data || sendErr.body || sendErr.receipt?.revertReason;
+//     console.log("send revert raw:", raw2);
+//     const hex2 = typeof raw2 === "string" && raw2.startsWith("0x") ? raw2 : (raw2 && raw2.data ? raw2.data : null);
+//     console.log("decoded send revert:", await decodeRevert(hex2));
+//     throw sendErr;
+//   }
+
+
+
+
+//////////////////
+
+
+
+
+
+//  // 1) simulate with callStatic to get revert without spending gas
+//  try {
+//   console.log("Simulating callStatic...");
+//   const simulated = await router.callStatic.exactInputSingle(params, { gasLimit: 5_000_000 });
+//   console.log("callStatic succeeded, simulated amountOut:", simulated.toString());
+// } catch (simErr) {
+//   // try to extract revert data
+//   const raw = simErr.error && simErr.error.data ? simErr.error.data : (simErr.data || simErr.body || simErr.receipt?.revertReason);
+//   console.log("callStatic reverted. simErr:", simErr.message || simErr);
+//   const revertHex = raw && typeof raw === "string" ? raw : (raw && raw.data ? raw.data : null);
+//   console.log("decoded revert reason:", await decodeRevert(revertHex));
+//   throw new Error("simulation failed - aborting send");
+// }
+
+// // 2) send the real tx
+// try {
+//   const tx = await router.exactInputSingle(params, { gasLimit: 5_000_000 });
+//   const receipt = await tx.wait();
+//   console.log("swap tx mined. status:", receipt.status, "txHash:", receipt.transactionHash);
+// } catch (sendErr) {
+//   const raw = sendErr.error && sendErr.error.data ? sendErr.error.data : (sendErr.data || sendErr.body);
+//   console.log("sendTx failed:", sendErr.message || sendErr);
+//   console.log("decoded revert reason:", await decodeRevert(raw));
+//   throw sendErr;
+// }
+
+// const tx = await router.exactInputSingle(params);
+// await tx.wait();
+// console.log("Whale swap executed in same Uniswap V3 pool");
+
+
+// await usdc.approve(UNISWAP_V3_ROUTER, amountIn);
+
+
+    
 
     // Give whale some ETH for gas
     await network.provider.send("hardhat_setBalance", [
       whale.address,
       "0x1000000000000000000", // 1 ETH
     ]);
-    let res1 = await whaleExec0xSwap(
-      usdc.target,
-      WETH,
-      "25127259878587",
-      whale.address,
-      42161,
-      "https://api.0x.org/swap/allowance-holder/quote",
-      process.env.ZeroXAPI
-    );
+    // let res1 = await whaleExec0xSwap(
+    //   usdc.target,
+    //   WETH,
+    //   "25127259878587",
+    //   whale.address,
+    //   42161,
+    //   "https://api.0x.org/swap/allowance-holder/quote",
+    //   process.env.ZeroXAPI
+    // );
 
     // console.log("reeeeeeeee",res1)
 
