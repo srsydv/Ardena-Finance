@@ -8,7 +8,8 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   this.timeout(200_000);
   let deployer, user, treasury;
   let usdc, vault, fees, access, aaveStrat, uniStrat, mockRouter;
-  const USDC_WHALE = "0x463f5D63e5a5EDB8615b0e485A090a18Aba08578"; // big USDC holder on Arbitrum
+  const USDC_WHALE = "0x463f5D63e5a5EDB8615b0e485A090a18Aba08578";
+  const USDC_WHALE_TWO = "0xace659DC614D5fC455D123A1c3E438Dd78A05e77"; // big USDC holder on Arbitrum
   const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"; // Arbitrum USDC
   const WETH = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1";
   const AAVE_POOL = "0x794a61358D6845594F94dc1DB02A252b5b4814aD"; // Aave V3 pool
@@ -294,13 +295,26 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     );
 
 // Constants
+
+ // give uniStrat some ETH so it can pay gas
+ await network.provider.request({
+  method: "hardhat_setBalance",
+  params: [USDC_WHALE_TWO, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
+});
+
+// impersonate the account
+await network.provider.request({
+  method: "hardhat_impersonateAccount",
+  params: [USDC_WHALE_TWO],
+});
 const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // official V3 router
 const UNISWAP_POOL = "0xC6962004f452bE9203591991D15f6b388e09E8D0";     // USDC/WETH pool
 const poolFee = 500; // you confirmed this is the fee tier
 const whale = await ethers.getSigner(USDC_WHALE);
+const whale2 = await ethers.getSigner(USDC_WHALE_TWO);
 
 // const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS, whale);
-const amountIn = ethers.parseUnits("1000", 6); // whale will trade 1000 USDC
+const amountIn = ethers.parseUnits("1000000", 6); // whale will trade 1000 USDC
 
 // const SWAP_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"; // replace with the router you plan to call on fork
 const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
@@ -308,6 +322,7 @@ const iface = new ethers.Interface(artifact.abi);
 
 const usdcContract = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
 await usdcContract.connect(whale).approve(UNISWAP_V3_ROUTER, amountIn);
+await usdcContract.connect(whale2).approve(UNISWAP_V3_ROUTER, amountIn);
 
 const params = {
   tokenIn: USDC_ADDRESS,
@@ -323,6 +338,22 @@ const params = {
 
 const calldata = iface.encodeFunctionData("exactInputSingle", [params]);
 
+const IUniswapV3PoolABI = [
+  "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
+  "function token0() view returns (address)",
+  "function token1() view returns (address)",
+  "function fee() view returns (uint24)",
+  "function liquidity() view returns (uint128)"
+];
+
+// Instantiate pool contract (this is the step you were missing)
+const pool = await ethers.getContractAt(IUniswapV3PoolABI, UNISWAP_POOL);
+
+const slot0 = await pool.slot0();
+console.log("Current tick:", slot0.tick.toString());
+// console.log("your tickLower:", tickLower.toString(), "tickUpper:", tickUpper.toString());
+const poolFee1 = await pool.fee();
+console.log( "fee:", poolFee1.toString());
 // simulate call
 // 6) Simulate via provider.call from whale
 try {
@@ -333,6 +364,26 @@ try {
     // value: 0 // only set value if swapping ETH
   });
   console.log("Sim returned (hex):", sim);
+
+  console.log("Sim success — router would not revert for these exact params.");
+} catch (err) {
+  console.error("Sim reverted — full error:", err);
+  // attempt to show revert data if present
+  if (err && err.data) {
+    console.error("revert data (hex):", err.data);
+  }
+}
+
+
+try {
+  const sim = await ethers.provider.call({
+    to: UNISWAP_V3_ROUTER,
+    data: calldata,
+    from: whale2.address,
+    // value: 0 // only set value if swapping ETH
+  });
+  console.log("Sim returned (hex):", sim);
+
   console.log("Sim success — router would not revert for these exact params.");
 } catch (err) {
   console.error("Sim reverted — full error:", err);
@@ -344,162 +395,8 @@ try {
 
 
 
+await mineBlocks(10);
 
-
-// usage:
-
-//  // --- Impersonate whale ---
-//  await network.provider.request({
-//   method: "hardhat_impersonateAccount",
-//   params: [USDC_WHALE],
-// });
-// const whaleAddr = await ethers.getSigner(USDC_WHALE);
-
-// // Give whale some ETH for gas
-// await network.provider.send("hardhat_setBalance", [
-//   whale.address,
-//   "0x1000000000000000000", // 1 ETH
-// ]);
-
-
-// const whaleAddr = await ethers.getSigner(USDC_WHALE);
-// await network.provider.request({ method: "hardhat_impersonateAccount", params: [whaleAddr] });
-// await network.provider.send("hardhat_setBalance", [whaleAddr, "0x1000000000000000000"]); // 1 ETH for gas
-// const sim = await simulateExactInputSingleAs();
-// if (!sim.ok) {
-//   // handle revert: print and bail
-//   throw new Error("swap simulation failed; see logs above");
-// }
-// else send for real (if you want):
-// const rc = await sendExactInputSingleAs();
-
-
-///////////
-
-
-
-// const whaleSigner = await ethers.getSigner(USDC_WHALE);
-//       const token = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
-//       const approveTx = await token.connect(whaleSigner).approve(UNISWAP_V3_ROUTER, amountIn);
-//       await approveTx.wait();
-
-//       const router = new ethers.Contract(UNISWAP_V3_ROUTER, SwapRouterABI, ethers.provider);
-
-// const params = {
-//   tokenIn: USDC_ADDRESS,
-//   tokenOut: WETH,
-//   fee: poolFee,
-//   recipient: USDC_WHALE,                       // just send output to whale
-//   deadline: Math.floor(Date.now() / 1000) + 60*20,
-//   amountIn: (amountIn).toString(),
-//   amountOutMinimum: 0,                            // no slippage check for test
-//   sqrtPriceLimitX96: 0                            // no price limit
-// };
-
-// // console.log("parmmm",params);
-
-
-
-//   // For tuple-ABI quirky cases, we can call using the fully qualified signature
-//   const fqName = "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))";
-
-//   // 1) simulate via callStatic (connected to whale)
-//   try {
-//     // attach whale as signer for call context (callStatic doesn't send)
-//     const routerWithWhale = router.connect(whale);
-//     console.log("Simulating callStatic...");
-//     // try both convenient name and fully-qualified name if one not found
-//     let simulated;
-//     if (routerWithWhale.callStatic && routerWithWhale.callStatic.exactInputSingle) {
-//       simulated = await routerWithWhale.callStatic.exactInputSingle(params, { gasLimit: 5_000_000 });
-//     } else if (routerWithWhale.callStatic && routerWithWhale.callStatic[fqName]) {
-//       simulated = await routerWithWhale.callStatic[fqName](params, { gasLimit: 5_000_000 });
-//     } else {
-//       // fallback: try positional array (some ABIs map tuple to single array arg)
-//       if (routerWithWhale.callStatic[fqName]) {
-//         simulated = await routerWithWhale.callStatic[fqName]([
-//           USDC_ADDR,
-//           WETH_ADDR,
-//           poolFee,
-//           whaleAddr,
-//           params.deadline,
-//           amountIn,
-//           0n,
-//           0n
-//         ], { gasLimit: 5_000_000 });
-//       } else {
-//         throw new Error("callStatic exactInputSingle method not found on contract object (ABI mismatch)");
-//       }
-//     }
-//     console.log("callStatic succeeded, amountOut:", simulated.toString());
-//   } catch (simErr) {
-//     console.log("callStatic reverted. simErr.message:", simErr.message || simErr);
-//     // attempt to extract revert data (ethers v6 sometimes places it in error.error.data or error.data)
-//     const raw = simErr.error?.data || simErr.data || simErr.body || simErr.receipt?.revertReason || simErr.reason;
-//     console.log("raw revert data (may be hex):", raw);
-//     const hex = typeof raw === "string" && raw.startsWith("0x") ? raw : (raw && raw.data ? raw.data : null);
-//     console.log("decoded revert:", await decodeRevert(hex));
-//     throw simErr; // stop here — simulation failed
-//   }
-
-//   // 2) If simulation passed, send the tx for real
-//   try {
-//     // need router connected to whale to send
-//     const routerSigner = new ethers.Contract(SWAP_ROUTER, swapAbi, whale);
-//     console.log("Sending transaction...");
-//     const tx = await routerSigner.exactInputSingle(params, { gasLimit: 5_000_000 });
-//     const rcpt = await tx.wait();
-//     console.log("Swap tx mined. status:", rcpt.status, "txHash:", rcpt.transactionHash);
-//   } catch (sendErr) {
-//     console.log("sendErr.message:", sendErr.message || sendErr);
-//     const raw2 = sendErr.error?.data || sendErr.data || sendErr.body || sendErr.receipt?.revertReason;
-//     console.log("send revert raw:", raw2);
-//     const hex2 = typeof raw2 === "string" && raw2.startsWith("0x") ? raw2 : (raw2 && raw2.data ? raw2.data : null);
-//     console.log("decoded send revert:", await decodeRevert(hex2));
-//     throw sendErr;
-//   }
-
-
-
-
-//////////////////
-
-
-
-
-
-//  // 1) simulate with callStatic to get revert without spending gas
-//  try {
-//   console.log("Simulating callStatic...");
-//   const simulated = await router.callStatic.exactInputSingle(params, { gasLimit: 5_000_000 });
-//   console.log("callStatic succeeded, simulated amountOut:", simulated.toString());
-// } catch (simErr) {
-//   // try to extract revert data
-//   const raw = simErr.error && simErr.error.data ? simErr.error.data : (simErr.data || simErr.body || simErr.receipt?.revertReason);
-//   console.log("callStatic reverted. simErr:", simErr.message || simErr);
-//   const revertHex = raw && typeof raw === "string" ? raw : (raw && raw.data ? raw.data : null);
-//   console.log("decoded revert reason:", await decodeRevert(revertHex));
-//   throw new Error("simulation failed - aborting send");
-// }
-
-// // 2) send the real tx
-// try {
-//   const tx = await router.exactInputSingle(params, { gasLimit: 5_000_000 });
-//   const receipt = await tx.wait();
-//   console.log("swap tx mined. status:", receipt.status, "txHash:", receipt.transactionHash);
-// } catch (sendErr) {
-//   const raw = sendErr.error && sendErr.error.data ? sendErr.error.data : (sendErr.data || sendErr.body);
-//   console.log("sendTx failed:", sendErr.message || sendErr);
-//   console.log("decoded revert reason:", await decodeRevert(raw));
-//   throw sendErr;
-// }
-
-// const tx = await router.exactInputSingle(params);
-// await tx.wait();
-// console.log("Whale swap executed in same Uniswap V3 pool");
-
-
-// await usdc.approve(UNISWAP_V3_ROUTER, amountIn);
 
 
     
@@ -509,17 +406,7 @@ try {
       whale.address,
       "0x1000000000000000000", // 1 ETH
     ]);
-    // let res1 = await whaleExec0xSwap(
-    //   usdc.target,
-    //   WETH,
-    //   "25127259878587",
-    //   whale.address,
-    //   42161,
-    //   "https://api.0x.org/swap/allowance-holder/quote",
-    //   process.env.ZeroXAPI
-    // );
 
-    // console.log("reeeeeeeee",res1)
 
     // require at top of file: const { ethers, network } = require("hardhat");
 
