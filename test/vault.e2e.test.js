@@ -3,6 +3,8 @@ const { ethers, network } = require("hardhat");
 const fetch = require("node-fetch");
 const axios = require("axios");
 require("dotenv").config();
+// import { JSBI } from "@uniswap/sdk";
+// import { TickMath, LiquidityAmounts } from '@uniswap/v3-sdk'
 
 describe("Vault + Strategies Integration (Arbitrum fork)", function () {
   this.timeout(200_000);
@@ -20,7 +22,8 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
   // Chainlink feeds (verify on chainlink docs)
   const ETH_USD = "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612"; // ETH/USD
-  const USDC_USD = "0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3"; // USDC/USD
+  const USDC_USD = "0x50834F3163758fcC1Df9973b6e91f0F0F0434aD3";
+  const USD_ETH = "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"; // USDC/USD
   // Example token/ETH feed if you need composition (UNI/ETH etc)
   const UNI_ETH = "0x9C917083fDb403ab5ADbEC26Ee294f6EcAda2720"; // example (check your token!)
 
@@ -112,13 +115,11 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     const Oracle = await ethers.getContractFactory("OracleModule");
     const oracle = await Oracle.deploy(WETH);
-    // await oracle.deployed();
 
     // ETH/USD (needed for any token that uses token/ETH composition)
-    await oracle.setEthUsd(ETH_USD, heartbeat);
-
+    await oracle.setEthUsd(ETH_USD, "864000");
     // Direct USD feeds
-    await oracle.setTokenUsd(usdc.target, USDC_USD, "86400");
+    await oracle.setTokenUsd(usdc.target, USDC_USD, "864000");
 
     // (Optional) composition route example for a token without USD feed:
     // await oracle.setTokenEthRoute(TOKEN, UNI_ETH, /*invert=*/false, heartbeat);
@@ -185,7 +186,8 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     // console.log("uniStrat:", uniStrat.target);
 
     // After deploying AccessController
-    await access.setManager(deployer.address, true);
+    await access.setManager(deployer.address, true);  
+    await access.setKeeper(deployer.address, true);
 
     // --- Add strategies (50/50) ---
     await vault.setStrategy(aaveStrat.target, 5000);
@@ -202,10 +204,6 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       expect(treasury).to.be.an("object");
     });
   
-
-  it("User can deposit, invest", async () => {
-    this.timeout(180_000);
-
     async function mineBlocks(n) {
       try {
         await network.provider.request({
@@ -217,6 +215,94 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
           await network.provider.request({ method: "evm_mine", params: [] });
       }
     }
+
+    const axios = require("axios");
+
+/**
+ * Build ExchangeHandler payload using 0x API
+ *
+ * @param {Object} args
+ * @param {string} args.sellToken - address of token being sold
+ * @param {string} args.buyToken - address of token being bought
+ * @param {bigint} args.amountIn - amount to sell (in smallest units)
+ * @param {string} args.recipient - strategy address that receives proceeds
+ */
+async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) {
+  // const url = "https://api.0x.org/swap/allowance-holder/quote";
+  console.log("sellToken", sellToken);
+  console.log("buyToken", buyToken);
+  console.log("amountIn", amountIn);
+  console.log("recipient", recipient);
+  console.log("Before axios");
+  const res = await axios.get(
+    "https://api.0x.org/swap/allowance-holder/quote",
+    {
+      headers: {
+        "0x-api-key": process.env.ZeroXAPI,
+        "0x-version": "v2",
+      },
+      params: {
+        sellAmount: (amountIn).toString(),
+        taker: recipient,
+        chainId: 42161,
+        sellToken: sellToken,
+        buyToken: buyToken,
+      },
+      timeout: 200000,
+    }
+  );
+  const quote = res.data;
+  console.log("After axios");
+  // console.log("quote", quote);
+
+  // === call 0x API ===
+  // const res = await axios.get(url, {
+  //   headers: {
+  //     "0x-api-key": process.env.ZeroXAPI, // you already configured this
+  //     "0x-version": "v2",
+  //   },
+  //   params: {
+  //     chainId: 42161,           // arbitrum one
+  //     sellToken,                // e.g., USDC
+  //     buyToken,                 // e.g., WETH
+  //     sellAmount: amountIn.toString(), // can be 0 for harvestAll, ExchangeHandler uses balance
+  //     taker: recipient,         // strategy that will receive bought tokens
+  //   },
+  // });
+
+  // const quote = res.data;
+
+  // === encode payload ===
+  const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+  const payload = abiCoder.encode(
+    [
+      "address", // router
+      "address", // tokenIn
+      "address", // tokenOut
+      "uint256", // amountIn
+      "uint256", // minOut
+      "address", // recipient
+      "bytes",   // router calldata
+    ],
+    [
+      quote.transaction.to,     // router (0x allowance target or aggregator)
+      sellToken,
+      buyToken,
+      0,                 // note: ExchangeHandler will override with balance at runtime
+      quote.minBuyAmount,       // safe minimum
+      recipient,
+      quote.transaction.data,   // calldata to send to router
+    ]
+  );
+
+  return { payload, quote };
+}
+
+
+  it("User can deposit, invest", async () => {
+    this.timeout(180_000);
+
+    
 
     const depositAmount = ethers.parseUnits("1000", 6);
     console.log("depositAmount:", depositAmount.toString());
@@ -288,19 +374,14 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     console.log("!Excuted vault.investIdle()");
 
     await mineBlocks(3);
-
-  
-
-    
-    
   });
 
   it("let whale trade in uniswap pool", async () => {
     this.timeout(180_000);
-    // console.log(
-    //   "Uniswap totalAssets:",
-    //   (await uniStrat.totalAssets()).toString()
-    // );
+    console.log(
+      "Uniswap totalAssets:",
+      (await uniStrat.totalAssets()).toString()
+    );
     // console.log(
     //   "Aave totalAssets:",
     //   (await aaveStrat.totalAssets()).toString()
@@ -428,12 +509,85 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     //   }
     // }
 
-    // await mineBlocks(10);
+    await mineBlocks(10);
 
   });
 
 
   it("let check uniswap position", async () => {
+
+//     const IUniswapV3PoolABI = [
+//       "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
+//       "function token0() view returns (address)",
+//       "function token1() view returns (address)",
+//       "function fee() view returns (uint24)",
+//       "function liquidity() view returns (uint128)",
+//     ];
+
+//     // Instantiate pool contract (this is the step you were missing)
+//     const pool = await ethers.getContractAt(IUniswapV3PoolABI, UNISWAP_POOL);
+
+//     // const slot0 = await pool.slot0();
+//     // fetch sqrtPriceX96 from pool.slot0
+// const sqrtPriceX96 = (await pool.slot0()).sqrtPriceX96
+
+// // get sqrt values for tick boundaries
+// const sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(position.tickLower)
+// const sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(position.tickUpper)
+
+// // compute token amounts
+// const { amount0, amount1 } = LiquidityAmounts.getAmountsForLiquidity(
+//   sqrtPriceX96,
+//   sqrtRatioAX96,
+//   sqrtRatioBX96,
+//   position.liquidity.toString()
+// )
+
+// console.log("Amount0 (WETH):", amount0.toString())
+// console.log("Amount1 (USDC):", amount1.toString())
+
+
+// async function getData(tokenID)
+// {
+//   let FactoryContract = new ethers.Contract(factory, IUniswapV3FactoryABI, 
+//   provider);
+
+//   // let NFTContract =  new ethers.Contract(NFTmanager, 
+//   // IUniswapV3NFTmanagerABI, provider);
+//   const NFTContract = await ethers.getContractAt(
+//     "INonfungiblePositionManager",
+//     UNISWAP_POSITION_MANAGER
+//   );
+//   let position = await NFTContract.positions(tokenID);
+  
+//   let token0contract =  new ethers.Contract(position.token0, ERC20, 
+//   provider);
+//   let token1contract =  new ethers.Contract(position.token1, ERC20, 
+//   provider);
+//   let token0Decimal = await token0contract.decimals();
+//   let token1Decimal = await token1contract.decimals();
+  
+//   let token0sym = await token0contract.symbol();
+//   let token1sym = await token1contract.symbol();
+  
+//   let V3pool = await FactoryContract.getPool(position.token0, 
+//   position.token1, position.fee);
+//   let poolContract = new ethers.Contract(V3pool, IUniswapV3PoolABI, 
+//   provider);
+
+//   let slot0 = await poolContract.slot0();
+
+  
+//   let pairName = token0sym +"/"+ token1sym;
+  
+//   let dict = {"SqrtX96" : slot0.sqrtPriceX96.toString(), "Pair": pairName, 
+//   "T0d": token0Decimal, "T1d": token1Decimal, "tickLow": position.tickLower, 
+//   "tickHigh": position.tickUpper, "liquidity": 
+//   position.liquidity.toString()}
+
+//   return dict
+//   }
+
       const pm = await ethers.getContractAt(
         "INonfungiblePositionManager",
         UNISWAP_POSITION_MANAGER
@@ -449,6 +603,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
       const tokenId = await uniStrat.tokenId();
       console.log("tokenId:", tokenId.toString());
+
 
       // 1) show position storage BEFORE collect
       const posBefore = await pm.positions(tokenId);
@@ -529,6 +684,56 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
         ethers.formatEther(wethBal)
       );
   });
+
+  it("Treasury earns fees via harvestAll", async () => {
+    this.timeout(180_000);
+    await network.provider.send("evm_increaseTime", [360000]);
+    
+  //   // 4) Build harvest payload from 0x (again fresh!)
+  const { payload, quote } = await build0xSwapPayload({
+    sellToken: WETH,
+    buyToken: usdc.target,
+    amountIn: "1000000000000000000", // doesn’t matter — ExchangeHandler uses strategy balance
+    recipient: uniStrat.target
+  });
+
+  await exchanger.setRouter(quote.transaction.to, true);
+
+  const allHarvest = [[], [payload]];
+
+  console.log("Ready to allHarvest");
+
+  // 5) Run harvestAll
+  const iface = new ethers.utils.Interface([
+    "error SomeCustomError(uint256 code)" ,
+    "error Unauthorized(address caller)",
+    "error InvalidStrategy(uint256 strategyId)"
+    // add the errors your vault/strategy defines
+  ]);
+
+  try {
+    console.log("about to allHarvest");
+    const treasuryBefore = await usdc.balanceOf(treasury.address);
+  await vault.harvestAll(allHarvest);
+  console.log("allHarvested");
+  const treasuryAfter = await usdc.balanceOf(treasury.address);
+
+  console.log("Treasury before:", ethers.formatUnits(treasuryBefore, 6));
+  console.log("Treasury after:", ethers.formatUnits(treasuryAfter, 6));
+  } catch (err) {
+  const decoded = iface.parseError(err.data);
+  console.log("Custom error:", decoded.name, decoded.args);
+  }
+  // const treasuryBefore = await usdc.balanceOf(treasury.address);
+  // await vault.connect(deployer).harvestAll(allHarvest);
+  // const treasuryAfter = await usdc.balanceOf(treasury.address);
+
+  // console.log("Treasury before:", ethers.formatUnits(treasuryBefore, 6));
+  // console.log("Treasury after:", ethers.formatUnits(treasuryAfter, 6));
+
+  // expect(treasuryAfter).to.be.gt(treasuryBefore);
+  });
+  
 
 
 

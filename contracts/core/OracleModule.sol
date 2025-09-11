@@ -82,14 +82,14 @@ contract OracleModule is IOracleRouter {
         emit OwnerUpdated(_owner);
     }
 
-    /// @notice Configure ETH/USD feed (must be set if any token uses token/ETH composition)
+    /// @notice for getting the USD value of ETH.
     function setEthUsd(address agg, uint256 heartbeat) external onlyOwner {
         require(agg != address(0) && heartbeat > 0, "BAD_PARAMS");
         ethUsd = FeedCfg(AggregatorV3Interface(agg), heartbeat, true);
         emit SetEthUsd(agg, heartbeat);
     }
 
-    /// @notice Configure direct token/USD feed
+    /// @notice Configure direct token/USD feed mean For tokens with direct USD feeds (like USDC/USD)
     function setTokenUsd(address token, address agg, uint256 heartbeat) external onlyOwner {
         require(token != address(0) && agg != address(0) && heartbeat > 0, "BAD_PARAMS");
         tokenUsd[token] = FeedCfg(AggregatorV3Interface(agg), heartbeat, true);
@@ -199,6 +199,7 @@ contract OracleModule is IOracleRouter {
         return _tooOld(upd, cfg.heartbeat);
     }
 
+    /* The _tooOld() function checks if a Chainlink price feed is stale (too old) */
     function _tooOld(uint256 updatedAt, uint256 heartbeat) internal view returns (bool) {
         return updatedAt == 0 || block.timestamp > updatedAt + heartbeat;
     }
