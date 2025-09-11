@@ -289,112 +289,10 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
 
     await mineBlocks(3);
 
-    // Give whale some ETH for gas
-    // await network.provider.send("hardhat_setBalance", [
-    //   whale.address,
-    //   "0x1000000000000000000", // 1 ETH
-    // ]);
+  
 
-    // require at top of file: const { ethers, network } = require("hardhat");
-
-    async function collectFeesAndShow() {
-      const pm = await ethers.getContractAt(
-        "INonfungiblePositionManager",
-        UNISWAP_POSITION_MANAGER
-      );
-      const usdc = await ethers.getContractAt(
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-        USDC_ADDRESS
-      );
-      const weth = await ethers.getContractAt(
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-        WETH
-      );
-
-      const tokenId = await uniStrat.tokenId();
-      console.log("tokenId:", tokenId.toString());
-
-      // 1) show position storage BEFORE collect
-      const posBefore = await pm.positions(tokenId);
-      console.log("position before (liquidity,fees):", {
-        liquidity: posBefore[7].toString(),
-        tokensOwed0: posBefore[10].toString(),
-        tokensOwed1: posBefore[11].toString(),
-        tickLower: posBefore[5].toString(),
-        tickUpper: posBefore[6].toString(),
-      });
-
-      // 2) impersonate uniStrat (position owner) and fund it with ETH for gas
-      await network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [uniStrat.target],
-      });
-      // const uniSigner = await ethers.getSigner(uniStrat.target);
-
-      const uniAddress = uniStrat.target;
-
-      // give uniStrat some ETH so it can pay gas
-      await network.provider.request({
-        method: "hardhat_setBalance",
-        params: [uniAddress, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
-      });
-
-      // impersonate the account
-      await network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [uniAddress],
-      });
-      const uniSigner = await ethers.getSigner(uniAddress);
-
-      // 3) collect (max amounts)
-      const max128 = (BigInt(1) << 128n) - 1n; // uint128 max
-
-      let tx;
-      try {
-        // Preferred: pass struct-like object (named fields)
-        tx = await pm.connect(uniSigner).collect({
-          tokenId: tokenId,
-          recipient: uniAddress,
-          amount0Max: max128,
-          amount1Max: max128,
-        });
-      } catch (err1) {
-        console.log(
-          "collect(object) failed, trying tuple/positional form (err1.message):",
-          err1.message
-        );
-
-        try {
-          // Alternative: pass as tuple array [tokenId, recipient, amount0Max, amount1Max]
-          tx = await pm
-            .connect(uniSigner)
-            .collect([tokenId, uniAddress, max128, max128]);
-        } catch (err2) {
-          console.error("collect(tuple) also failed:", err2);
-          throw err2; // rethrow so test shows it
-        }
-      }
-
-      // 4) position storage AFTER collect (tokensOwed fields should be zeroed or smaller)
-      const posAfter = await pm.positions(tokenId);
-      console.log("position after (liquidity,fees):", {
-        liquidity: posAfter[7].toString(),
-        tokensOwed0: posAfter[10].toString(),
-        tokensOwed1: posAfter[11].toString(),
-      });
-
-      // 5) balances on the uniStrat contract after collect
-      const usdcBal = await usdc.balanceOf(uniStrat.target);
-      const wethBal = await weth.balanceOf(uniStrat.target);
-      console.log(
-        "uniStrat balances after collect -> USDC:",
-        ethers.formatUnits(usdcBal, 6),
-        "WETH:",
-        ethers.formatEther(wethBal)
-      );
-    }
-
-    await collectFeesAndShow();
+    
+    
   });
 
   it("let whale trade in uniswap pool", async () => {
@@ -533,5 +431,107 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     // await mineBlocks(10);
 
   });
+
+
+  it("let check uniswap position", async () => {
+      const pm = await ethers.getContractAt(
+        "INonfungiblePositionManager",
+        UNISWAP_POSITION_MANAGER
+      );
+      const usdc = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+        USDC_ADDRESS
+      );
+      const weth = await ethers.getContractAt(
+        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+        WETH
+      );
+
+      const tokenId = await uniStrat.tokenId();
+      console.log("tokenId:", tokenId.toString());
+
+      // 1) show position storage BEFORE collect
+      const posBefore = await pm.positions(tokenId);
+      console.log("position before (liquidity,fees):", {
+        liquidity: posBefore[7].toString(),
+        tokensOwed0: posBefore[10].toString(),
+        tokensOwed1: posBefore[11].toString(),
+        tickLower: posBefore[5].toString(),
+        tickUpper: posBefore[6].toString(),
+      });
+
+      // 2) impersonate uniStrat (position owner) and fund it with ETH for gas
+      await network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [uniStrat.target],
+      });
+      // const uniSigner = await ethers.getSigner(uniStrat.target);
+
+      const uniAddress = uniStrat.target;
+
+      // give uniStrat some ETH so it can pay gas
+      await network.provider.request({
+        method: "hardhat_setBalance",
+        params: [uniAddress, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
+      });
+
+      // impersonate the account
+      await network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [uniAddress],
+      });
+      const uniSigner = await ethers.getSigner(uniAddress);
+
+      // 3) collect (max amounts)
+      const max128 = (BigInt(1) << 128n) - 1n; // uint128 max
+
+      let tx;
+      try {
+        // Preferred: pass struct-like object (named fields)
+        tx = await pm.connect(uniSigner).collect({
+          tokenId: tokenId,
+          recipient: uniAddress,
+          amount0Max: max128,
+          amount1Max: max128,
+        });
+      } catch (err1) {
+        console.log(
+          "collect(object) failed, trying tuple/positional form (err1.message):",
+          err1.message
+        );
+
+        try {
+          // Alternative: pass as tuple array [tokenId, recipient, amount0Max, amount1Max]
+          tx = await pm
+            .connect(uniSigner)
+            .collect([tokenId, uniAddress, max128, max128]);
+        } catch (err2) {
+          console.error("collect(tuple) also failed:", err2);
+          throw err2; // rethrow so test shows it
+        }
+      }
+
+      // 4) position storage AFTER collect (tokensOwed fields should be zeroed or smaller)
+      const posAfter = await pm.positions(tokenId);
+      console.log("position after (liquidity,fees):", {
+        liquidity: posAfter[7].toString(),
+        tokensOwed0: posAfter[10].toString(),
+        tokensOwed1: posAfter[11].toString(),
+      });
+
+      // 5) balances on the uniStrat contract after collect
+      const usdcBal = await usdc.balanceOf(uniStrat.target);
+      const wethBal = await weth.balanceOf(uniStrat.target);
+      console.log(
+        "uniStrat balances after collect -> USDC:",
+        ethers.formatUnits(usdcBal, 6),
+        "WETH:",
+        ethers.formatEther(wethBal)
+      );
+  });
+
+
+
+  
 });
 });
