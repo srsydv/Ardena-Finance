@@ -205,10 +205,6 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
           await network.provider.request({ method: "evm_mine", params: [] });
       }
     }
-    // const QUOTER_V2 = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
-    const SWAPROUTER_V2 = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
-    const UNISWAP_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
-    // const { ethers, network } = require("hardhat");
 
     const depositAmount = ethers.parseUnits("1000", 6);
     console.log("depositAmount:", depositAmount.toString());
@@ -485,14 +481,6 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
           throw err2; // rethrow so test shows it
         }
       }
-      // const collectTx = await pm.connect(uniSigner).collect({
-      //   tokenId: tokenId,
-      //   recipient: uniStrat.target,
-      //   amount0Max: max128,
-      //   amount1Max: max128
-      // });
-      // const rec = await collectTx.wait();
-      // console.log("collect tx mined:", rec.transactionHash, "status:", rec.status);
 
       // 4) position storage AFTER collect (tokensOwed fields should be zeroed or smaller)
       const posAfter = await pm.positions(tokenId);
@@ -527,27 +515,5 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     );
     const tx = await uniStrat.knowYourAssets();
     const receipt = await tx.wait();
-    // console.log("receipt",receipt);
-
-    // Parse logs for `totalAsset` event
-    // const iface = new ethers.Interface([
-    //   "event totalAsset(uint256 amt0, uint256 amt1, uint256 fees0, uint256 fees1)"
-    // ]);
-
-    // for (const log of receipt.logs) {
-    //   try {
-    //     const parsed = iface.parseLog(log);
-    //     if (parsed.name === "totalAsset") {
-    //       console.log("Event values:");
-    //       console.log("amt0 (WETH raw):", parsed.args[0].toString());
-    //       console.log("amt1 (USDC raw):", parsed.args[1].toString());
-    //       console.log("fees0:", parsed.args[2].toString());
-    //       console.log("fees1:", parsed.args[3].toString());
-    //     }
-    //   } catch (err) {
-    //     console.log("err:", err.message);
-    //     // ignore unrelated logs
-    //   }
-    // }
   });
 });
