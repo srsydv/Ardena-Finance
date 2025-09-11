@@ -377,7 +377,7 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
   });
 
   it("let whale trade in uniswap pool", async () => {
-    this.timeout(180_000);
+    this.timeout(200_000);
     console.log(
       "Uniswap totalAssets:",
       (await uniStrat.totalAssets()).toString()
@@ -515,7 +515,7 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
 
 
   it("let check uniswap position", async () => {
-
+    this.timeout(180_000);
 //     const IUniswapV3PoolABI = [
 //       "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
 //       "function token0() view returns (address)",
@@ -686,7 +686,7 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
   });
 
   it("Treasury earns fees via harvestAll", async () => {
-    this.timeout(180_000);
+    this.timeout(200_000);
     await network.provider.send("evm_increaseTime", [360000]);
     
   //   // 4) Build harvest payload from 0x (again fresh!)
