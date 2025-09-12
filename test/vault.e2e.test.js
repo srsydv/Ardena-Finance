@@ -242,7 +242,7 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
         "0x-version": "v2",
       },
       params: {
-        sellAmount: (amountIn).toString(),
+        sellAmount: amountIn,
         taker: recipient,
         chainId: 42161,
         sellToken: sellToken,
@@ -288,7 +288,7 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
       quote.transaction.to,     // router (0x allowance target or aggregator)
       sellToken,
       buyToken,
-      0,                 // note: ExchangeHandler will override with balance at runtime
+      amountIn,                 // note: ExchangeHandler will override with balance at runtime
       quote.minBuyAmount,       // safe minimum
       recipient,
       quote.transaction.data,   // calldata to send to router
@@ -339,6 +339,8 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
     );
     const quote = res.data;
     console.log("After axios");
+
+    console.log("quote", quote);
 
     console.log("quote.transaction.to for investIdle()", quote.transaction.to);
 
@@ -514,113 +516,182 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
   });
 
 
-  it("let check uniswap position", async () => {
-    this.timeout(180_000);
-//     const IUniswapV3PoolABI = [
-//       "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
-//       "function token0() view returns (address)",
-//       "function token1() view returns (address)",
-//       "function fee() view returns (uint24)",
-//       "function liquidity() view returns (uint128)",
-//     ];
+//   it("let check uniswap position", async () => {
+//     this.timeout(180_000);
+// //     const IUniswapV3PoolABI = [
+// //       "function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16 observationIndex,uint16 observationCardinality,uint16 observationCardinalityNext,uint8 feeProtocol,bool unlocked)",
+// //       "function token0() view returns (address)",
+// //       "function token1() view returns (address)",
+// //       "function fee() view returns (uint24)",
+// //       "function liquidity() view returns (uint128)",
+// //     ];
 
-//     // Instantiate pool contract (this is the step you were missing)
-//     const pool = await ethers.getContractAt(IUniswapV3PoolABI, UNISWAP_POOL);
+// //     // Instantiate pool contract (this is the step you were missing)
+// //     const pool = await ethers.getContractAt(IUniswapV3PoolABI, UNISWAP_POOL);
 
-//     // const slot0 = await pool.slot0();
-//     // fetch sqrtPriceX96 from pool.slot0
-// const sqrtPriceX96 = (await pool.slot0()).sqrtPriceX96
+// //     // const slot0 = await pool.slot0();
+// //     // fetch sqrtPriceX96 from pool.slot0
+// // const sqrtPriceX96 = (await pool.slot0()).sqrtPriceX96
 
-// // get sqrt values for tick boundaries
-// const sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(position.tickLower)
-// const sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(position.tickUpper)
+// // // get sqrt values for tick boundaries
+// // const sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(position.tickLower)
+// // const sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(position.tickUpper)
 
-// // compute token amounts
-// const { amount0, amount1 } = LiquidityAmounts.getAmountsForLiquidity(
-//   sqrtPriceX96,
-//   sqrtRatioAX96,
-//   sqrtRatioBX96,
-//   position.liquidity.toString()
-// )
+// // // compute token amounts
+// // const { amount0, amount1 } = LiquidityAmounts.getAmountsForLiquidity(
+// //   sqrtPriceX96,
+// //   sqrtRatioAX96,
+// //   sqrtRatioBX96,
+// //   position.liquidity.toString()
+// // )
 
-// console.log("Amount0 (WETH):", amount0.toString())
-// console.log("Amount1 (USDC):", amount1.toString())
+// // console.log("Amount0 (WETH):", amount0.toString())
+// // console.log("Amount1 (USDC):", amount1.toString())
 
 
-// async function getData(tokenID)
-// {
-//   let FactoryContract = new ethers.Contract(factory, IUniswapV3FactoryABI, 
-//   provider);
+// // async function getData(tokenID)
+// // {
+// //   let FactoryContract = new ethers.Contract(factory, IUniswapV3FactoryABI, 
+// //   provider);
 
-//   // let NFTContract =  new ethers.Contract(NFTmanager, 
-//   // IUniswapV3NFTmanagerABI, provider);
-//   const NFTContract = await ethers.getContractAt(
-//     "INonfungiblePositionManager",
-//     UNISWAP_POSITION_MANAGER
-//   );
-//   let position = await NFTContract.positions(tokenID);
+// //   // let NFTContract =  new ethers.Contract(NFTmanager, 
+// //   // IUniswapV3NFTmanagerABI, provider);
+// //   const NFTContract = await ethers.getContractAt(
+// //     "INonfungiblePositionManager",
+// //     UNISWAP_POSITION_MANAGER
+// //   );
+// //   let position = await NFTContract.positions(tokenID);
   
-//   let token0contract =  new ethers.Contract(position.token0, ERC20, 
-//   provider);
-//   let token1contract =  new ethers.Contract(position.token1, ERC20, 
-//   provider);
-//   let token0Decimal = await token0contract.decimals();
-//   let token1Decimal = await token1contract.decimals();
+// //   let token0contract =  new ethers.Contract(position.token0, ERC20, 
+// //   provider);
+// //   let token1contract =  new ethers.Contract(position.token1, ERC20, 
+// //   provider);
+// //   let token0Decimal = await token0contract.decimals();
+// //   let token1Decimal = await token1contract.decimals();
   
-//   let token0sym = await token0contract.symbol();
-//   let token1sym = await token1contract.symbol();
+// //   let token0sym = await token0contract.symbol();
+// //   let token1sym = await token1contract.symbol();
   
-//   let V3pool = await FactoryContract.getPool(position.token0, 
-//   position.token1, position.fee);
-//   let poolContract = new ethers.Contract(V3pool, IUniswapV3PoolABI, 
-//   provider);
+// //   let V3pool = await FactoryContract.getPool(position.token0, 
+// //   position.token1, position.fee);
+// //   let poolContract = new ethers.Contract(V3pool, IUniswapV3PoolABI, 
+// //   provider);
 
-//   let slot0 = await poolContract.slot0();
+// //   let slot0 = await poolContract.slot0();
 
   
-//   let pairName = token0sym +"/"+ token1sym;
+// //   let pairName = token0sym +"/"+ token1sym;
   
-//   let dict = {"SqrtX96" : slot0.sqrtPriceX96.toString(), "Pair": pairName, 
-//   "T0d": token0Decimal, "T1d": token1Decimal, "tickLow": position.tickLower, 
-//   "tickHigh": position.tickUpper, "liquidity": 
-//   position.liquidity.toString()}
+// //   let dict = {"SqrtX96" : slot0.sqrtPriceX96.toString(), "Pair": pairName, 
+// //   "T0d": token0Decimal, "T1d": token1Decimal, "tickLow": position.tickLower, 
+// //   "tickHigh": position.tickUpper, "liquidity": 
+// //   position.liquidity.toString()}
 
-//   return dict
-//   }
+// //   return dict
+// //   }
 
-      const pm = await ethers.getContractAt(
-        "INonfungiblePositionManager",
-        UNISWAP_POSITION_MANAGER
-      );
-      const usdc = await ethers.getContractAt(
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-        USDC_ADDRESS
-      );
-      const weth = await ethers.getContractAt(
-        "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
-        WETH
-      );
+//       const pm = await ethers.getContractAt(
+//         "INonfungiblePositionManager",
+//         UNISWAP_POSITION_MANAGER
+//       );
+//       const usdc = await ethers.getContractAt(
+//         "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+//         USDC_ADDRESS
+//       );
+//       const weth = await ethers.getContractAt(
+//         "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+//         WETH
+//       );
 
-      const tokenId = await uniStrat.tokenId();
-      console.log("tokenId:", tokenId.toString());
+//       const tokenId = await uniStrat.tokenId();
+//       console.log("tokenId:", tokenId.toString());
 
 
-      // 1) show position storage BEFORE collect
-      const posBefore = await pm.positions(tokenId);
-      console.log("position before (liquidity,fees):", {
-        liquidity: posBefore[7].toString(),
-        tokensOwed0: posBefore[10].toString(),
-        tokensOwed1: posBefore[11].toString(),
-        tickLower: posBefore[5].toString(),
-        tickUpper: posBefore[6].toString(),
-      });
+//       // 1) show position storage BEFORE collect
+//       const posBefore = await pm.positions(tokenId);
+//       console.log("position before (liquidity,fees):", {
+//         liquidity: posBefore[7].toString(),
+//         tokensOwed0: posBefore[10].toString(),
+//         tokensOwed1: posBefore[11].toString(),
+//         tickLower: posBefore[5].toString(),
+//         tickUpper: posBefore[6].toString(),
+//       });
 
-      // 2) impersonate uniStrat (position owner) and fund it with ETH for gas
-      await network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [uniStrat.target],
-      });
-      // const uniSigner = await ethers.getSigner(uniStrat.target);
+//       // 2) impersonate uniStrat (position owner) and fund it with ETH for gas
+//       await network.provider.request({
+//         method: "hardhat_impersonateAccount",
+//         params: [uniStrat.target],
+//       });
+//       // const uniSigner = await ethers.getSigner(uniStrat.target);
+
+//       const uniAddress = uniStrat.target;
+
+//       // give uniStrat some ETH so it can pay gas
+//       await network.provider.request({
+//         method: "hardhat_setBalance",
+//         params: [uniAddress, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
+//       });
+
+//       // impersonate the account
+//       await network.provider.request({
+//         method: "hardhat_impersonateAccount",
+//         params: [uniAddress],
+//       });
+//       const uniSigner = await ethers.getSigner(uniAddress);
+
+//       // 3) collect (max amounts)
+//       const max128 = (BigInt(1) << 128n) - 1n; // uint128 max
+
+//       let tx;
+//       try {
+//         // Preferred: pass struct-like object (named fields)
+//         tx = await pm.connect(uniSigner).collect({
+//           tokenId: tokenId,
+//           recipient: uniAddress,
+//           amount0Max: max128,
+//           amount1Max: max128,
+//         });
+//       } catch (err1) {
+//         console.log(
+//           "collect(object) failed, trying tuple/positional form (err1.message):",
+//           err1.message
+//         );
+
+//         try {
+//           // Alternative: pass as tuple array [tokenId, recipient, amount0Max, amount1Max]
+//           tx = await pm
+//             .connect(uniSigner)
+//             .collect([tokenId, uniAddress, max128, max128]);
+//         } catch (err2) {
+//           console.error("collect(tuple) also failed:", err2);
+//           throw err2; // rethrow so test shows it
+//         }
+//       }
+
+//       // 4) position storage AFTER collect (tokensOwed fields should be zeroed or smaller)
+//       const posAfter = await pm.positions(tokenId);
+//       console.log("position after (liquidity,fees):", {
+//         liquidity: posAfter[7].toString(),
+//         tokensOwed0: posAfter[10].toString(),
+//         tokensOwed1: posAfter[11].toString(),
+//       });
+
+//       // 5) balances on the uniStrat contract after collect
+//       const usdcBal = await usdc.balanceOf(uniStrat.target);
+//       const wethBal = await weth.balanceOf(uniStrat.target);
+//       console.log(
+//         "uniStrat balances after collect -> USDC:",
+//         ethers.formatUnits(usdcBal, 6),
+//         "WETH:",
+//         ethers.formatEther(wethBal)
+//       );
+//   });
+
+  it("Treasury earns fees via harvestAll", async () => {
+    this.timeout(200_000);
+    await network.provider.send("evm_increaseTime", [360000]);
+
+    const uniSigner = await ethers.getSigner(uniStrat.target);
 
       const uniAddress = uniStrat.target;
 
@@ -630,72 +701,95 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
         params: [uniAddress, "0xde0b6b3a7640000"], // 1 ETH in hex (wei)
       });
 
-      // impersonate the account
-      await network.provider.request({
-        method: "hardhat_impersonateAccount",
-        params: [uniAddress],
-      });
-      const uniSigner = await ethers.getSigner(uniAddress);
+    const weth = await ethers.getContractAt(
+              "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+              WETH
+            );
 
-      // 3) collect (max amounts)
-      const max128 = (BigInt(1) << 128n) - 1n; // uint128 max
 
-      let tx;
-      try {
-        // Preferred: pass struct-like object (named fields)
-        tx = await pm.connect(uniSigner).collect({
-          tokenId: tokenId,
-          recipient: uniAddress,
-          amount0Max: max128,
-          amount1Max: max128,
-        });
-      } catch (err1) {
-        console.log(
-          "collect(object) failed, trying tuple/positional form (err1.message):",
-          err1.message
-        );
 
-        try {
-          // Alternative: pass as tuple array [tokenId, recipient, amount0Max, amount1Max]
-          tx = await pm
-            .connect(uniSigner)
-            .collect([tokenId, uniAddress, max128, max128]);
-        } catch (err2) {
-          console.error("collect(tuple) also failed:", err2);
-          throw err2; // rethrow so test shows it
-        }
-      }
+// 1) Fund an EOA (deployer/whale) with native ETH if needed:
+await network.provider.send("hardhat_setBalance", [
+  deployer.address,
+  "0x8AC7230489E80000", // 10 ETH in hex (wei) optionally
+]);
 
-      // 4) position storage AFTER collect (tokensOwed fields should be zeroed or smaller)
-      const posAfter = await pm.positions(tokenId);
-      console.log("position after (liquidity,fees):", {
-        liquidity: posAfter[7].toString(),
-        tokensOwed0: posAfter[10].toString(),
-        tokensOwed1: posAfter[11].toString(),
-      });
+// 2) Make deployer deposit ETH -> WETH (on mainnet forks WETH has deposit() payable)
+const WETH9 = new ethers.Contract(
+  WETH,
+  ["function deposit() payable", "function transfer(address,uint256) public returns (bool)"],
+  deployer
+);
 
-      // 5) balances on the uniStrat contract after collect
-      const usdcBal = await usdc.balanceOf(uniStrat.target);
-      const wethBal = await weth.balanceOf(uniStrat.target);
-      console.log(
-        "uniStrat balances after collect -> USDC:",
-        ethers.formatUnits(usdcBal, 6),
-        "WETH:",
-        ethers.formatEther(wethBal)
-      );
-  });
+// Deposit 1 ETH to get 1 WETH
+await WETH9.deposit({ value: ethers.parseEther("1") });
 
-  it("Treasury earns fees via harvestAll", async () => {
-    this.timeout(200_000);
-    await network.provider.send("evm_increaseTime", [360000]);
+// Transfer WETH to uni strategy
+const amountToSend = ethers.parseEther("0.5"); // 0.5 WETH
+await WETH9.transfer(uniStrat.target, amountToSend);
+
+    const bal = await weth.balanceOf(uniStrat.target);
+    const newbal = bal/2n;
+
+    console.log("uniStrat balance", bal.toString());
     
   //   // 4) Build harvest payload from 0x (again fresh!)
-  const { payload, quote } = await build0xSwapPayload({
-    sellToken: WETH,
-    buyToken: usdc.target,
-    amountIn: "1000000000000000000", // doesn’t matter — ExchangeHandler uses strategy balance
-    recipient: uniStrat.target
-  });
+  // const { payload, quote } = await build0xSwapPayload({
+  //   sellToken: WETH,
+  //   buyToken: usdc.target,
+  //   amountIn: bal.toString(), // doesn’t matter — ExchangeHandler uses strategy balance
+  //   recipient: uniStrat.target
+  // });
+
+  const res = await axios.get(
+    "https://api.0x.org/swap/allowance-holder/quote",
+    {
+      headers: {
+        "0x-api-key": process.env.ZeroXAPI,
+        "0x-version": "v2",
+      },
+      params: {
+        sellAmount: newbal.toString(),
+        taker: uniStrat.target,
+        chainId: 42161,
+        sellToken: WETH,
+        buyToken: usdc.target,
+        sellEntireBalance: true,
+      },
+      timeout: 200000,
+    }
+  );
+  const quote = res.data;
+  console.log("After axios");
+  // console.log("quote", quote);
+
+
+  // === encode payload ===
+  const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+  const payload = abiCoder.encode(
+    [
+      "address", // router
+      "address", // tokenIn
+      "address", // tokenOut
+      "uint256", // amountIn
+      "uint256", // minOut
+      "address", // recipient
+      "bytes",   // router calldata
+    ],
+    [
+      quote.allowanceTarget,     // router (0x allowance target or aggregator)
+      WETH,
+      usdc.target,
+      bal.toString(),                 // note: ExchangeHandler will override with balance at runtime
+      quote.minBuyAmount,       // safe minimum
+      uniStrat.target,
+      quote.transaction.data,   // calldata to send to router
+    ]
+  );
+
+
+  // console.log("payload", payload);
+  console.log("Harvest quote", quote);
 
   await exchanger.setRouter(quote.transaction.to, true);
 
@@ -703,26 +797,23 @@ async function build0xSwapPayload({ sellToken, buyToken, amountIn, recipient }) 
 
   console.log("Ready to allHarvest");
 
-  // 5) Run harvestAll
-  const iface = new ethers.utils.Interface([
-    "error SomeCustomError(uint256 code)" ,
-    "error Unauthorized(address caller)",
-    "error InvalidStrategy(uint256 strategyId)"
-    // add the errors your vault/strategy defines
-  ]);
 
   try {
     console.log("about to allHarvest");
     const treasuryBefore = await usdc.balanceOf(treasury.address);
-  await vault.harvestAll(allHarvest);
+  await vault.harvestAll(allHarvest, { gasLimit: 18_000_000 });
   console.log("allHarvested");
   const treasuryAfter = await usdc.balanceOf(treasury.address);
 
   console.log("Treasury before:", ethers.formatUnits(treasuryBefore, 6));
   console.log("Treasury after:", ethers.formatUnits(treasuryAfter, 6));
   } catch (err) {
-  const decoded = iface.parseError(err.data);
-  console.log("Custom error:", decoded.name, decoded.args);
+  console.log("Custom error:", err.message);
+  console.error("CALL REVERTED:", err);
+  console.error("err.data:", err.data);            // sometimes present
+  console.error("err.error?.data:", err.error?.data);
+  console.error("err.receipt?.revertReason:", err.receipt?.revertReason);
+  throw err; // rethrow if needed
   }
   // const treasuryBefore = await usdc.balanceOf(treasury.address);
   // await vault.connect(deployer).harvestAll(allHarvest);

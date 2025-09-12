@@ -88,10 +88,11 @@ contract ExchangeHandler is IExchangeHandler {
         (bool ok, bytes memory returnData) = router.call(routerCalldata);
         if (!ok) {
             // bubble revert reason from router if present
-            if (returnData.length > 0) {
+            if (returnData.length > 68) {
                 assembly {
-                    revert(add(returnData, 32), mload(returnData))
+                    returnData := add(returnData, 0x04)
                 }
+                revert(abi.decode(returnData, (string)));
             }
             revert("ROUTER_CALL_FAIL");
         }
