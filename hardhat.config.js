@@ -69,6 +69,8 @@ module.exports = {
   },
   networks: {
     hardhat: {
+      blockGasLimit: 1000000000, // 1B, way higher
+      allowUnlimitedContractSize: true, // sometimes needed
       forking: {
         url: process.env.ALCHEMY_ARBITRUM_URL, // your fork
         enabled: true

@@ -276,37 +276,37 @@ contract Vault {
             strategies[i].harvest(allSwapData[i]); // Uni sends USDC to Vault; Aave does nothing
         }
 
-        // uint256 afterTA = totalAssets();
-        // uint256 idleAfter = IERC20(asset).balanceOf(address(this));
+        uint256 afterTA = totalAssets();
+        uint256 idleAfter = IERC20(asset).balanceOf(address(this));
 
         // Step 2: compute realized profit (what actually hit the Vault this harvest)
-        // uint256 realizedProfit = idleAfter > idleBefore
-        //     ? idleAfter - idleBefore
-        //     : 0;
+        uint256 realizedProfit = idleAfter > idleBefore
+            ? idleAfter - idleBefore
+            : 0;
 
         // Step 3: management fee (time-based, on full TVL)
-        // uint256 mgmt = fees.computeMgmtFee(afterTA);
+        uint256 mgmt = fees.computeMgmtFee(afterTA);
 
         // Step 4: performance fee (only on realized profit)
-        // uint256 perf;
-        // if (realizedProfit > 0 && fees.performanceFeeBps() > 0) {
-        //     perf = (realizedProfit * fees.performanceFeeBps()) / 1e4;
-        // }
+        uint256 perf;
+        if (realizedProfit > 0 && fees.performanceFeeBps() > 0) {
+            perf = (realizedProfit * fees.performanceFeeBps()) / 1e4;
+        }
 
         // Step 5: pay fees from Vault’s idle USDC
-        // uint256 totalFees = mgmt + perf;
-        // if (totalFees > 0) {
-        //     uint256 bal = IERC20(asset).balanceOf(address(this));
-        //     if (bal >= totalFees) {
-        //         // if (mgmt > 0) IERC20(asset).transfer(fees.treasury(), mgmt);
-        //         // if (perf > 0) IERC20(asset).transfer(fees.treasury(), perf);
-        //     }
-        // }
+        uint256 totalFees = mgmt + perf;
+        if (totalFees > 0) {
+            uint256 bal = IERC20(asset).balanceOf(address(this));
+            if (bal >= totalFees) {
+                // if (mgmt > 0) IERC20(asset).transfer(fees.treasury(), mgmt);
+                // if (perf > 0) IERC20(asset).transfer(fees.treasury(), perf);
+            }
+        }
 
-        // fees.onFeesCharged();
-        // lastHarvest = block.timestamp;
+        fees.onFeesCharged();
+        lastHarvest = block.timestamp;
 
-        // emit Harvest(realizedProfit, mgmt, perf, afterTA);
+        emit Harvest(realizedProfit, mgmt, perf, afterTA);
     }
 
     // -----------------

@@ -46,7 +46,10 @@ contract ExchangeHandler is IExchangeHandler {
     /// )
     function swap(
         bytes calldata data
-    ) external override returns (uint256 amountOut) {
+    ) external override returns (
+        uint256 amountOut
+        
+        ) {
         (
             address router,
             address tokenIn,
@@ -59,6 +62,7 @@ contract ExchangeHandler is IExchangeHandler {
                 data,
                 (address, address, address, uint256, uint256, address, bytes)
             );
+            
 
         require(routers[router], "ROUTER_NOT_ALLOWED");
 
@@ -85,10 +89,11 @@ contract ExchangeHandler is IExchangeHandler {
         tokenIn.safeApprove(router, amountIn);
 
         // Call the router with the pre-encoded calldata (swapExactTokensForTokens, etc.)
-        (bool ok, bytes memory returnData) = router.call(routerCalldata);
+        (bool ok, bytes memory returnData) = router.call{value: amountIn}(routerCalldata);
+        // (bool ok, bytes memory returnData) = router.call(routerCalldata);
         if (!ok) {
             // bubble revert reason from router if present
-            if (returnData.length > 68) {
+            if (returnData.length > 0) {
                 assembly {
                     returnData := add(returnData, 0x04)
                 }

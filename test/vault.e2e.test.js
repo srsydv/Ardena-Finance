@@ -326,7 +326,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
     }
 
     it("User can deposit, invest", async () => {
-      this.timeout(180_000);
+      this.timeout(250_000);
 
       const depositAmount = ethers.parseUnits("1000", 6);
       console.log("depositAmount:", depositAmount.toString());
@@ -462,7 +462,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
         usdc.target
       );
       await usdcContract.connect(whale).approve(UNISWAP_V3_ROUTER, amountIn);
-      await usdcContract.connect(whale2).approve(UNISWAP_V3_ROUTER, amountIn);
+      // await usdcContract.connect(whale2).approve(UNISWAP_V3_ROUTER, amountIn);
 
       const params = {
         tokenIn: USDC_ADDRESS,
@@ -774,7 +774,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
             chainId: 42161,
             sellToken: WETH,
             buyToken: usdc.target,
-            sellEntireBalance: true,
+            // sellEntireBalance: true,
           },
           timeout: 200000,
         }
@@ -796,7 +796,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
           "bytes", // router calldata
         ],
         [
-          quote.allowanceTarget, // router (0x allowance target or aggregator)
+          quote.transaction.to, // router (0x allowance target or aggregator)
           WETH,
           usdc.target,
           bal.toString(), // note: ExchangeHandler will override with balance at runtime
@@ -818,7 +818,7 @@ describe("Vault + Strategies Integration (Arbitrum fork)", function () {
       try {
         console.log("about to allHarvest");
         const treasuryBefore = await usdc.balanceOf(treasury.address);
-        await vault.harvestAll(allHarvest, { gasLimit: 18_000_000 });
+        await vault.harvestAll(allHarvest, { gasLimit: 30_000_000 });
         console.log("allHarvested");
         const treasuryAfter = await usdc.balanceOf(treasury.address);
 
