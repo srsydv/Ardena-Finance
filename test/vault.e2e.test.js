@@ -713,13 +713,9 @@
 //       this.timeout(200_000);
 //       await network.provider.send("evm_increaseTime", [360000]);
 
-
 //       //////////////
 
-
-
 //       const SWAP_ROUTER_V3 = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
-
 
 // //       await network.provider.send("hardhat_setBalance", [deployer.address, "0x8AC7230489E80000"]); // 10 ETH
 // //       // const weth = await ethers.getContractAt(
@@ -737,7 +733,6 @@
 
 // //       WETHc = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", WETH);
 // //     USDCC = await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", usdc.target);
-  
 
 // //       const WETH1 = new ethers.Contract(WETH, ["function deposit() payable", "function transfer(address,uint256) public returns (bool)"], deployer);
 // //       // Deposit 1 ETH -> 1 WETH
@@ -760,7 +755,6 @@
 // //         params: [uniAddress, "0x8AC7230489E80000"], // 1 ETH in hex (wei)
 // //       });
 
-      
 // //     const approveTx = await WETHc.connect(uniStratSigner).approve(exchanger.target, amountToGive);
 // //     await approveTx.wait();
 
@@ -772,7 +766,6 @@
 // //     const amountIn = amountToGive / 2n;            // must match the actual WETH that strategy holds/pulls (or what strategy approves)
 // //     const amountOutMinimum = 0;              // for test keep 0; production: use a quote
 // //     const sqrtPriceLimitX96 = 0;
-
 
 // //     const params = [
 // //       WETH,
@@ -790,7 +783,6 @@
 
 // //     const routerCalldata = iface.encodeFunctionData("exactInputSingle", [params]);
 
-
 // //      // === STEP 4: build ExchangeHandler payload layout (same as your handler expects) ===
 // //      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
 // //      const payload = abiCoder.encode(
@@ -804,7 +796,7 @@
 // //     // If your swap function sits behind "onlyOwner" or is callable only by the strategy,
 // //     // call it via the impersonated strategy signer.
 // //     // The callStatic will fail if amounts/approvals do not line up.
-   
+
 // //     try {
 // //       console.log("exchanger:", exchangerContract);
 // // if (!exchanger) throw new Error("exchanger is undefined — check getContractAt / deployment");
@@ -821,19 +813,14 @@
 // //     const r = await tx.wait();
 // //     console.log("swap tx mined, gas used:", r.gasUsed.toString());
 
-
 // //     const usdcBalAfter = await USDCC.balanceOf(exchanger.target);
 // //     console.log("USDC balance at exchanger after swap:", usdcBalAfter.toString());
 // //     expect(usdcBalAfter).to.be.gt(0);
 
 // //     // Cleanup: stop impersonation
 // //     await network.provider.request({ method: "hardhat_stopImpersonatingAccount", params: [uniStrat.target] });
- 
-
 
 // /////////////////////
-
-
 
 //       const uniSigner = await ethers.getSigner(uniStrat.target);
 
@@ -879,21 +866,16 @@
 //       const newbal = bal / 4n;
 
 //       console.log("uniStrat balance", bal.toString());
-      
 
 //       const exchangerbal = await weth.balanceOf(exchanger.target);
 //       console.log("exchanger balance", exchangerbal.toString());
 
 //       //////////////////////
 
-
-
-
 //     const deadline = (await ethers.provider.getBlock("latest")).timestamp + 1200;
 //     const amountIn = newbal;            // must match the actual WETH that strategy holds/pulls (or what strategy approves)
 //     const amountOutMinimum = 0;              // for test keep 0; production: use a quote
 //     const sqrtPriceLimitX96 = 0;
-
 
 //     const params = [
 //       WETH,
@@ -911,7 +893,6 @@
 
 //     const routerCalldata = iface.encodeFunctionData("exactInputSingle", [params]);
 
-
 //      // === STEP 4: build ExchangeHandler payload layout (same as your handler expects) ===
 //      const abiCoder = ethers.AbiCoder.defaultAbiCoder();
 //      const payload = abiCoder.encode(
@@ -921,10 +902,7 @@
 
 //      await exchanger.setRouter(SWAP_ROUTER_V3, true);
 
-
-
 //       //////////////////////
-
 
 //       // const res = await axios.get(
 //       //   "https://api.0x.org/swap/allowance-holder/quote",
