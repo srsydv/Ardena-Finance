@@ -89,8 +89,8 @@ contract ExchangeHandler is IExchangeHandler {
         tokenIn.safeApprove(router, amountIn);
 
         // Call the router with the pre-encoded calldata (swapExactTokensForTokens, etc.)
-        (bool ok, bytes memory returnData) = router.call{value: amountIn}(routerCalldata);
-        // (bool ok, bytes memory returnData) = router.call(routerCalldata);
+        // (bool ok, bytes memory returnData) = router.call{value: amountIn}(routerCalldata);
+        (bool ok, bytes memory returnData) = router.call(routerCalldata);
         if (!ok) {
             // bubble revert reason from router if present
             if (returnData.length > 0) {
