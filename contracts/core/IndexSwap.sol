@@ -47,9 +47,9 @@ contract IndexSwap {
         require(block.timestamp >= lastRebalance + cooldown, "COOLDOWN");
 
         uint256 stratCount = vault.strategiesLength();
-        require(withdrawAmounts.length == stratCount, "BAD_LEN");
-        require(withdrawSwapData.length == stratCount, "BAD_LEN");
-        require(investSwapData.length == stratCount, "BAD_LEN");
+        require(withdrawAmounts.length == stratCount, "BAD_wAMOUNT_LEN");
+        require(withdrawSwapData.length == stratCount, "BAD_wSWAPDATA_LEN");
+        require(investSwapData.length == stratCount, "BAD_iSWAPDATA_LEN");
 
         // 1. Withdraw from over-allocated strategies
         for (uint256 i; i < stratCount; i++) {
