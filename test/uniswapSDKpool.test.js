@@ -297,7 +297,39 @@ console.log("Pool created at:", poolAddress);
       expect(treasury).to.be.an("object");
     });
 
-    console.log("uniStrat.target2:", uniStrat);
+    // add near your test imports
+const ERC20_META = [
+  "function symbol() view returns (string)",
+  "function decimals() view returns (uint8)",
+  "function balanceOf(address) view returns (uint256)"
+];
+
+async function logPoolTokens(poolAddress) {
+  const pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddress);
+  const [token0, token1, L, s0] = await Promise.all([
+    pool.token0(),
+    pool.token1(),
+    pool.liquidity(),
+    pool.slot0()
+  ]);
+  const [t0c, t1c] = await Promise.all([
+    ethers.getContractAt(ERC20_META, token0),
+    ethers.getContractAt(ERC20_META, token1)
+  ]);
+  const [sym0, sym1, dec0, dec1, bal0, bal1] = await Promise.all([
+    t0c.symbol(), t1c.symbol(),
+    t0c.decimals(), t1c.decimals(),
+    t0c.balanceOf(poolAddress), t1c.balanceOf(poolAddress)
+  ]);
+
+  console.log(
+    `Pool balances: ${sym0}=${ethers.formatUnits(bal0, dec0)} ` +
+    `${sym1}=${ethers.formatUnits(bal1, dec1)} ` +
+    `tick=${s0[1].toString()} L=${L.toString()}`
+  );
+}
+
+
   it("should create pool if not exists, deposit, invest, and harvest fees", async () => {
   
       poolAddress = await factory.getPool(mockWETH.target, mockUSDC.target, 500);
@@ -438,10 +470,14 @@ console.log("strategy t0,t1:", t0Bal.toString(), t1Bal.toString()); // should bo
   });
   it("should whale trade in same pool", async () => {
     this.timeout(200_000);
+
+    
   
     // Get the pool for your mocks (created earlier via positionManager)
     const poolAddress = await factory.getPool(mockWETH.target, mockUSDC.target, 500);
     expect(poolAddress).to.not.equal(ethers.ZeroAddress);
+
+    await logPoolTokens(poolAddress); // before trades
   
     // Fund a whale (use user as whale for simplicity)
     await mockUSDC.mint(user.address, ethers.parseUnits("50000", 6));
@@ -467,6 +503,8 @@ console.log("strategy t0,t1:", t0Bal.toString(), t1Bal.toString()); // should bo
       amountOutMinimum: 0n,       // for tests only; use quoted minOut in prod
       sqrtPriceLimitX96: 0n
     });
+
+    await logPoolTokens(poolAddress);
   
     // WETH -> USDC back trade
     const wethBal = await mockWETH.balanceOf(user.address);
@@ -484,6 +522,8 @@ console.log("strategy t0,t1:", t0Bal.toString(), t1Bal.toString()); // should bo
       amountOutMinimum: 0n,
       sqrtPriceLimitX96: 0n
     });
+
+    await logPoolTokens(poolAddress); // before trades
   
     // Optional: show pool state after trades
     const IUniswapV3PoolABI = [
