@@ -44,15 +44,15 @@ async function main() {
   console.log(`Deployed RateLimitedERC20 at: ${addr}`);
 
   // Optional: transfer ownership
-//   const currentOwner = await token.owner();
-//   if (NEW_OWNER && NEW_OWNER.toLowerCase() !== currentOwner.toLowerCase()) {
-//     console.log(`Transferring ownership to ${NEW_OWNER}...`);
-//     const txo = await token.transferOwnership(NEW_OWNER);
-//     await txo.wait();
-//     console.log(`Ownership transferred. New owner: ${await token.owner()}`);
-//   } else {
-//     console.log(`Owner remains: ${currentOwner}`);
-//   }
+  //   const currentOwner = await token.owner();
+  //   if (NEW_OWNER && NEW_OWNER.toLowerCase() !== currentOwner.toLowerCase()) {
+  //     console.log(`Transferring ownership to ${NEW_OWNER}...`);
+  //     const txo = await token.transferOwnership(NEW_OWNER);
+  //     await txo.wait();
+  //     console.log(`Ownership transferred. New owner: ${await token.owner()}`);
+  //   } else {
+  //     console.log(`Owner remains: ${currentOwner}`);
+  //   }
 
   // Optional: verify on Etherscan (requires ETHERSCAN_API_KEY configured)
   if (DO_VERIFY) {
@@ -74,5 +74,3 @@ main().catch((e) => {
   console.error(e);
   process.exitCode = 1;
 });
-
-

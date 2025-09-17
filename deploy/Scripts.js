@@ -43,7 +43,10 @@ async function main() {
     WETH: env("WETH", DEFAULTS.WETH),
     ASSET: env("ASSET", DEFAULTS.USDC),
     AAVE_POOL: env("AAVE_POOL", DEFAULTS.AAVE_POOL),
-    UNISWAP_POSITION_MANAGER: env("UNISWAP_POSITION_MANAGER", DEFAULTS.UNISWAP_POSITION_MANAGER),
+    UNISWAP_POSITION_MANAGER: env(
+      "UNISWAP_POSITION_MANAGER",
+      DEFAULTS.UNISWAP_POSITION_MANAGER
+    ),
     UNISWAP_POOL: env("UNISWAP_POOL", DEFAULTS.UNISWAP_POOL),
     UNI_V3_ROUTER: env("UNI_V3_ROUTER", DEFAULTS.UNI_V3_ROUTER),
     SUSHI_ROUTER: env("SUSHI_ROUTER", DEFAULTS.SUSHI_ROUTER),
@@ -77,14 +80,22 @@ async function main() {
     console.log("- setEthUsd:", cfg.ETH_USD_AGG);
   }
   if (cfg.USDC_USD_AGG) {
-    const tx = await oracle.setTokenUsd(cfg.ASSET, cfg.USDC_USD_AGG, cfg.ORACLE_HEARTBEAT);
+    const tx = await oracle.setTokenUsd(
+      cfg.ASSET,
+      cfg.USDC_USD_AGG,
+      cfg.ORACLE_HEARTBEAT
+    );
     await tx.wait();
     console.log("- setTokenUsd(ASSET):", cfg.USDC_USD_AGG);
   }
 
   // Deploy FeeModule
   const FeeModule = await ethers.getContractFactory("FeeModule");
-  const fees = await FeeModule.deploy(cfg.ASSET, cfg.TREASURY, deployer.address);
+  const fees = await FeeModule.deploy(
+    cfg.ASSET,
+    cfg.TREASURY,
+    deployer.address
+  );
   await fees.waitForDeployment();
   console.log("FeeModule:", fees.target);
 
@@ -123,11 +134,17 @@ async function main() {
 
   // Deploy strategies
   const AaveV3Strategy = await ethers.getContractFactory("AaveV3Strategy");
-  const aaveStrat = await AaveV3Strategy.deploy(vault.target, cfg.ASSET, cfg.AAVE_POOL);
+  const aaveStrat = await AaveV3Strategy.deploy(
+    vault.target,
+    cfg.ASSET,
+    cfg.AAVE_POOL
+  );
   await aaveStrat.waitForDeployment();
   console.log("AaveV3Strategy:", aaveStrat.target);
 
-  const UniswapV3Strategy = await ethers.getContractFactory("UniswapV3Strategy");
+  const UniswapV3Strategy = await ethers.getContractFactory(
+    "UniswapV3Strategy"
+  );
   const uniStrat = await UniswapV3Strategy.deploy(
     vault.target,
     cfg.ASSET,
@@ -176,9 +193,9 @@ async function main() {
   console.log("Saved:", outFile);
 }
 
-main().then(() => process.exit(0)).catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
-
-
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

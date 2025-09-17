@@ -737,180 +737,219 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     });
 
     // helper: set ETH/USD mock feed to match pool's USDC-per-WETH spot
-// Correct: set ETH/USD mock feed to the pool's current USDC-per-WETH spot (8 decimals)
-const DEC_META = ["function decimals() view returns (uint8)"];
+    // Correct: set ETH/USD mock feed to the pool's current USDC-per-WETH spot (8 decimals)
+    const DEC_META = ["function decimals() view returns (uint8)"];
 
-async function setEthUsdFromPool(factory, mockWETH, mockUSDC, fee, ethUsdAgg) {
-  const poolAddr = await factory.getPool(mockWETH.target, mockUSDC.target, fee);
-  const pool = await ethers.getContractAt(
-    [
-      "function slot0() view returns (uint160,int24,uint16,uint16,uint16,uint8,bool)",
-      "function token0() view returns (address)",
-      "function token1() view returns (address)"
-    ],
-    poolAddr
-  );
+    async function setEthUsdFromPool(
+      factory,
+      mockWETH,
+      mockUSDC,
+      fee,
+      ethUsdAgg
+    ) {
+      const poolAddr = await factory.getPool(
+        mockWETH.target,
+        mockUSDC.target,
+        fee
+      );
+      const pool = await ethers.getContractAt(
+        [
+          "function slot0() view returns (uint160,int24,uint16,uint16,uint16,uint8,bool)",
+          "function token0() view returns (address)",
+          "function token1() view returns (address)",
+        ],
+        poolAddr
+      );
 
-  const [s0, t0, t1] = await Promise.all([pool.slot0(), pool.token0(), pool.token1()]);
-  const sp = BigInt(s0[0]);                 // sqrtPriceX96
-  const [dec0, dec1] = await Promise.all([
-    (await ethers.getContractAt(DEC_META, t0)).decimals(),
-    (await ethers.getContractAt(DEC_META, t1)).decimals()
-  ]);
+      const [s0, t0, t1] = await Promise.all([
+        pool.slot0(),
+        pool.token0(),
+        pool.token1(),
+      ]);
+      const sp = BigInt(s0[0]); // sqrtPriceX96
+      const [dec0, dec1] = await Promise.all([
+        (await ethers.getContractAt(DEC_META, t0)).decimals(),
+        (await ethers.getContractAt(DEC_META, t1)).decimals(),
+      ]);
 
-  const Q96  = 1n << 96n;
-  const Q192 = Q96 * Q96;
-  const sp2  = sp * sp;                      // price in Q64.96^2
-  const ONE18 = 10n ** 18n;
+      const Q96 = 1n << 96n;
+      const Q192 = Q96 * Q96;
+      const sp2 = sp * sp; // price in Q64.96^2
+      const ONE18 = 10n ** 18n;
 
-  // USDC per 1 WETH at 1e18 scale (correct decimal handling)
-  let usdcPerWeth1e18;
-  if (t0.toLowerCase() === mockUSDC.target.toLowerCase()) {
-    // token0=USDC(6), token1=WETH(18) → price(token0/token1)
-    const scale = 10n ** BigInt(dec1 - dec0);         // 10^(18-6)=1e12
-    usdcPerWeth1e18 = (Q192 * scale * ONE18) / sp2;
-  } else {
-    // token0=WETH(18), token1=USDC(6) → price(token1/token0)
-    const scale = 10n ** BigInt(dec0 - dec1);         // 10^(18-6)=1e12
-    usdcPerWeth1e18 = (sp2 * scale * ONE18) / Q192;
-  }
+      // USDC per 1 WETH at 1e18 scale (correct decimal handling)
+      let usdcPerWeth1e18;
+      if (t0.toLowerCase() === mockUSDC.target.toLowerCase()) {
+        // token0=USDC(6), token1=WETH(18) → price(token0/token1)
+        const scale = 10n ** BigInt(dec1 - dec0); // 10^(18-6)=1e12
+        usdcPerWeth1e18 = (Q192 * scale * ONE18) / sp2;
+      } else {
+        // token0=WETH(18), token1=USDC(6) → price(token1/token0)
+        const scale = 10n ** BigInt(dec0 - dec1); // 10^(18-6)=1e12
+        usdcPerWeth1e18 = (sp2 * scale * ONE18) / Q192;
+      }
 
-  // Publish to 1e8 decimals (Chainlink-like)
-  const answer1e8 = usdcPerWeth1e18 / (10n ** 10n);   // 1e18 → 1e8
-  await ethUsdAgg.setAnswer(answer1e8);
-  console.log("ETH_USD mock set to:", answer1e8.toString());
-}
+      // Publish to 1e8 decimals (Chainlink-like)
+      const answer1e8 = usdcPerWeth1e18 / 10n ** 10n; // 1e18 → 1e8
+      await ethUsdAgg.setAnswer(answer1e8);
+      console.log("ETH_USD mock set to:", answer1e8.toString());
+    }
 
     it("should harvestAll: realize fees to USDC via router payload", async () => {
       this.timeout(300_000);
-// Build harvest payload (for UniswapV3Strategy) and call harvestAll
-// const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
-// const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
-// const iface = new ethers.Interface(artifact.abi);
+      // Build harvest payload (for UniswapV3Strategy) and call harvestAll
+      // const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+      // const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
+      // const iface = new ethers.Interface(artifact.abi);
 
-// // get strategy + its pool to pick the non-want token
-// const uniStratAddr = await vault.strategies(0);
-// const uniStratView = await ethers.getContractAt("UniswapV3Strategy", uniStratAddr);
-// const poolAddr = await uniStratView.pool();
-// const pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddr);
-// const [token0, token1] = await Promise.all([pool.token0(), pool.token1()]);
-// const want = mockUSDC.target.toLowerCase();
-// const tokenIn = token0.toLowerCase() === want ? token1 : token0; // non-want token (WETH)
+      // // get strategy + its pool to pick the non-want token
+      // const uniStratAddr = await vault.strategies(0);
+      // const uniStratView = await ethers.getContractAt("UniswapV3Strategy", uniStratAddr);
+      // const poolAddr = await uniStratView.pool();
+      // const pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddr);
+      // const [token0, token1] = await Promise.all([pool.token0(), pool.token1()]);
+      // const want = mockUSDC.target.toLowerCase();
+      // const tokenIn = token0.toLowerCase() === want ? token1 : token0; // non-want token (WETH)
 
+      // preview collect and compute exact amountIn to swap (non-want -> want)
+      const pm = await ethers.getContractAt(
+        INonfungiblePositionManagerABI,
+        "0xC36442b4a4522E871399CD717aBDD847Ab11FE88"
+      );
+      const uniStratAddr = await vault.strategies(0);
+      const uniStratView = await ethers.getContractAt(
+        "UniswapV3Strategy",
+        uniStratAddr
+      );
+      const tokenId = await uniStratView.tokenId();
 
-// preview collect and compute exact amountIn to swap (non-want -> want)
-const pm = await ethers.getContractAt(INonfungiblePositionManagerABI, "0xC36442b4a4522E871399CD717aBDD847Ab11FE88");
-const uniStratAddr = await vault.strategies(0);
-const uniStratView = await ethers.getContractAt("UniswapV3Strategy", uniStratAddr);
-const tokenId = await uniStratView.tokenId();
+      const poolAddr = await uniStratView.pool();
+      const pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddr);
+      const [t0, t1] = await Promise.all([pool.token0(), pool.token1()]);
+      const want = mockUSDC.target.toLowerCase();
+      const tokenInAddr = t0.toLowerCase() === want ? t1 : t0;
 
-const poolAddr = await uniStratView.pool();
-const pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddr);
-const [t0, t1] = await Promise.all([pool.token0(), pool.token1()]);
-const want = mockUSDC.target.toLowerCase();
-const tokenInAddr = (t0.toLowerCase() === want) ? t1 : t0;
+      // preview collect (impersonate strategy)
+      await network.provider.request({
+        method: "hardhat_impersonateAccount",
+        params: [uniStratAddr],
+      });
+      const strat = await ethers.getSigner(uniStratAddr);
+      const max128 = (1n << 128n) - 1n;
+      const [c0, c1] = await pm.connect(strat).collect.staticCall({
+        tokenId,
+        recipient: uniStratAddr,
+        amount0Max: max128,
+        amount1Max: max128,
+      });
 
-// preview collect (impersonate strategy)
-await network.provider.request({ method: "hardhat_impersonateAccount", params: [uniStratAddr] });
-const strat = await ethers.getSigner(uniStratAddr);
-const max128 = (1n << 128n) - 1n;
-const [c0, c1] = await pm.connect(strat).collect.staticCall({
-  tokenId,
-  recipient: uniStratAddr,
-  amount0Max: max128,
-  amount1Max: max128,
-});
+      // pre-existing non-want balance on the strategy
+      const erc20Bal = ["function balanceOf(address) view returns (uint256)"];
+      const preBal = await (
+        await ethers.getContractAt(erc20Bal, tokenInAddr)
+      ).balanceOf(uniStratAddr);
 
-// pre-existing non-want balance on the strategy
-const erc20Bal = ["function balanceOf(address) view returns (uint256)"];
-const preBal = await (await ethers.getContractAt(erc20Bal, tokenInAddr)).balanceOf(uniStratAddr);
+      // total to swap = preBal + collectable for that token
+      const amountInHarvest =
+        tokenInAddr.toLowerCase() === t0.toLowerCase()
+          ? preBal + c0
+          : preBal + c1;
 
-// total to swap = preBal + collectable for that token
-const amountInHarvest =
-  tokenInAddr.toLowerCase() === t0.toLowerCase() ? (preBal + c0) : (preBal + c1);
+      // build router calldata with NON-ZERO amountIn
+      const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+      const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
+      const iface = new ethers.Interface(artifact.abi);
+      const deadline =
+        (await ethers.provider.getBlock("latest")).timestamp + 1200;
 
-// build router calldata with NON-ZERO amountIn
-const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
-const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
-const iface = new ethers.Interface(artifact.abi);
-const deadline = (await ethers.provider.getBlock("latest")).timestamp + 1200;
+      const params = {
+        tokenIn: tokenInAddr,
+        tokenOut: mockUSDC.target,
+        fee: 500,
+        recipient: uniStratAddr,
+        deadline,
+        amountIn: amountInHarvest, // <-- must be > 0
+        amountOutMinimum: 0n,
+        sqrtPriceLimitX96: 0n,
+      };
+      const routerCalldata = iface.encodeFunctionData("exactInputSingle", [
+        params,
+      ]);
 
-const params = {
-  tokenIn: tokenInAddr,
-  tokenOut: mockUSDC.target,
-  fee: 500,
-  recipient: uniStratAddr,
-  deadline,
-  amountIn: amountInHarvest,     // <-- must be > 0
-  amountOutMinimum: 0n,
-  sqrtPriceLimitX96: 0n,
-};
-const routerCalldata = iface.encodeFunctionData("exactInputSingle", [params]);
+      // ExchangeHandler payload: set amountIn to the SAME value
+      const harvestPayload = ethers.AbiCoder.defaultAbiCoder().encode(
+        [
+          "address",
+          "address",
+          "address",
+          "uint256",
+          "uint256",
+          "address",
+          "bytes",
+        ],
+        [
+          UNISWAP_V3_ROUTER,
+          tokenInAddr,
+          mockUSDC.target,
+          amountInHarvest,
+          0,
+          uniStratAddr,
+          routerCalldata,
+        ]
+      );
 
-// ExchangeHandler payload: set amountIn to the SAME value
-const harvestPayload = ethers.AbiCoder.defaultAbiCoder().encode(
-  ["address","address","address","uint256","uint256","address","bytes"],
-  [UNISWAP_V3_ROUTER, tokenInAddr, mockUSDC.target, amountInHarvest, 0, uniStratAddr, routerCalldata]
-);
+      // allow router and harvest
+      // await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
+      // await access.setKeeper(deployer.address, true);
+      // await vault.connect(deployer).harvestAll([[harvestPayload]]);
 
-// allow router and harvest
-// await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
-// await access.setKeeper(deployer.address, true);
-// await vault.connect(deployer).harvestAll([[harvestPayload]]);
+      // // router calldata: exactInputSingle WETH -> USDC, recipient = strategy
+      // const deadline = (await ethers.provider.getBlock("latest")).timestamp + 1200;
+      // const params = {
+      //   tokenIn,
+      //   tokenOut: mockUSDC.target,
+      //   fee: 500,
+      //   recipient: uniStratAddr,
+      //   deadline,
+      //   amountIn: 0n,               // let ExchangeHandler pull full post-collect balance
+      //   amountOutMinimum: 0n,       // tests only; set real minOut in prod
+      //   sqrtPriceLimitX96: 0n
+      // };
+      // const routerCalldata = iface.encodeFunctionData("exactInputSingle", [params]);
 
+      // // ExchangeHandler payload: (router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata)
+      // const harvestPayload = ethers.AbiCoder.defaultAbiCoder().encode(
+      //   ["address","address","address","uint256","uint256","address","bytes"],
+      //   [UNISWAP_V3_ROUTER, tokenIn, mockUSDC.target, 0, 0, uniStratAddr, routerCalldata]
+      // );
 
-// // router calldata: exactInputSingle WETH -> USDC, recipient = strategy
-// const deadline = (await ethers.provider.getBlock("latest")).timestamp + 1200;
-// const params = {
-//   tokenIn,
-//   tokenOut: mockUSDC.target,
-//   fee: 500,
-//   recipient: uniStratAddr,
-//   deadline,
-//   amountIn: 0n,               // let ExchangeHandler pull full post-collect balance
-//   amountOutMinimum: 0n,       // tests only; set real minOut in prod
-//   sqrtPriceLimitX96: 0n
-// };
-// const routerCalldata = iface.encodeFunctionData("exactInputSingle", [params]);
+      const MockAgg = await ethers.getContractFactory("MockAggregatorV3");
+      const ethUsdAgg = await MockAgg.deploy(0, 8);
 
-// // ExchangeHandler payload: (router, tokenIn, tokenOut, amountIn, minOut, to, routerCalldata)
-// const harvestPayload = ethers.AbiCoder.defaultAbiCoder().encode(
-//   ["address","address","address","uint256","uint256","address","bytes"],
-//   [UNISWAP_V3_ROUTER, tokenIn, mockUSDC.target, 0, 0, uniStratAddr, routerCalldata]
-// );
+      // const uniStratAddr = await vault.strategies(0);
+      // const uniStratView = await ethers.getContractAt("UniswapV3Strategy", uniStratAddr);
+      const oracleAddr = await uniStratView.oracle();
+      const oracle = await ethers.getContractAt("OracleModule", oracleAddr);
 
-const MockAgg = await ethers.getContractFactory("MockAggregatorV3");
-const ethUsdAgg = await MockAgg.deploy(0, 8);
+      // derive price and set feed (must be called by Oracle owner)
+      await setEthUsdFromPool(factory, mockWETH, mockUSDC, 500, ethUsdAgg);
+      await oracle.connect(deployer).setEthUsd(ethUsdAgg.target, "864000");
 
-// const uniStratAddr = await vault.strategies(0);
-// const uniStratView = await ethers.getContractAt("UniswapV3Strategy", uniStratAddr);
-const oracleAddr = await uniStratView.oracle();
-const oracle = await ethers.getContractAt("OracleModule", oracleAddr);
+      console.log(
+        "oracle WETH USD:",
+        (await oracle.price(mockWETH.target)).toString(),
+        "oracle USDC USD:",
+        (await oracle.price(mockUSDC.target)).toString()
+      );
 
-// derive price and set feed (must be called by Oracle owner)
-await setEthUsdFromPool(factory, mockWETH, mockUSDC, 500, ethUsdAgg);
-await oracle.connect(deployer).setEthUsd(ethUsdAgg.target, "864000");
+      // proceed to harvestAll([[harvestPayload]])
+      // then harvest with your payload
+      // await vault.connect(deployer).harvestAll([[harvestPayload]]);
 
-console.log(
-  "oracle WETH USD:",
-  (await oracle.price(mockWETH.target)).toString(),
-  "oracle USDC USD:",
-  (await oracle.price(mockUSDC.target)).toString()
-);
-
-// proceed to harvestAll([[harvestPayload]])
-// then harvest with your payload
-// await vault.connect(deployer).harvestAll([[harvestPayload]]);
-
-// allow router and harvest
-await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
-await access.setKeeper(deployer.address, true); // ensure caller is keeper
-await vault.connect(deployer).harvestAll([[harvestPayload]]);
-
-
+      // allow router and harvest
+      await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
+      await access.setKeeper(deployer.address, true); // ensure caller is keeper
+      await vault.connect(deployer).harvestAll([[harvestPayload]]);
     });
-
-
-
   });
 });
