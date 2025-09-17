@@ -73,19 +73,17 @@ module.exports = {
       allowUnlimitedContractSize: true, // sometimes needed
       forking: {
         url: process.env.ALCHEMY_ARBITRUM_URL, // your fork
-        enabled: true
+        enabled: true,
         // blockNumber: 120000000, // optional
       },
     },
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL,
+      url: `https://eth-sepolia.g.alchemy.com/v2/jROdUKjJxmz2XYwNpS5Ik`,
       chainId: 11155111,
       accounts: [process.env.PK],
     },
-    etherscan: {
-      apiKey: {
-        sepolia: process.env.ETHERSCAN_API_KEY,
-      },
-    },
+  },
+  etherscan: {
+    apiKey: `TN3DX6Y6IU2C1H3ZCHGQJKD7MHUQZGKRMP`,
   },
 };

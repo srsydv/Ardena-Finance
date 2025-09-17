@@ -25,13 +25,14 @@
     SwapRouter:   0xE592427A0AEce92De3Edee1F18E0157C05861564
 */
 
-require("dotenv/config");
+require("dotenv").config();
 const hre = require("hardhat");
 const { ethers } = hre;
 
-const UNIV3_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
-const NFP_MANAGER   = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
-
+// const UNIV3_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
+const UNIV3_FACTORY = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c";
+// const NFP_MANAGER   = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
+const NFP_MANAGER = "0x1238536071E1c677A632429e3655c799b22cDA52";
 const IUniswapV3FactoryABI = [
   "function getPool(address,address,uint24) view returns (address)",
 ];
@@ -94,14 +95,20 @@ function encodeSqrtPriceX96ByAmounts(amount1, amount0) {
 async function main() {
   const [deployer] = await ethers.getSigners();
 
-  const WETH = env("WETH");
-  const USDC = env("USDC");
+  const WETH = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
+  const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
   if (!WETH || !USDC) {
     throw new Error("Please set WETH and USDC env vars to Sepolia token addresses.");
   }
 
-  const FEE = Number(env("FEE", "500")); // 500=0.05%, 3000=0.3%, 10000=1%
-  const INIT_USDC_PER_WETH = env("INIT_USDC_PER_WETH", "100"); // human price
+  // Sanity check that Uniswap V3 is deployed at the provided addresses on this network
+  const codeF = await ethers.provider.getCode(UNIV3_FACTORY);
+  const codePM = await ethers.provider.getCode(NFP_MANAGER);
+  if (codeF === "0x") throw new Error(`UniswapV3Factory not deployed on this network: ${UNIV3_FACTORY}`);
+  if (codePM === "0x") throw new Error(`NonfungiblePositionManager not deployed on this network: ${NFP_MANAGER}`);
+
+  const FEE = 500; // 500=0.05%, 3000=0.3%, 10000=1%
+  const INIT_USDC_PER_WETH = 2; // human price
   const SEED_USDC = envBigInt("SEED_USDC", undefined); // in 10^6
   const SEED_WETH_WEI = envBigInt("SEED_WETH_WEI", undefined); // in wei
   const WRAP_ETH_WEI = envBigInt("WRAP_ETH_WEI", "0");
