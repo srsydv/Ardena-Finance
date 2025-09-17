@@ -30,6 +30,7 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
 require("hardhat-tracer");
+require("@openzeppelin/hardhat-upgrades");
 
 module.exports = {
   solidity: {

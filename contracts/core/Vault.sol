@@ -7,17 +7,19 @@ import "../core/AccessController.sol";
 import "../core/FeeModule.sol";
 import "../utils/SafeTransferLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 
 
-contract Vault {
+contract Vault is Initializable, UUPSUpgradeable {
     using SafeTransferLib for address;
 
     // --- Config ---
     string public name;
     string public symbol;
-    uint8 public immutable decimals;
-    address public immutable asset; // ERC20 underlying (e.g., USDC)
+    uint8 public decimals;
+    address public asset; // ERC20 underlying (e.g., USDC)
     AccessController public access; // role control
     FeeModule public fees; // fee module
     IOracleRouter public oracle; // price sanity if needed
@@ -66,7 +68,7 @@ contract Vault {
         _;
     }
 
-    constructor(
+    function initialize(
         address _asset,
         string memory _name,
         string memory _symbol,
@@ -75,7 +77,8 @@ contract Vault {
         address _oracle,
         uint256 _depositCap,
         uint8 _decimals
-    ) {
+    ) public initializer {
+        __UUPSUpgradeable_init();
         asset = _asset;
         name = _name;
         symbol = _symbol;
@@ -85,6 +88,12 @@ contract Vault {
         depositCap = _depositCap;
         decimals = _decimals;
     }
+
+    function _authorizeUpgrade(address newImplementation) internal view override {
+        require(access.managers(msg.sender), "NOT_MANAGER");
+    }
+
+    uint256[50] private __gap;
 
     // -----------------
     // View helpers
@@ -268,7 +277,6 @@ contract Vault {
             "HARVEST_COOLDOWN"
         );
 
-        uint256 beforeTA = totalAssets();
         uint256 idleBefore = IERC20(asset).balanceOf(address(this));
 
         // Step 1: call all strategies to realize any rewards
