@@ -77,5 +77,15 @@ module.exports = {
         // blockNumber: 120000000, // optional
       },
     },
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL,
+      chainId: 11155111,
+      accounts: [process.env.PK],
+    },
+    etherscan: {
+      apiKey: {
+        sepolia: process.env.ETHERSCAN_API_KEY,
+      },
+    },
   },
 };
