@@ -35,6 +35,178 @@ const DEFAULTS = {
   SUSHI_ROUTER: "0x1b02da8cb0d097eb8d57a175b88c7d8b47997506",
 };
 
+// async function deployContracts() {
+//   [deployer, user, treasury] = await ethers.getSigners();
+
+//   // --- Impersonate whale ---
+//   await network.provider.request({
+//     method: "hardhat_impersonateAccount",
+//     params: [USDC_WHALE],
+//   });
+//   const whale = await ethers.getSigner(USDC_WHALE);
+
+//   // Give whale some ETH for gas
+//   await network.provider.send("hardhat_setBalance", [
+//     whale.address,
+//     "0x1000000000000000000", // 1 ETH
+//   ]);
+
+//   // usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS);
+//   usdc = await ethers.getContractAt(
+//     "@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20",
+//     USDC_ADDRESS
+//   );
+//   // console.log("USDC contract at:", usdc.target); // ethers v6 uses .target instead of .address
+//   // const code = await ethers.provider.getCode(USDC_ADDRESS);
+//   // console.log("Deployed code at USDC:", code);
+
+//   console.log(
+//     "Whale USDC balance:",
+//     (await usdc.balanceOf(whale.address)).toString()
+//   );
+//   // console.log("USDC:", usdc.target);
+//   // console.log("Deployer:", deployer.address);
+//   // console.log("treasury:", treasury.address);
+
+//   // const v3pool = await ethers.getContractAt("IUniswapV3Pool", UNISWAP_POOL);
+//   // console.log("pool token0", await v3pool.token0());
+//   // console.log("pool token1", await v3pool.token1());
+//   // console.log("pool fee", (await v3pool.fee()).toString());
+
+//   // Transfer 10,000 USDC from whale to deployer
+//   await usdc
+//     .connect(whale)
+//     .transfer(deployer.address, ethers.parseUnits("10000", 6));
+
+//   // console.log(
+//   //   "Deployer USDC balance:",
+//   //   (await usdc.balanceOf(deployer.address)).toString()
+//   // );
+
+//   // const code = await ethers.provider.getCode(ETH_USD);
+//   // console.log("Oracle code:", code !== "0x" ? "exists" : "empty!");
+
+//   // const AAVE_POOL_code = await ethers.provider.getCode(AAVE_POOL);
+//   // console.log(
+//   //   "AAVE_POOL code:",
+//   //   AAVE_POOL_code !== "0x" ? "exists" : "empty!"
+//   // );
+
+//   // const pool = new ethers.Contract(
+//   //   AAVE_POOL,
+//   //   [
+//   //     "function getReserveData(address) view returns (\
+//   //   uint256,uint128,uint128,uint128,uint128,uint128,uint40,uint16,\
+//   //   address,address,address,address,uint128,uint128,uint128)",
+//   //   ],
+//   //   ethers.provider
+//   // );
+
+//   // const rd = await pool.getReserveData(USDC_ADDRESS);
+//   // console.log("id:", rd[7]); // 12 on Arbitrum
+//   // console.log("aToken:", rd[8]); // 0x625E77... (aUSDC)
+//   // console.log("stableDebt:", rd[9]);
+//   // console.log("variableDebt:", rd[10]);
+
+//   // expect(await usdc.balanceOf(deployer.address)).to.equal(
+//   //   ethers.parseUnits("10000", 6)
+//   // );
+
+//   const Oracle = await ethers.getContractFactory("OracleModule");
+//   const oracle = await Oracle.deploy(WETH);
+
+//   // ETH/USD (needed for any token that uses token/ETH composition)
+//   await oracle.setEthUsd(ETH_USD, "864000");
+//   // Direct USD feeds
+//   await oracle.setTokenUsd(usdc.target, USDC_USD, "864000");
+
+//   // (Optional) composition route example for a token without USD feed:
+//   // await oracle.setTokenEthRoute(TOKEN, UNI_ETH, /*invert=*/false, heartbeat);
+
+//   // --- Deploy FeeModule + AccessController ---
+//   const FeeModule = await ethers.getContractFactory("FeeModule");
+//   fees = await FeeModule.deploy(
+//     usdc.target,
+//     treasury.address,
+//     deployer.address
+//   );
+
+//   // console.log("Fee:", fees.target);
+
+//   const Access = await ethers.getContractFactory("AccessController");
+//   access = await Access.deploy(deployer.address);
+
+//   // console.log("Access:", access.target);
+
+//   // --- Deploy Vault ---
+//   const Vault = await ethers.getContractFactory("Vault");
+//   vault = await Vault.deploy(
+//     usdc.target,
+//     "My Vault",
+//     "MVLT",
+//     access.target,
+//     fees.target,
+//     usdc.target, // oracle (set to zero for now)
+//     ethers.parseUnits("1000000", 6), // deposit cap
+//     6 // decimals
+//   );
+
+//   // console.log("Vault:", vault.target);
+//   // --- Deploy Aave Strategy ---
+//   const AaveV3Strategy = await ethers.getContractFactory("AaveV3Strategy");
+//   aaveStrat = await AaveV3Strategy.deploy(
+//     vault.target,
+//     usdc.target,
+//     AAVE_POOL
+//   );
+
+//   // console.log("aaveStrat:", aaveStrat.target);
+
+//   // --- Deploy ExchangeHandler ---
+//   const ExchangeHandler = await ethers.getContractFactory("ExchangeHandler");
+//   exchanger = await ExchangeHandler.deploy(deployer.address);
+//   await exchanger.setRouter(SUSHI_ROUTER, true);
+
+//   // console.log("exchanger:", exchanger.target);
+
+//   // --- Deploy Uniswap Strategy ---
+//   const UniswapV3Strategy = await ethers.getContractFactory(
+//     "UniswapV3Strategy"
+//   );
+//   uniStrat = await UniswapV3Strategy.deploy(
+//     vault.target,
+//     usdc.target,
+//     UNISWAP_POSITION_MANAGER,
+//     UNISWAP_POOL,
+//     exchanger.target, // dummy exchanger (not used in test)
+//     oracle.target // dummy oracle
+//   );
+
+//   // console.log("uniStrat:", uniStrat.target);
+
+//   // After deploying AccessController
+//   await access.setManager(deployer.address, true);
+//   await access.setKeeper(deployer.address, true);
+
+//   // --- Add strategies (50/50) ---
+//   await vault.setStrategy(aaveStrat.target, 5000);
+//   await vault.setStrategy(uniStrat.target, 5000);
+
+//   return {
+//     deployer,
+//     user,
+//     treasury,
+//     usdc,
+//     vault,
+//     fees,
+//     access,
+//     aaveStrat,
+//     uniStrat,
+//     exchanger,
+//     mockRouter,
+//   };
+// }
+
 async function main() {
   const { ethers, network } = hre;
   const [deployer] = await ethers.getSigners();

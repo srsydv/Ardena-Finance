@@ -100,7 +100,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   const WETH = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
-  const USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+  const USDC = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
   if (!WETH || !USDC) {
     throw new Error(
       "Please set WETH and USDC env vars to Sepolia token addresses."
