@@ -155,28 +155,72 @@ console.log("factory code length:", factoryCode === "0x" ? 0 : factoryCode.lengt
 
 const pmCode = await ethers.provider.getCode(positionManager.target || positionManager.address);
 console.log("positionManager code length:", pmCode === "0x" ? 0 : pmCode.length);
-const sqrtPriceX96 = (1n << 96n).toString(); // price = 1 -> sqrt(price) * 2^96
 
+// BigInt integer sqrt (Newton)
+function sqrtBigInt(n) {
+  if (n <= 1n) return n;
+  let x0 = n, x1 = (n >> 1n) + 1n;
+  while (x1 < x0) { x0 = x1; x1 = (x1 + n / x1) >> 1n; }
+  return x0;
+}
+
+// encode sqrt(price) * 2^96 from token1/token0 amounts (in smallest units)
+function encodeSqrtPriceX96ByAmounts(amount1, amount0) {
+  // sqrtPriceX96 = floor( sqrt((amount1 << 192) / amount0) )
+  const ratio = (amount1 << 192n) / amount0;
+  return sqrtBigInt(ratio);
+}
 
 
 if (poolAddress === ethers.ZeroAddress) {
-// compute sqrtPriceX96 for initial price: aim for 1 WETH == 1e12 USDC (accounting decimals)
-// Because USDC (6) and WETH (18) if price should be 1:1 in human terms, token1/token0 ratio
-// If we take token1 = WETH, token0 = USDC, set reserves accordingly:
-const reserve1 = BigInt("1000000000000000000"); // 1 WETH (18)
-const reserve0 = BigInt("10000000"); // 1 USDC (6)
-//   const sqrtPriceX96 = await encodePriceSqrtJS(reserve1, reserve0);
-const sqrtPriceX96 = (1n << 96n).toString(); // price = 1 -> sqrt(price) * 2^96
 
-// create and initialize pool
-await positionManager.connect(deployer).createAndInitializePoolIfNecessary(
-  mockWETH.target,
-  mockUSDC.target,
-  500,
-  sqrtPriceX96.toString()
+  // sort tokens by address for Uniswap
+const [t0, t1] =
+mockUSDC.target.toLowerCase() < mockWETH.target.toLowerCase()
+  ? [mockUSDC.target, mockWETH.target]
+  : [mockWETH.target, mockUSDC.target];
+
+// Target: 1 WETH = 4000 USDC
+let amount0, amount1;
+if (t0 === mockUSDC.target) {
+// token0 = USDC(6), token1 = WETH(18)
+amount0 = ethers.parseUnits("100", 6);  // token0 amount (USDC)
+amount1 = ethers.parseUnits("1", 18);    // token1 amount (WETH)
+} else {
+// token0 = WETH(18), token1 = USDC(6)
+amount0 = ethers.parseUnits("1", 18);    // token0 amount (WETH)
+amount1 = ethers.parseUnits("100", 6);  // token1 amount (USDC)
+}
+
+const sqrtPriceX96 = encodeSqrtPriceX96ByAmounts(amount1, amount0).toString();
+
+const tx = await positionManager.connect(deployer).createAndInitializePoolIfNecessary(
+t0,
+t1,
+500,                     // fee tier
+sqrtPriceX96
 );
 
-poolAddress = await factory.getPool(mockWETH.target, mockUSDC.target, 500);
+await tx.wait();
+//   const [t0, t1] =
+//   mockUSDC.target.toLowerCase() < mockWETH.target.toLowerCase()
+//     ? [mockUSDC.target, mockWETH.target]
+//     : [mockWETH.target, mockUSDC.target];
+
+// // If token0=USDC(6), token1=WETH(18): price = 1e12 → sqrt = 1e6
+// const sqrtPriceX96 =
+//   t0 === mockUSDC.target && t1 === mockWETH.target
+//     ? (1000000n << 96n).toString()
+//     : ((1n << 96n) / 1000000n).toString();
+// // create and initialize pool
+// await positionManager.connect(deployer).createAndInitializePoolIfNecessary(
+//   mockUSDC.target,
+//   mockWETH.target,
+//   500,
+//   sqrtPriceX96.toString()
+// );
+
+poolAddress = await factory.getPool(mockUSDC.target, mockWETH.target, 500);
 console.log("created pool:", poolAddress);
 } else {
 console.log("pool existed already at", poolAddress);
@@ -255,48 +299,9 @@ console.log("Pool created at:", poolAddress);
 
     console.log("uniStrat.target2:", uniStrat);
   it("should create pool if not exists, deposit, invest, and harvest fees", async () => {
-    // 1. Create pool (if not exists)
-
-//       await network.provider.request({
-//         method: "hardhat_setBalance",
-//         params: [deployer.address, "0x8AC7230489E80000"], // 1 ETH in hex (wei)
-//       });
-
-//     let poolAddress = await factory.getPool(mockWETH.target, mockUSDC.target, 500);
-//     console.log("existing pool for fee", 500, ":", poolAddress);
-
-//     // inspect factory & positionManager code
-// const factoryCode = await ethers.provider.getCode(factory.target || factory.address);
-// console.log("factory code length:", factoryCode === "0x" ? 0 : factoryCode.length);
-
-// const pmCode = await ethers.provider.getCode(positionManager.target || positionManager.address);
-// console.log("positionManager code length:", pmCode === "0x" ? 0 : pmCode.length);
-// const sqrtPriceX96 = (1n << 96n).toString(); // price = 1 -> sqrt(price) * 2^96
-
-
-
-//     if (poolAddress === ethers.ZeroAddress) {
-//       // compute sqrtPriceX96 for initial price: aim for 1 WETH == 1e12 USDC (accounting decimals)
-//       // Because USDC (6) and WETH (18) if price should be 1:1 in human terms, token1/token0 ratio
-//       // If we take token1 = WETH, token0 = USDC, set reserves accordingly:
-//       const reserve1 = BigInt("1000000000000000000"); // 1 WETH (18)
-//       const reserve0 = BigInt("10000000"); // 1 USDC (6)
-//     //   const sqrtPriceX96 = await encodePriceSqrtJS(reserve1, reserve0);
-//       const sqrtPriceX96 = (1n << 96n).toString(); // price = 1 -> sqrt(price) * 2^96
-
-//       // create and initialize pool
-//       await positionManager.connect(deployer).createAndInitializePoolIfNecessary(
-//         mockWETH.target,
-//         mockUSDC.target,
-//         500,
-//         sqrtPriceX96.toString()
-//       );
-
+  
       poolAddress = await factory.getPool(mockWETH.target, mockUSDC.target, 500);
-//       console.log("created pool:", poolAddress);
-//     } else {
-//       console.log("pool existed already at", poolAddress);
-//     }
+
 
 
 
@@ -305,38 +310,35 @@ console.log("Pool created at:", poolAddress);
 //     console.log("Pool created at:", poolAddress);
 
 
-//     const slot0 = await pool.slot0();
-// const spacing = await pool.tickSpacing();
-// const lower = Math.floor(slot0.tick / spacing - 100) * spacing;
-// const upper = Math.floor(slot0.tick / spacing + 100) * spacing;
 
 const tick = Number((await pool.slot0()).tick);
 const spacing = Number(await pool.tickSpacing());
 const lower = Math.floor(tick / spacing - 100) * spacing;
 const upper = Math.floor(tick / spacing + 100) * spacing;
 
+
 // fund deployer
-await mockUSDC.mint(deployer.address, ethers.parseUnits("5000", 6));
-await mockWETH.mint(deployer.address, ethers.parseEther("2.5"));
+await mockUSDC.mint(deployer.address, ethers.parseUnits("500000", 6));
+await mockWETH.mint(deployer.address, ethers.parseEther("100"));
 
 // approve PM
-await mockUSDC.connect(deployer).approve(positionManager.target, ethers.parseUnits("5000", 6));
-await mockWETH.connect(deployer).approve(positionManager.target, ethers.parseEther("2.5"));
+await mockUSDC.connect(deployer).approve(positionManager.target, ethers.parseUnits("500000", 6));
+await mockWETH.connect(deployer).approve(positionManager.target, ethers.parseEther("100"));
 
 // mint initial liquidity to the pool
-await positionManager.connect(deployer).mint({
+await (await positionManager.connect(deployer).mint({
   token0: await pool.token0(),
   token1: await pool.token1(),
   fee: await pool.fee(),
   tickLower: lower,
   tickUpper: upper,
-  amount0Desired: ethers.parseUnits("5000", 6),
-  amount1Desired: ethers.parseEther("2.5"),
+  amount0Desired: ethers.parseUnits("4000", 6),
+  amount1Desired: ethers.parseEther("40"),
   amount0Min: 0,
   amount1Min: 0,
   recipient: deployer.address,
   deadline: (await ethers.provider.getBlock("latest")).timestamp + 1200
-});
+})).wait();
 
 // now your ExchangeHandler swap via UNISWAP_V3_ROUTER will succeed
 
@@ -356,7 +358,7 @@ await positionManager.connect(deployer).mint({
                     mockUSDC.target
                   );
 
-                  mockWETH.mint(whaleW.address, ethers.parseEther("10"));
+                  mockWETH.mint(whaleW.address, ethers.parseEther("100"));
                   mockUSDC.mint(whaleU.address, ethers.parseUnits("100000000", 6));
 
                   mockUSDC.mint(user.address, ethers.parseUnits("100000000", 6));
@@ -373,7 +375,7 @@ await positionManager.connect(deployer).mint({
 
 
     // 3. User deposits WETH into vault
-    const depositAmount = ethers.parseUnits("100", 6);
+    const depositAmount = ethers.parseUnits("200", 6);
     console.log("depositAmount:", depositAmount);
     await mockUSDC.connect(user).approve(vault.target, depositAmount);
     console.log("approved");
@@ -419,13 +421,80 @@ const payload = ethers.AbiCoder.defaultAbiCoder().encode(
 
 // Allow the router in ExchangeHandler and call investIdle
 await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
-await vault.connect(deployer).investIdle([[payload]]); // one strategy → one inner array
+console.log("exchanger:", exchanger.target);
+
+try {
+  await vault.connect(deployer).investIdle([[payload]]);
+} catch (error) {
+  console.log("error:", error);
+}
+ // one strategy → one inner array
     // await vault.investIdle();
     console.log("Invested into UniswapV3");
+    const t0Bal = await (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", mockUSDC.target)).balanceOf(uniStrat.target);
+const t1Bal = await (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", mockWETH.target)).balanceOf(uniStrat.target);
+console.log("strategy t0,t1:", t0Bal.toString(), t1Bal.toString()); // should both be >0 (or at least one >0)
 
   });
   it("should whale trade in same pool", async () => {
-    
+    this.timeout(200_000);
+  
+    // Get the pool for your mocks (created earlier via positionManager)
+    const poolAddress = await factory.getPool(mockWETH.target, mockUSDC.target, 500);
+    expect(poolAddress).to.not.equal(ethers.ZeroAddress);
+  
+    // Fund a whale (use user as whale for simplicity)
+    await mockUSDC.mint(user.address, ethers.parseUnits("50000", 6));
+    await mockWETH.mint(user.address, ethers.parseEther("50"));
+  
+    // Approve router
+    const UNISWAP_V3_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+    const artifact = require("@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json");
+    const swapRouter = await ethers.getContractAt(artifact.abi, UNISWAP_V3_ROUTER);
+  
+    // USDC -> WETH trade
+    const usdcIn = ethers.parseUnits("2000", 6);
+    await mockUSDC.connect(user).approve(swapRouter.target, usdcIn);
+    const deadline1 = (await ethers.provider.getBlock("latest")).timestamp + 1200;
+  
+    await swapRouter.connect(user).exactInputSingle({
+      tokenIn: mockUSDC.target,
+      tokenOut: mockWETH.target,
+      fee: 500,
+      recipient: user.address,
+      deadline: deadline1,
+      amountIn: usdcIn,
+      amountOutMinimum: 0n,       // for tests only; use quoted minOut in prod
+      sqrtPriceLimitX96: 0n
+    });
+  
+    // WETH -> USDC back trade
+    const wethBal = await mockWETH.balanceOf(user.address);
+    const wethIn = wethBal / 3n;  // trade part of balance
+    await mockWETH.connect(user).approve(swapRouter.target, wethIn);
+    const deadline2 = (await ethers.provider.getBlock("latest")).timestamp + 1200;
+  
+    await swapRouter.connect(user).exactInputSingle({
+      tokenIn: mockWETH.target,
+      tokenOut: mockUSDC.target,
+      fee: 500,
+      recipient: user.address,
+      deadline: deadline2,
+      amountIn: wethIn,
+      amountOutMinimum: 0n,
+      sqrtPriceLimitX96: 0n
+    });
+  
+    // Optional: show pool state after trades
+    const IUniswapV3PoolABI = [
+      "function slot0() view returns (uint160,int24,uint16,uint16,uint16,uint8,bool)",
+      "function liquidity() view returns (uint128)"
+    ];
+    const pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddress);
+    const s0 = await pool.slot0();
+    console.log("tick after trades:", s0[1].toString(), "liquidity:", (await pool.liquidity()).toString());
   });
+
+  
 });
 });
