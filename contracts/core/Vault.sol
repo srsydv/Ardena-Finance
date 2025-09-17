@@ -89,7 +89,7 @@ contract Vault is Initializable, UUPSUpgradeable {
         decimals = _decimals;
     }
 
-    function _authorizeUpgrade(address newImplementation) internal view override {
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
         require(access.managers(msg.sender), "NOT_MANAGER");
     }
 
