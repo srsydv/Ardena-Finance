@@ -4,8 +4,10 @@ pragma solidity ^0.8.24;
 import "../interfaces/IExchangeHandler.sol";
 import "../utils/SafeTransferLib.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract ExchangeHandler is IExchangeHandler {
+contract ExchangeHandler is Initializable, UUPSUpgradeable, IExchangeHandler {
     using SafeTransferLib for address;
 
     address public owner;
@@ -27,7 +29,8 @@ contract ExchangeHandler is IExchangeHandler {
         _;
     }
 
-    constructor(address _owner) {
+    function initialize(address _owner) public initializer {
+        __UUPSUpgradeable_init();
         owner = _owner;
     }
 
@@ -111,7 +114,7 @@ contract ExchangeHandler is IExchangeHandler {
         address to
     ) external override returns (uint256 amountOut) {
         // Example for UniV2-like routers: selector 0x38ed1739 swapExactTokensForTokens
-        address router = _pickAnyRouter();
+        address router = _pickAnyRouter(); // will revert until a default router policy is added
         bytes memory callData = abi.encodeWithSelector(
             bytes4(0x38ed1739), // swapExactTokensForTokens
             amountIn,
@@ -132,8 +135,9 @@ contract ExchangeHandler is IExchangeHandler {
         amountOut = this.swap(pack);
     }
 
-    function _pickAnyRouter() internal view returns (address r) {
-        revert("NO_DEFAULT_ROUTER"); // MVP: must be specified off-chain
+    function _pickAnyRouter() internal pure returns (address r) {
+        r = address(0);
+        assembly { revert(0, 0) } // always revert; no unreachable code warning
     }
 
     function _simplePath(
@@ -144,4 +148,10 @@ contract ExchangeHandler is IExchangeHandler {
         p[0] = a;
         p[1] = b;
     }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+        require(msg.sender == owner, "NOT_OWNER");
+    }
+
+    uint256[50] private __gap;
 }

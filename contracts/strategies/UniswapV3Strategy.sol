@@ -318,6 +318,33 @@ contract UniswapV3Strategy is IStrategy {
         t1.safeApprove(address(pm), bal1);
 
         if (tokenId == 0) {
+
+            /*
+
+int24 spacing = pool.tickSpacing();
+(, int24 tick,,, , ,) = pool.slot0();
+
+// floor-align for negatives
+int24 base = (tick / spacing) * spacing;
+if (tick < 0 && (tick % spacing) != 0) {
+    base -= spacing;
+}
+
+// choose width (e.g., 100 spacings)
+int24 k = 100;
+int24 lower = base - k * spacing;
+int24 upper = base + k * spacing;
+
+// clamp to legal, spacing-aligned extrema
+int24 minTick = (TickMath.MIN_TICK / spacing) * spacing; // e.g., -887270 for spacing=10
+int24 maxTick = (TickMath.MAX_TICK / spacing) * spacing; // e.g.,  887270 for spacing=10
+if (lower < minTick) lower = minTick;
+if (upper > maxTick) upper = maxTick;
+
+// sanity
+require(lower < upper, "TLU");
+
+            */
             // First deposit → mint a new position
             (, int24 currentTick, , , , , ) = pool.slot0();
             // int24 tickSpacing = 60;

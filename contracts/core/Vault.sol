@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import "../interfaces/IStrategy.sol";
-import "../interfaces/IOracleRouter.sol";
 import "../core/AccessController.sol";
 import "../core/FeeModule.sol";
 import "../utils/SafeTransferLib.sol";
@@ -22,7 +21,6 @@ contract Vault is Initializable, UUPSUpgradeable {
     address public asset; // ERC20 underlying (e.g., USDC)
     AccessController public access; // role control
     FeeModule public fees; // fee module
-    IOracleRouter public oracle; // price sanity if needed
 
     // --- ERC4626-ish shares ---
     uint256 public totalSupply; // total shares
@@ -74,7 +72,6 @@ contract Vault is Initializable, UUPSUpgradeable {
         string memory _symbol,
         address _access,
         address _fees,
-        address _oracle,
         uint256 _depositCap,
         uint8 _decimals
     ) public initializer {
@@ -84,7 +81,6 @@ contract Vault is Initializable, UUPSUpgradeable {
         symbol = _symbol;
         access = AccessController(_access);
         fees = FeeModule(_fees);
-        oracle = IOracleRouter(_oracle);
         depositCap = _depositCap;
         decimals = _decimals;
     }
