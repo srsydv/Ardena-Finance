@@ -5,6 +5,8 @@ import "../utils/SafeTransferLib.sol";
 import "../interfaces/IStrategy.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 // Minimal Aave v3 types to read aToken from getReserveData
 library DataTypes {
@@ -50,26 +52,22 @@ interface IAavePool {
     ) external view returns (DataTypes.ReserveData memory);
 }
 
-contract AaveV3Strategy is IStrategy {
+contract AaveV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
     using SafeTransferLib for address;
 
-    address public immutable vault;
-    address public immutable wantToken;
-    IERC20 public immutable aToken;
-    IAavePool public immutable aave;
+    address public vault;
+    address public wantToken;
+    IERC20 public aToken;
+    IAavePool public aave;
 
     modifier onlyVault() {
         require(msg.sender == vault, "NOT_VAULT");
         _;
     }
 
-    constructor(address _vault, address _want, address _aavePool) {
-        require(
-            _vault != address(0) &&
-                _want != address(0) &&
-                _aavePool != address(0),
-            "BAD_ADDR"
-        );
+    function initialize(address _vault, address _want, address _aavePool) public initializer {
+        __UUPSUpgradeable_init();
+        require(_vault != address(0) && _want != address(0) && _aavePool != address(0), "BAD_ADDR");
         vault = _vault;
         wantToken = _want;
         aave = IAavePool(_aavePool);
@@ -96,7 +94,7 @@ contract AaveV3Strategy is IStrategy {
     // --- Vault calls ---
     function deposit(
         uint256 amountWant,
-        bytes[] calldata swapCalldatas
+        bytes[] calldata /*swapCalldatas*/
     ) external override onlyVault {
         // For Aave we don’t need swapCalldatas (but must keep signature for interface)
         IERC20(wantToken).transferFrom(vault, address(this), amountWant);
@@ -108,7 +106,7 @@ contract AaveV3Strategy is IStrategy {
 
     function withdraw(
         uint256 amount,
-        bytes[] calldata swapCalldatas
+        bytes[] calldata /*swapCalldatas*/
     ) external override onlyVault returns (uint256 withdrawn) {
         withdrawn = aave.withdraw(wantToken, amount, vault);
     }
@@ -123,7 +121,7 @@ contract AaveV3Strategy is IStrategy {
     }
 
     function harvest(
-        bytes[] calldata swapCalldatas
+        bytes[] calldata /*swapCalldatas*/
     ) external override onlyVault returns (uint256 profit) {
         // No manual harvest in Aave (interest auto-accrues)
         return 0;
@@ -141,4 +139,10 @@ contract AaveV3Strategy is IStrategy {
             return amount / (10 ** (fromDec - toDec));
         }
     }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+        require(msg.sender == vault, "NOT_VAULT");
+    }
+
+    uint256[50] private __gap;
 }

@@ -141,11 +141,18 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     // console.log("Vault:", vault.target);
     // --- Deploy Aave Strategy ---
     const AaveV3Strategy = await ethers.getContractFactory("AaveV3Strategy");
-    aaveStrat = await AaveV3Strategy.deploy(
-      vault.target,
-      mockUSDC.target,
-      AAVE_POOL
+    // aaveStrat = await AaveV3Strategy.deploy(
+    //   vault.target,
+    //   mockUSDC.target,
+    //   AAVE_POOL
+    // );
+
+    aaveStrat = await upgrades.deployProxy(
+      AaveV3Strategy,
+      [vault.target, mockUSDC.target, AAVE_POOL],
+      { kind: "uups", initializer: "initialize" }
     );
+    await aaveStrat.waitForDeployment();
 
     // console.log("aaveStrat:", aaveStrat.target);
 
