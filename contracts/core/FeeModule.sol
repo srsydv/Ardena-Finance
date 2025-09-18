@@ -2,11 +2,13 @@
 pragma solidity ^0.8.24;
 
 import "../utils/SafeTransferLib.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract FeeModule {
+contract FeeModule is Initializable, UUPSUpgradeable {
     using SafeTransferLib for address;
 
-    address public immutable asset; // vault asset
+    address public asset; // vault asset
     address public treasury;
 
     uint16 public managementFeeBps;
@@ -25,7 +27,8 @@ contract FeeModule {
         _;
     }
 
-    constructor(address _asset, address _treasury, address _governor) {
+    function initialize(address _asset, address _treasury, address _governor) public initializer {
+        __UUPSUpgradeable_init();
         asset = _asset;
         treasury = _treasury;
         governor = _governor;
@@ -84,4 +87,9 @@ contract FeeModule {
     function onFeesCharged() external {
         lastFeeTimestamp = block.timestamp;
     }
+
+    // UUPS upgrade authorization hook
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override onlyGovernor {}
+
+    uint256[50] private __gap;
 }

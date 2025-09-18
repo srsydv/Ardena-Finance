@@ -97,11 +97,14 @@ const {
   
       // --- Deploy FeeModule + AccessController ---
       const FeeModule = await ethers.getContractFactory("FeeModule");
-      fees = await FeeModule.deploy(
-        mockUSDC.target,
-        treasury.address,
-        deployer.address
+      const fees = await upgrades.deployProxy(
+        FeeModule,
+        [mockUSDC.target,
+            treasury.address,
+            deployer.address],
+        { kind: "uups", initializer: "initialize" }
       );
+      await fees.waitForDeployment();
   
       // console.log("Fee:", fees.target);
   
@@ -120,7 +123,7 @@ const {
           "MVLT",
           access.target,
           fees.target,
-          mockUSDC.target, // oracle (placeholder in this test)
+          oracle.target, // oracle (placeholder in this test)
           ethers.parseUnits("100000000", 6), // deposit cap
           6, // decimals
         ],
@@ -384,7 +387,15 @@ const {
         await mockWETH
           .connect(deployer)
           .approve(positionManager.target, ethers.parseEther("100"));
-  
+  console.log("token0", await pool.token0());
+  console.log("token1", await pool.token1());
+  console.log("mockUSDC", mockUSDC.target);
+  console.log("mockWETH", mockWETH.target);
+  console.log("fee", await pool.fee());
+  console.log("tickLower", lower);
+  console.log("tickUpper", upper);
+  console.log("amount0Desired", ethers.parseUnits("4000", 6));
+  console.log("amount1Desired", ethers.parseEther("40"));
         // mint initial liquidity to the pool
         await (
           await positionManager.connect(deployer).mint({
