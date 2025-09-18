@@ -13,8 +13,8 @@ contract IndexSwap is Initializable, UUPSUpgradeable {
     Vault public vault;
     AccessController public access;
 
-    uint256 public cooldown;        // min time between rebalances
-    uint256 public lastRebalance;   // timestamp of last rebalance
+    uint256 public cooldown; // min time between rebalances
+    uint256 public lastRebalance; // timestamp of last rebalance
 
     event Rebalanced(uint256 timestamp);
     event CooldownSet(uint256 cooldown);
@@ -24,7 +24,11 @@ contract IndexSwap is Initializable, UUPSUpgradeable {
         _;
     }
 
-    function initialize(address _vault, address _access, uint256 _cooldown) public initializer {
+    function initialize(
+        address _vault,
+        address _access,
+        uint256 _cooldown
+    ) public initializer {
         __UUPSUpgradeable_init();
         require(_vault != address(0) && _access != address(0), "BAD_ADDR");
         vault = Vault(_vault);
@@ -73,7 +77,9 @@ contract IndexSwap is Initializable, UUPSUpgradeable {
         emit Rebalanced(block.timestamp);
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+    function _authorizeUpgrade(
+        address /*newImplementation*/
+    ) internal view override {
         require(access.managers(msg.sender), "NOT_MANAGER");
     }
 
