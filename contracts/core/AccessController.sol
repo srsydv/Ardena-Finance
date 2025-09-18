@@ -46,7 +46,9 @@ contract AccessController is Initializable, UUPSUpgradeable {
         emit KeeperSet(who, ok);
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+    function _authorizeUpgrade(
+        address /*newImplementation*/
+    ) internal view override {
         require(msg.sender == owner, "NOT_OWNER");
     }
 

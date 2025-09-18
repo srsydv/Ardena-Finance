@@ -87,9 +87,10 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     const Oracle = await ethers.getContractFactory("OracleModule");
     // const oracle = await Oracle.deploy(mockWETH.target);
 
-    const oracle = await upgrades.deployProxy(
-      Oracle, [mockWETH.target], { kind: "uups", initializer: "initialize" }
-    );
+    const oracle = await upgrades.deployProxy(Oracle, [mockWETH.target], {
+      kind: "uups",
+      initializer: "initialize",
+    });
     await oracle.waitForDeployment();
 
     // ETH/USD (needed for any token that uses token/ETH composition)
@@ -113,9 +114,10 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
 
     const Access = await ethers.getContractFactory("AccessController");
     // access = await Access.deploy(deployer.address);
-    access = await upgrades.deployProxy(
-      Access, [deployer.address], { kind: "uups", initializer: "initialize" }
-    );
+    access = await upgrades.deployProxy(Access, [deployer.address], {
+      kind: "uups",
+      initializer: "initialize",
+    });
     await access.waitForDeployment();
 
     // console.log("Access:", access.target);
@@ -237,7 +239,6 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
         );
 
       await tx.wait();
-      
 
       poolAddress = await factory.getPool(
         mockUSDC.target,
