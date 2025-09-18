@@ -34,7 +34,10 @@ interface AggregatorV3Interface {
     function decimals() external view returns (uint8);
 }
 
-contract OracleModule is IOracleRouter {
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+contract OracleModule is Initializable, UUPSUpgradeable, IOracleRouter {
     struct FeedCfg {
         AggregatorV3Interface aggregator;  // token/USD feed (preferred)
         uint256 heartbeat;                 // max allowed staleness in seconds
@@ -48,7 +51,7 @@ contract OracleModule is IOracleRouter {
         bool exists;
     }
 
-    address public immutable WETH;
+    address public WETH;
     // ETH/USD (for composition path when only token/ETH feed exists)
     FeedCfg public ethUsd;
 
@@ -70,7 +73,8 @@ contract OracleModule is IOracleRouter {
         _;
     }
 
-    constructor(address _weth) {
+    function initialize(address _weth) public initializer {
+        __UUPSUpgradeable_init();
         require(_weth != address(0), "BAD_WETH");
         owner = msg.sender;
         WETH = _weth;
@@ -210,4 +214,11 @@ contract OracleModule is IOracleRouter {
         if (fromDec < toDec) return x * 10 ** (toDec - fromDec);
         return x / 10 ** (fromDec - toDec);
     }
+
+    // UUPS upgrade authorization hook
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+        require(msg.sender == owner, "NOT_OWNER");
+    }
+
+    uint256[50] private __gap;
 }

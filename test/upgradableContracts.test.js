@@ -85,7 +85,12 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     mockWETH = await MockERC20.deploy("Mock WETH", "mWETH", 18);
 
     const Oracle = await ethers.getContractFactory("OracleModule");
-    const oracle = await Oracle.deploy(mockWETH.target);
+    // const oracle = await Oracle.deploy(mockWETH.target);
+
+    const oracle = await upgrades.deployProxy(
+      Oracle, [mockWETH.target], { kind: "uups", initializer: "initialize" }
+    );
+    await oracle.waitForDeployment();
 
     // ETH/USD (needed for any token that uses token/ETH composition)
     // await oracle.setEthUsd(ETH_USD, "864000");
