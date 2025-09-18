@@ -151,16 +151,15 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
 
     // --- Deploy ExchangeHandler ---
     const ExchangeHandler = await ethers.getContractFactory("ExchangeHandler");
-    // exchanger = await ExchangeHandler.deploy(deployer.address);
     exchanger = await upgrades.deployProxy(
-      ExchangeHandler, [deployer.address],
+      ExchangeHandler,
+      [deployer.address],
       { kind: "uups", initializer: "initialize" }
     );
     await exchanger.waitForDeployment();
 
     await exchanger.setRouter(SUSHI_ROUTER, true);
 
-    // console.log("exchanger:", exchanger.target);
 
     await network.provider.request({
       method: "hardhat_setBalance",
@@ -359,8 +358,6 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     }
 
     it("should create pool if not exists, deposit, invest, and harvest fees", async () => {
-      
-      
       poolAddress = await factory.getPool(
         mockWETH.target,
         mockUSDC.target,
@@ -511,7 +508,6 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
           routerCalldata,
         ]
       );
-      // { exchanger } = await deployContracts();
       // Allow the router in ExchangeHandler and call investIdle
       await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
       console.log("exchanger:", exchanger.target);

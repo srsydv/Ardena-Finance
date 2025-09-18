@@ -137,7 +137,9 @@ contract ExchangeHandler is Initializable, UUPSUpgradeable, IExchangeHandler {
 
     function _pickAnyRouter() internal pure returns (address r) {
         r = address(0);
-        assembly { revert(0, 0) } // always revert; no unreachable code warning
+        assembly {
+            revert(0, 0)
+        } // always revert; no unreachable code warning
     }
 
     function _simplePath(
@@ -149,7 +151,9 @@ contract ExchangeHandler is Initializable, UUPSUpgradeable, IExchangeHandler {
         p[1] = b;
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+    function _authorizeUpgrade(
+        address /*newImplementation*/
+    ) internal view override {
         require(msg.sender == owner, "NOT_OWNER");
     }
 
