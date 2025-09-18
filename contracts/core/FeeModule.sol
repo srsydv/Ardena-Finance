@@ -27,7 +27,11 @@ contract FeeModule is Initializable, UUPSUpgradeable {
         _;
     }
 
-    function initialize(address _asset, address _treasury, address _governor) public initializer {
+    function initialize(
+        address _asset,
+        address _treasury,
+        address _governor
+    ) public initializer {
         __UUPSUpgradeable_init();
         asset = _asset;
         treasury = _treasury;
@@ -40,7 +44,7 @@ contract FeeModule is Initializable, UUPSUpgradeable {
         emit TreasuryUpdated(t);
     }
 
-     function setGovernor(address g) external onlyGovernor {
+    function setGovernor(address g) external onlyGovernor {
         require(g != address(0), "BAD_GOV");
         governor = g;
     }
@@ -89,7 +93,9 @@ contract FeeModule is Initializable, UUPSUpgradeable {
     }
 
     // UUPS upgrade authorization hook
-    function _authorizeUpgrade(address /*newImplementation*/) internal view override onlyGovernor {}
+    function _authorizeUpgrade(
+        address /*newImplementation*/
+    ) internal view override onlyGovernor {}
 
     uint256[50] private __gap;
 }
