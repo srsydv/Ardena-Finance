@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-contract AccessController {
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+contract AccessController is Initializable, UUPSUpgradeable {
     address public owner; // protocol owner (can be DAO multisig)
     mapping(address => bool) public managers; // allowed to operate vaults
     mapping(address => bool) public keepers; // bots allowed to call keeper funcs
@@ -23,7 +26,8 @@ contract AccessController {
         _;
     }
 
-    constructor(address _owner) {
+    function initialize(address _owner) public initializer {
+        __UUPSUpgradeable_init();
         owner = _owner;
     }
 
@@ -41,4 +45,10 @@ contract AccessController {
         keepers[who] = ok;
         emit KeeperSet(who, ok);
     }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+        require(msg.sender == owner, "NOT_OWNER");
+    }
+
+    uint256[50] private __gap;
 }

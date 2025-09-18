@@ -112,7 +112,11 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     // console.log("Fee:", fees.target);
 
     const Access = await ethers.getContractFactory("AccessController");
-    access = await Access.deploy(deployer.address);
+    // access = await Access.deploy(deployer.address);
+    access = await upgrades.deployProxy(
+      Access, [deployer.address], { kind: "uups", initializer: "initialize" }
+    );
+    await access.waitForDeployment();
 
     // console.log("Access:", access.target);
 
@@ -233,23 +237,7 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
         );
 
       await tx.wait();
-      //   const [t0, t1] =
-      //   mockUSDC.target.toLowerCase() < mockWETH.target.toLowerCase()
-      //     ? [mockUSDC.target, mockWETH.target]
-      //     : [mockWETH.target, mockUSDC.target];
-
-      // // If token0=USDC(6), token1=WETH(18): price = 1e12 → sqrt = 1e6
-      // const sqrtPriceX96 =
-      //   t0 === mockUSDC.target && t1 === mockWETH.target
-      //     ? (1000000n << 96n).toString()
-      //     : ((1n << 96n) / 1000000n).toString();
-      // // create and initialize pool
-      // await positionManager.connect(deployer).createAndInitializePoolIfNecessary(
-      //   mockUSDC.target,
-      //   mockWETH.target,
-      //   500,
-      //   sqrtPriceX96.toString()
-      // );
+      
 
       poolAddress = await factory.getPool(
         mockUSDC.target,
@@ -395,6 +383,8 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
       console.log("mockUSDC", mockUSDC.target);
       console.log("mockWETH", mockWETH.target);
       console.log("fee", await pool.fee());
+      console.log("Spacing", spacing);
+      console.log("Tick", tick);
       console.log("tickLower", lower);
       console.log("tickUpper", upper);
       console.log("amount0Desired", ethers.parseUnits("4000", 6));
