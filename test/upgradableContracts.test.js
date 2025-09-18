@@ -141,11 +141,6 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     // console.log("Vault:", vault.target);
     // --- Deploy Aave Strategy ---
     const AaveV3Strategy = await ethers.getContractFactory("AaveV3Strategy");
-    // aaveStrat = await AaveV3Strategy.deploy(
-    //   vault.target,
-    //   mockUSDC.target,
-    //   AAVE_POOL
-    // );
 
     aaveStrat = await upgrades.deployProxy(
       AaveV3Strategy,
@@ -264,20 +259,22 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddress);
     console.log("Pool created at:", poolAddress);
 
+    const F = await hre.ethers.getContractFactory("UniswapV3MathAdapter");
+  const math = await F.deploy();
+  await math.waitForDeployment();
+  console.log("MathAdapter:", math.target);
+
     // --- Deploy Uniswap Strategy ---
     const UniswapV3Strategy = await ethers.getContractFactory(
       "UniswapV3Strategy"
     );
-    uniStrat = await UniswapV3Strategy.deploy(
-      vault.target,
-      mockUSDC.target,
-      UNISWAP_POSITION_MANAGER,
-      poolAddress,
-      exchanger.target, // dummy exchanger (not used in test)
-      oracle.target // dummy oracle
+
+    uniStrat = await upgrades.deployProxy(
+      UniswapV3Strategy,
+      [vault.target, mockUSDC.target, UNISWAP_POSITION_MANAGER, poolAddress, exchanger.target, oracle.target, math.target],
+      { kind: "uups", initializer: "initialize" }
     );
 
-    // console.log("uniStrat:", uniStrat.target);
 
     // After deploying AccessController
     await access.setManager(deployer.address, true);

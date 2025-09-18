@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.7.6;
-pragma abicoder v2;
+pragma solidity ^0.8.24;
 
-import "../utils/v7/SafeTransferLibV7.sol";
-import "../interfaces/v7/IStrategyV7.sol";
-import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
-import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
-import "../interfaces/v7/IERC20V7.sol";
+import "../utils/SafeTransferLib.sol";
+import "../interfaces/IStrategy.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 interface IExchangeHandler {
     // Implemented in your repo; routes swaps through whitelisted routers
@@ -130,17 +130,28 @@ interface IUniswapV3Pool {
     function tickSpacing() external view returns (int24);
 }
 
+interface IUniswapV3MathAdapter {
+    function getSqrtRatioAtTick(int24 tick) external pure returns (uint160);
+    function getAmountsForLiquidity(
+        uint160 sqrtPriceX96,
+        uint160 sqrtRatioAX96,
+        uint160 sqrtRatioBX96,
+        uint128 liquidity
+    ) external pure returns (uint256 amount0, uint256 amount1);
+}
+
 /// @notice Strategy assumes `want` is either token0 or token1.
 /// Manager/keeper should prepare amounts (swap via ExchangeHandler) before calling deposit here.
-contract UniswapV3Strategy is IStrategy {
+contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
     using SafeTransferLib for address;
 
-    address public immutable vault;
-    address public immutable wantToken; // e.g., USDC
-    INonfungiblePositionManager public immutable pm; // Uniswap's position manager
-    IUniswapV3Pool public immutable pool; // pool for (token0, token1, fee)
-    IExchangeHandler public immutable exchanger;
-    IOracleRouter public immutable oracle; // for valuation to `want`
+    address public vault;
+    address public wantToken; // e.g., USDC
+    INonfungiblePositionManager public pm; // Uniswap's position manager
+    IUniswapV3Pool public pool; // pool for (token0, token1, fee)
+    IExchangeHandler public exchanger;
+    IOracleRouter public oracle; // for valuation to `want`
+    IUniswapV3MathAdapter public math; // math adapter (0.7.6 Uniswap libs)
 
     uint256 public tokenId; // LP NFT id held by this strategy
 
@@ -154,21 +165,24 @@ contract UniswapV3Strategy is IStrategy {
 
     
 
-    constructor(
+    function initialize(
         address _vault,
         address _want,
         address _pm,
         address _pool,
         address _exchanger,
-        address _oracle
-    ) {
+        address _oracle,
+        address _math
+    ) public initializer {
+        __UUPSUpgradeable_init();
         require(
             _vault != address(0) &&
                 _want != address(0) &&
                 _pm != address(0) &&
                 _pool != address(0) &&
                 _exchanger != address(0) &&
-                _oracle != address(0),
+                _oracle != address(0) &&
+                _math != address(0),
             "BAD_ADDR"
         );
         vault = _vault;
@@ -177,6 +191,7 @@ contract UniswapV3Strategy is IStrategy {
         pool = IUniswapV3Pool(_pool);
         exchanger = IExchangeHandler(_exchanger);
         oracle = IOracleRouter(_oracle);
+        math = IUniswapV3MathAdapter(_math);
     }
 
     // ---------------- Views ----------------
@@ -188,7 +203,7 @@ contract UniswapV3Strategy is IStrategy {
     function totalAssets() public view override returns (uint256) {
         // Value = current liquidity amounts + uncollected fees + idle want, all converted to `want`
         if (tokenId == 0) {
-            return IERC20V7(wantToken).balanceOf(address(this));
+            return IERC20(wantToken).balanceOf(address(this));
         }
 
         (
@@ -207,7 +222,7 @@ contract UniswapV3Strategy is IStrategy {
         ) = pm.positions(tokenId);
 
         if (liquidity == 0 && fees0 == 0 && fees1 == 0) {
-            return IERC20V7(wantToken).balanceOf(address(this));
+            return IERC20(wantToken).balanceOf(address(this));
         }
 
         // Get current price
@@ -215,10 +230,10 @@ contract UniswapV3Strategy is IStrategy {
 
         // Estimate amounts for liquidity.
         // Use Uniswap math libs to convert liquidity → token amounts
-        (uint256 amt0, uint256 amt1) = LiquidityAmounts.getAmountsForLiquidity(
+        (uint256 amt0, uint256 amt1) = math.getAmountsForLiquidity(
             sqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(tickLower),
-            TickMath.getSqrtRatioAtTick(tickUpper),
+            math.getSqrtRatioAtTick(tickLower),
+            math.getSqrtRatioAtTick(tickUpper),
             liquidity
         );
         // For MVP, we conservatively value **only** uncollected fees + idle want to avoid complex math:
@@ -231,7 +246,7 @@ contract UniswapV3Strategy is IStrategy {
             _convertToWant(token1, amt1);
 
         // Add idle want in the contract (e.g., dust from mint/collect)
-        valueInWant += IERC20V7(wantToken).balanceOf(address(this));
+        valueInWant += IERC20(wantToken).balanceOf(address(this));
 
         // emit totalAsset(amt0, amt1, fees0, fees1);
         return valueInWant;
@@ -241,7 +256,7 @@ contract UniswapV3Strategy is IStrategy {
     function knowYourAssets() public  returns (uint256){
         // Value = current liquidity amounts + uncollected fees + idle want, all converted to `want`
         if (tokenId == 0) {
-            return IERC20V7(wantToken).balanceOf(address(this));
+            return IERC20(wantToken).balanceOf(address(this));
         }
 
         (
@@ -260,7 +275,7 @@ contract UniswapV3Strategy is IStrategy {
         ) = pm.positions(tokenId);
 
         if (liquidity == 0 && fees0 == 0 && fees1 == 0) {
-            return IERC20V7(wantToken).balanceOf(address(this));
+            return IERC20(wantToken).balanceOf(address(this));
         }
 
         // Get current price
@@ -268,10 +283,10 @@ contract UniswapV3Strategy is IStrategy {
 
         // Estimate amounts for liquidity.
         // Use Uniswap math libs to convert liquidity → token amounts
-        (uint256 amt0, uint256 amt1) = LiquidityAmounts.getAmountsForLiquidity(
+        (uint256 amt0, uint256 amt1) = math.getAmountsForLiquidity(
             sqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(tickLower),
-            TickMath.getSqrtRatioAtTick(tickUpper),
+            math.getSqrtRatioAtTick(tickLower),
+            math.getSqrtRatioAtTick(tickUpper),
             liquidity
         );
         // For MVP, we conservatively value **only** uncollected fees + idle want to avoid complex math:
@@ -284,7 +299,7 @@ contract UniswapV3Strategy is IStrategy {
             _convertToWant(token1, amt1);
 
         // Add idle want in the contract (e.g., dust from mint/collect)
-        valueInWant += IERC20V7(wantToken).balanceOf(address(this));
+        valueInWant += IERC20(wantToken).balanceOf(address(this));
 
         emit totalAsset(amt0, amt1, fees0, fees1);
         return valueInWant;
@@ -299,7 +314,7 @@ contract UniswapV3Strategy is IStrategy {
         bytes[] calldata swaps
     ) external override onlyVault {
         if (amountWant > 0) {
-            IERC20V7(wantToken).transferFrom(vault, address(this), amountWant);
+            IERC20(wantToken).transferFrom(vault, address(this), amountWant);
         }
 
         _executeSwaps(swaps);
@@ -308,8 +323,8 @@ contract UniswapV3Strategy is IStrategy {
         address t1 = pool.token1();
         uint24 poolFee = pool.fee();
         int24 spacing = pool.tickSpacing();
-        uint256 bal0 = IERC20V7(t0).balanceOf(address(this));
-        uint256 bal1 = IERC20V7(t1).balanceOf(address(this));
+        uint256 bal0 = IERC20(t0).balanceOf(address(this));
+        uint256 bal1 = IERC20(t1).balanceOf(address(this));
         require(bal0 > 0 || bal1 > 0, "NO_FUNDS");
 
         t0.safeApprove(address(pm), 0);
@@ -336,8 +351,8 @@ int24 lower = base - k * spacing;
 int24 upper = base + k * spacing;
 
 // clamp to legal, spacing-aligned extrema
-int24 minTick = (TickMath.MIN_TICK / spacing) * spacing; // e.g., -887270 for spacing=10
-int24 maxTick = (TickMath.MAX_TICK / spacing) * spacing; // e.g.,  887270 for spacing=10
+int24 minTick = (-887272 / spacing) * spacing; // MIN_TICK for v3
+int24 maxTick = ( 887272 / spacing) * spacing; // MAX_TICK for v3
 if (lower < minTick) lower = minTick;
 if (upper > maxTick) upper = maxTick;
 
@@ -416,9 +431,9 @@ require(lower < upper, "TLU");
         );
 
         // 4. Swap everything to `want` (USDC) using keeper-provided calldata
-        uint256 before = IERC20V7(wantToken).balanceOf(address(this));
+        uint256 before = IERC20(wantToken).balanceOf(address(this));
         _executeSwaps(swapData); // keeper prepared calldata
-        uint256 afterBal = IERC20V7(wantToken).balanceOf(address(this));
+        uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
 
         withdrawn = afterBal > before ? afterBal - before : 0;
 
@@ -473,8 +488,8 @@ require(lower < upper, "TLU");
         address t0 = IUniswapV3Pool(pool).token0();
         address t1 = IUniswapV3Pool(pool).token1();
 
-        uint256 amt0 = out0 + fee0 + IERC20V7(t0).balanceOf(address(this));
-        uint256 amt1 = out1 + fee1 + IERC20V7(t1).balanceOf(address(this));
+        uint256 amt0 = out0 + fee0 + IERC20(t0).balanceOf(address(this));
+        uint256 amt1 = out1 + fee1 + IERC20(t1).balanceOf(address(this));
 
         withdrawn = _liquidateToWant(t0, t1, amt0, amt1, vault);
     }
@@ -496,13 +511,13 @@ require(lower < upper, "TLU");
         );
 
         // Step 2: Snapshot balance of want before swaps
-        uint256 before = IERC20V7(wantToken).balanceOf(address(this));
+        uint256 before = IERC20(wantToken).balanceOf(address(this));
 
         // Step 3: Swap all balances of token0/token1 → want using keeper-provided calldata
         _executeSwaps(swapData);
 
         // Step 4: Snapshot balance after swaps
-        uint256 afterBal = IERC20V7(wantToken).balanceOf(address(this));
+        uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
 
         // Step 5: Profit = net increase in want
         profit = afterBal > before ? afterBal - before : 0;
@@ -521,8 +536,8 @@ require(lower < upper, "TLU");
         if (token == wantToken) return amount;
 
         //Find the decimals
-        uint8 tokenDec = IERC20V7(token).decimals();
-        uint8 wantDec = IERC20V7(wantToken).decimals();
+        uint8 tokenDec = IERC20Metadata(token).decimals();
+        uint8 wantDec = IERC20Metadata(wantToken).decimals();
 
         // convert token amount to 18 decimals
         uint256 amt18 = _scaleDecimals(amount, tokenDec, 18);
@@ -614,11 +629,11 @@ require(lower < upper, "TLU");
 
             // Approve ExchangeHandler to pull tokens from THIS strategy
             if (amountIn == 0 || amountIn == type(uint256).max) {
-                amountIn = IERC20V7(tokenIn).balanceOf(address(this));
+                amountIn = IERC20(tokenIn).balanceOf(address(this));
             }
             if (amountIn > 0) {
-                IERC20V7(tokenIn).approve(address(exchanger), 0);
-                IERC20V7(tokenIn).approve(address(exchanger), amountIn);
+                IERC20(tokenIn).approve(address(exchanger), 0);
+                IERC20(tokenIn).approve(address(exchanger), amountIn);
             }
 
             // Call the exchanger
@@ -647,4 +662,10 @@ require(lower < upper, "TLU");
                 bytes("") // routerCalldata (set by keeper)
             );
     }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+        require(msg.sender == vault, "NOT_VAULT");
+    }
+
+    uint256[50] private __gap;
 }
