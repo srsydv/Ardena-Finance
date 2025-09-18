@@ -282,6 +282,14 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
       { kind: "uups", initializer: "initialize" }
     );
 
+    const IndexSwap = await ethers.getContractFactory("IndexSwap");
+const indexSwap = await upgrades.deployProxy(
+  IndexSwap,
+  [vault.target, access.target, 3600], // cooldown example
+  { kind: "uups", initializer: "initialize" }
+);
+await indexSwap.waitForDeployment();
+
     // After deploying AccessController
     await access.setManager(deployer.address, true);
     await access.setKeeper(deployer.address, true);

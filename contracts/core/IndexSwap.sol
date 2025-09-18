@@ -4,12 +4,14 @@ pragma solidity ^0.8.24;
 import "./Vault.sol";
 import "../interfaces/IStrategy.sol";
 import "./AccessController.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title IndexSwap
 /// @notice Rebalance engine for Vaults, enforcing cooldown and target allocations.
-contract IndexSwap {
-    Vault public immutable vault;
-    AccessController public immutable access;
+contract IndexSwap is Initializable, UUPSUpgradeable {
+    Vault public vault;
+    AccessController public access;
 
     uint256 public cooldown;        // min time between rebalances
     uint256 public lastRebalance;   // timestamp of last rebalance
@@ -22,7 +24,8 @@ contract IndexSwap {
         _;
     }
 
-    constructor(address _vault, address _access, uint256 _cooldown) {
+    function initialize(address _vault, address _access, uint256 _cooldown) public initializer {
+        __UUPSUpgradeable_init();
         require(_vault != address(0) && _access != address(0), "BAD_ADDR");
         vault = Vault(_vault);
         access = AccessController(_access);
@@ -69,4 +72,10 @@ contract IndexSwap {
         lastRebalance = block.timestamp;
         emit Rebalanced(block.timestamp);
     }
+
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+        require(access.managers(msg.sender), "NOT_MANAGER");
+    }
+
+    uint256[50] private __gap;
 }
