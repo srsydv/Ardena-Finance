@@ -155,15 +155,12 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
 
     uint256 public tokenId; // LP NFT id held by this strategy
 
-
     event totalAsset(uint256 WETH, uint256 WANT, uint256 Fee0, uint256 Fee1);
 
     modifier onlyVault() {
         require(msg.sender == vault, "NOT_VAULT");
         _;
     }
-
-    
 
     function initialize(
         address _vault,
@@ -250,10 +247,9 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
 
         // emit totalAsset(amt0, amt1, fees0, fees1);
         return valueInWant;
-        
     }
 
-    function knowYourAssets() public  returns (uint256){
+    function knowYourAssets() public returns (uint256) {
         // Value = current liquidity amounts + uncollected fees + idle want, all converted to `want`
         if (tokenId == 0) {
             return IERC20(wantToken).balanceOf(address(this));
@@ -303,7 +299,6 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
 
         emit totalAsset(amt0, amt1, fees0, fees1);
         return valueInWant;
-        
     }
     // ---------------- Vault calls ----------------
 
@@ -333,7 +328,6 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
         t1.safeApprove(address(pm), bal1);
 
         if (tokenId == 0) {
-
             /*
 
 int24 spacing = pool.tickSpacing();
@@ -663,7 +657,9 @@ require(lower < upper, "TLU");
             );
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+    function _authorizeUpgrade(
+        address /*newImplementation*/
+    ) internal view override {
         require(msg.sender == vault, "NOT_VAULT");
     }
 

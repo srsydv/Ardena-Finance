@@ -162,7 +162,6 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
 
     await exchanger.setRouter(SUSHI_ROUTER, true);
 
-
     await network.provider.request({
       method: "hardhat_setBalance",
       params: [deployer.address, "0x8AC7230489E80000"], // 1 ETH in hex (wei)
@@ -260,9 +259,9 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
     console.log("Pool created at:", poolAddress);
 
     const F = await hre.ethers.getContractFactory("UniswapV3MathAdapter");
-  const math = await F.deploy();
-  await math.waitForDeployment();
-  console.log("MathAdapter:", math.target);
+    const math = await F.deploy();
+    await math.waitForDeployment();
+    console.log("MathAdapter:", math.target);
 
     // --- Deploy Uniswap Strategy ---
     const UniswapV3Strategy = await ethers.getContractFactory(
@@ -271,10 +270,17 @@ describe("Vault + UniswapV3 Strategy E2E", function () {
 
     uniStrat = await upgrades.deployProxy(
       UniswapV3Strategy,
-      [vault.target, mockUSDC.target, UNISWAP_POSITION_MANAGER, poolAddress, exchanger.target, oracle.target, math.target],
+      [
+        vault.target,
+        mockUSDC.target,
+        UNISWAP_POSITION_MANAGER,
+        poolAddress,
+        exchanger.target,
+        oracle.target,
+        math.target,
+      ],
       { kind: "uups", initializer: "initialize" }
     );
-
 
     // After deploying AccessController
     await access.setManager(deployer.address, true);

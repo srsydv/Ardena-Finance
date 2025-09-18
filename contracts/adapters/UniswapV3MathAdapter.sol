@@ -15,8 +15,12 @@ contract UniswapV3MathAdapter {
         uint160 sqrtRatioBX96,
         uint128 liquidity
     ) external pure returns (uint256 amount0, uint256 amount1) {
-        return LiquidityAmounts.getAmountsForLiquidity(
-            sqrtPriceX96, sqrtRatioAX96, sqrtRatioBX96, liquidity
-        );
+        return
+            LiquidityAmounts.getAmountsForLiquidity(
+                sqrtPriceX96,
+                sqrtRatioAX96,
+                sqrtRatioBX96,
+                liquidity
+            );
     }
 }
