@@ -142,28 +142,25 @@ async function main() {
     console.warn(`Warning: expected Sepolia (11155111), current chainId=${chainId}`);
   }
 
-  const WANT = requireEnv("WANT");
-  const WETH = requireEnv("WETH");
+  const WANT = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+  const WETH = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
 
-  const TREASURY = optionalEnv("TREASURY", deployer.address);
-  const VAULT_NAME = optionalEnv("VAULT_NAME", "My Vault");
-  const VAULT_SYMBOL = optionalEnv("VAULT_SYMBOL", "MVLT");
-  const VAULT_CAP_HUMAN = optionalEnv("VAULT_CAP", "100000000") // 1e8 WANT units by default
+  const TREASURY = "0x69a4Bdf914f4d71FB207eaF571AF3eC85F5987E3";
+  const VAULT_NAME = "AaveUNI6040";
+  const VAULT_SYMBOL = "AUNI";
+  const VAULT_CAP_HUMAN = "100000000";// 1e8 WANT units by default
   const AAVE_POOL = "0xE85292C7BeDF830071cC1C8F7b5aaB5A5391B50A";
 
-  const UNISWAP_FACTORY = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c"
-  const UNISWAP_PM = "0x1238536071E1c677A632429e3655c799b22cDA52"
-  const UNISWAP_V3_ROUTER = optionalEnv(
-    "UNISWAP_V3_ROUTER",
-    "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E" // SwapRouter02 (Sepolia)
-  );
-  const UNIVERSAL_ROUTER = "0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b"
-  const UNISWAP_FEE = Number(optionalEnv("UNISWAP_FEE", "500"));
-  const INIT_PRICE_USDC_PER_WETH = optionalEnv("INIT_PRICE_USDC_PER_WETH", "4000");
+  const UNISWAP_FACTORY = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c" // Sepolia
+  const UNISWAP_PM = "0x1238536071E1c677A632429e3655c799b22cDA52" // Sepolia
+  const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E" // SwapRouter02 Sepolia
+  const UNIVERSAL_ROUTER = "0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b" // Sepolia
+  const UNISWAP_FEE = 500;
+  const INIT_PRICE_USDC_PER_WETH = 100;
 
-  const ORACLE_ETH_USD_AGG = optionalEnv("ORACLE_ETH_USD_AGG", "");
-  const ORACLE_TOKEN_USD_AGG = optionalEnv("ORACLE_TOKEN_USD_AGG", "");
-  const INDEX_COOLDOWN = Number(optionalEnv("INDEX_COOLDOWN", "3600"));
+  // const ORACLE_ETH_USD_AGG = optionalEnv("ORACLE_ETH_USD_AGG", "");
+  // const ORACLE_TOKEN_USD_AGG = optionalEnv("ORACLE_TOKEN_USD_AGG", "");
+  const INDEX_COOLDOWN = 60;
 
   // Query WANT metadata
   const wantMeta = await ethers.getContractAt(ERC20_META, WANT);
@@ -270,18 +267,22 @@ async function main() {
   await indexSwap.waitForDeployment();
 
   // Vault strategy allocations
-  await (await vault.setStrategy(aaveStrat.target, 6000)).wait();
-  await (await vault.setStrategy(uniStrat.target, 4000)).wait();
+  if (aaveStrat) {
+    await (await vault.setStrategy(aaveStrat.target, 6000)).wait();
+    await (await vault.setStrategy(uniStrat.target, 4000)).wait();
+  } else {
+    await (await vault.setStrategy(uniStrat.target, 10000)).wait(); // 100% to Uniswap if no Aave
+  }
   
-     
-
   // Optional: Configure oracle feeds
-  if (ORACLE_ETH_USD_AGG) {
-    await (await oracle.setEthUsd(ORACLE_ETH_USD_AGG, "864000")).wait();
-  }
-  if (ORACLE_TOKEN_USD_AGG) {
-    await (await oracle.setTokenUsd(WANT, ORACLE_TOKEN_USD_AGG, "864000")).wait();
-  }
+  const MockAgg = await ethers.getContractFactory("MockAggregatorV3");
+      const ethUsdAgg = await MockAgg.deploy(0, 8);
+  // if (ORACLE_ETH_USD_AGG) {
+    await (await oracle.setEthUsd(ethUsdAgg.target, "864000")).wait();
+  // }
+  // if (ORACLE_TOKEN_USD_AGG) {
+  //   await (await oracle.setTokenUsd(WANT, ORACLE_TOKEN_USD_AGG, "864000")).wait();
+  // }
 
   const out = {
     network: Number(chainId),
@@ -312,12 +313,14 @@ async function main() {
   // Print structured JSON (user preference)
   console.log(JSON.stringify(out, null, 2));
 
-  // Persist to deployments/sepolia.json
+  // Persist to deployments/{network}.json
   try {
     const dir = path.join(__dirname, "..", "deployments");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, "sepolia.json");
+    const networkName = chainId === 11155111n ? "sepolia" : `chain-${chainId}`;
+    const file = path.join(dir, `${networkName}.json`);
     fs.writeFileSync(file, JSON.stringify(out, null, 2));
+    console.log(`Deployment info saved to: ${file}`);
   } catch (e) {
     console.warn("Could not write deployments file:", e.message);
   }
