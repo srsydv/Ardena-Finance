@@ -60,6 +60,76 @@
       "address": "0x69d0921Fd4DfAc089753430803Ecbc47DE342D49",
       "txHash": "0x0b8020a7ddc3a4c899981bd20330d6a57f5ba81c386cf6a373e52e931e93db8f",
       "kind": "uups"
+    },
+    {
+      "address": "0x757318d5A3f6f4a1bF4377a27CF017F8e7cEa0B7",
+      "txHash": "0x7961bc9df52aa0483b0e05e4caf6a102ccda68826ec183068c49fecb7f046ece",
+      "kind": "uups"
+    },
+    {
+      "address": "0xb92000f91a80144D03CBd8931095683B7F76405E",
+      "txHash": "0x50ee997939799fbd400332e95b056821c469d3083757e00432ce6504d51e7755",
+      "kind": "uups"
+    },
+    {
+      "address": "0xCe76a012435839De94836bcd35842095638C8859",
+      "txHash": "0x73c250aa500cbc7b290753a0d922467729e058734adafe745c3409bc1246e1e3",
+      "kind": "uups"
+    },
+    {
+      "address": "0x3C3B468d8953a8394EC80EA374D5982FFc8F1638",
+      "txHash": "0x50484090806a0b8c76ffbf910a972e05ba4fa978628a2e83f2927441c4d6d07c",
+      "kind": "uups"
+    },
+    {
+      "address": "0x1A28451ff140Cf1224706839AF44b8de4EB3f019",
+      "txHash": "0xbda61a99003dd51d08ce419b40ba5bb09b80875c3d2cee390988e2a565a6407c",
+      "kind": "uups"
+    },
+    {
+      "address": "0xFdBE7f22fD58967dBc6E01129dC13A2B531353e5",
+      "txHash": "0x3523ad195f026b24a8324ca82613b2f4ea9cb3f528694d2489b988c1ffc37c84",
+      "kind": "uups"
+    },
+    {
+      "address": "0x6EE0A849079A5b63562a723367eAae77F3f5EB21",
+      "txHash": "0xe1d1a5bcfd5efebb3311d470af6826a2941aa39e004dd6b52a8fa326a8047d46",
+      "kind": "uups"
+    },
+    {
+      "address": "0x3873DaFa287f80792208c36AcCfC82370428b3DB",
+      "txHash": "0x82f76d6728c12b54f3f110da1a814155f21812b825fcb6c7f0d67bf000dd2844",
+      "kind": "uups"
+    },
+    {
+      "address": "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2",
+      "txHash": "0x4d38418b6836ed7ec6f52bcae552c22329b43ea826217982f49dab3ac05a57a3",
+      "kind": "uups"
+    },
+    {
+      "address": "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0",
+      "txHash": "0x6aac962c1c7b83f86556d51f5af1a693f2f830cc5f5858b57fd42c69282e9d40",
+      "kind": "uups"
+    },
+    {
+      "address": "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF",
+      "txHash": "0xd8c2ad9e3f9c8e8ffe5b8f1a57cc0c499fb7724f91f6a96970ac47cdf20c6008",
+      "kind": "uups"
+    },
+    {
+      "address": "0xA87bFB6973b92685C66D2BDc37A670Ee995a4C3B",
+      "txHash": "0x11782113469a4509750c89662519a58c8ca3c1bf7112b75f1af52fbf2fe418a8",
+      "kind": "uups"
+    },
+    {
+      "address": "0xCc02bC41a7AF1A35af4935346cABC7335167EdC9",
+      "txHash": "0xd112f18ea5a90b96845e5d0379b7c596257da1a97ef96d9b49a4bd0ece80de17",
+      "kind": "uups"
+    },
+    {
+      "address": "0x34C4E1883Ed95aeb100F79bdEe0291F44C214fA2",
+      "txHash": "0x254e1ac9acf6ff9f11d484a9728fa98407dcdfce9c6f5b95898ec3846ffe039c",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -1059,6 +1129,119 @@
           },
           "t_contract(IERC20)1662": {
             "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "a46113d0f7e4b33c7f20bb24017570c54b9438e9bcb23dab865aca51fd23270d": {
+      "address": "0x58e79479f9484d45Ba67860479681f78A4ca92a7",
+      "txHash": "0x2e5bf65a67bad610ca8471f203f78b5696dc9ba34e6efc0ff0b91f8cdb28d146",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "vault",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(Vault)4911",
+            "contract": "IndexSwap",
+            "src": "contracts/core/IndexSwap.sol:13"
+          },
+          {
+            "label": "access",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_contract(AccessController)2297",
+            "contract": "IndexSwap",
+            "src": "contracts/core/IndexSwap.sol:14"
+          },
+          {
+            "label": "cooldown",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_uint256",
+            "contract": "IndexSwap",
+            "src": "contracts/core/IndexSwap.sol:16"
+          },
+          {
+            "label": "lastRebalance",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "IndexSwap",
+            "src": "contracts/core/IndexSwap.sol:17"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "IndexSwap",
+            "src": "contracts/core/IndexSwap.sol:86"
+          }
+        ],
+        "types": {
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)7_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(AccessController)2297": {
+            "label": "contract AccessController",
+            "numberOfBytes": "20"
+          },
+          "t_contract(Vault)4911": {
+            "label": "contract Vault",
             "numberOfBytes": "20"
           },
           "t_uint256": {

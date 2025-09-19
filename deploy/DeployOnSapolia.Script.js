@@ -142,14 +142,14 @@ async function main() {
     console.warn(`Warning: expected Sepolia (11155111), current chainId=${chainId}`);
   }
 
-  const WANT = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
+  const WANT = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
   const WETH = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
 
   const TREASURY = "0x69a4Bdf914f4d71FB207eaF571AF3eC85F5987E3";
   const VAULT_NAME = "AaveUNI6040";
   const VAULT_SYMBOL = "AUNI";
   const VAULT_CAP_HUMAN = "100000000";// 1e8 WANT units by default
-  const AAVE_POOL = "0xE85292C7BeDF830071cC1C8F7b5aaB5A5391B50A";
+  const AAVE_POOL = "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951";
 
   const UNISWAP_FACTORY = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c" // Sepolia
   const UNISWAP_PM = "0x1238536071E1c677A632429e3655c799b22cDA52" // Sepolia
@@ -178,6 +178,8 @@ async function main() {
   });
   await oracle.waitForDeployment();
 
+  console.log("Oracle:", oracle.target);
+
   // Deploy FeeModule (UUPS)
   const FeeModule = await ethers.getContractFactory("FeeModule");
   const fees = await upgrades.deployProxy(
@@ -187,6 +189,8 @@ async function main() {
   );
   await fees.waitForDeployment();
 
+  console.log("Fees:", fees.target);
+
   // Deploy AccessController (UUPS)
   const Access = await ethers.getContractFactory("AccessController");
   const access = await upgrades.deployProxy(Access, [deployer.address], {
@@ -194,6 +198,8 @@ async function main() {
     initializer: "initialize",
   });
   await access.waitForDeployment();
+
+  console.log("Access:", access.target);
 
   // Deploy Vault (UUPS)
   const Vault = await ethers.getContractFactory("Vault");
@@ -204,6 +210,8 @@ async function main() {
   );
   await vault.waitForDeployment();
 
+  console.log("Vault:", vault.target);
+
   // Deploy ExchangeHandler (UUPS)
   const ExchangeHandler = await ethers.getContractFactory("ExchangeHandler");
   const exchanger = await upgrades.deployProxy(
@@ -212,6 +220,8 @@ async function main() {
     { kind: "uups", initializer: "initialize" }
   );
   await exchanger.waitForDeployment();
+
+  console.log("Exchanger:", exchanger.target);
 
   // Allow Uniswap v3 router(s)
   await (await exchanger.setRouter(UNISWAP_V3_ROUTER, true)).wait();
@@ -225,6 +235,7 @@ async function main() {
   const MathAdapter = await ethers.getContractFactory("UniswapV3MathAdapter");
   const math = await MathAdapter.deploy();
   await math.waitForDeployment();
+  console.log("MathAdapter:", math.target);
 
   // Ensure Uniswap v3 pool exists for WANT/WETH
   const poolAddress = await ensureUniswapPool({
@@ -235,6 +246,7 @@ async function main() {
     fee: UNISWAP_FEE,
     initPriceUSDCperWETH: INIT_PRICE_USDC_PER_WETH,
   });
+  console.log("PoolAddress:", poolAddress);
 
   // Deploy UniswapV3Strategy (UUPS)
   const UniswapV3Strategy = await ethers.getContractFactory("UniswapV3Strategy");
@@ -244,7 +256,7 @@ async function main() {
     { kind: "uups", initializer: "initialize" }
   );
   await uniStrat.waitForDeployment();
-
+  console.log("UniswapV3Strategy:", uniStrat.target);
   // Optional: AaveV3Strategy
   let aaveStrat = null;
   if (AAVE_POOL) {
@@ -255,6 +267,7 @@ async function main() {
       { kind: "uups", initializer: "initialize" }
     );
     await aaveStrat.waitForDeployment();
+    console.log("AaveV3Strategy:", aaveStrat.target);
   }
 
   // Optional: IndexSwap
@@ -265,18 +278,20 @@ async function main() {
     { kind: "uups", initializer: "initialize" }
   );
   await indexSwap.waitForDeployment();
+  console.log("IndexSwap:", indexSwap.target);
 
   // Vault strategy allocations
   if (aaveStrat) {
     await (await vault.setStrategy(aaveStrat.target, 6000)).wait();
     await (await vault.setStrategy(uniStrat.target, 4000)).wait();
-  } else {
+    } else {
     await (await vault.setStrategy(uniStrat.target, 10000)).wait(); // 100% to Uniswap if no Aave
   }
   
   // Optional: Configure oracle feeds
   const MockAgg = await ethers.getContractFactory("MockAggregatorV3");
       const ethUsdAgg = await MockAgg.deploy(0, 8);
+  console.log("EthUsdAgg:", ethUsdAgg.target);
   // if (ORACLE_ETH_USD_AGG) {
     await (await oracle.setEthUsd(ethUsdAgg.target, "864000")).wait();
   // }
@@ -293,20 +308,20 @@ async function main() {
       positionManager: UNISWAP_PM,
       router: UNISWAP_V3_ROUTER,
       fee: UNISWAP_FEE,
-      pool: poolAddress,
+      // pool: poolAddress,
     },
     core: {
-      oracle: await oracle.getAddress(),
-      fees: await fees.getAddress(),
-      access: await access.getAddress(),
-      vault: await vault.getAddress(),
-      exchanger: await exchanger.getAddress(),
-      mathAdapter: await math.getAddress(),
+      // oracle: await oracle.getAddress(),
+      // fees: await fees.getAddress(),
+      // access: await access.getAddress(),
+      // vault: await vault.getAddress(),
+      // exchanger: await exchanger.getAddress(),
+      // mathAdapter: await math.getAddress(),
       indexSwap: await indexSwap.getAddress(),
     },
     strategies: {
-      uniswapV3: uniStrat ? await uniStrat.getAddress() : null,
-      aaveV3: aaveStrat ? await aaveStrat.getAddress() : null,
+      // uniswapV3: uniStrat ? await uniStrat.getAddress() : null,
+      // aaveV3: aaveStrat ? await aaveStrat.getAddress() : null,
     },
   };
 
