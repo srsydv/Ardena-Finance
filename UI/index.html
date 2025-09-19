@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shrish Finance - DeFi Vault Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .wallet-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .wallet-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .wallet-address {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .connect-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s;
+        }
+
+        .connect-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .role-user { background: #e3f2fd; color: #1976d2; }
+        .role-manager { background: #f3e5f5; color: #7b1fa2; }
+        .role-keeper { background: #e8f5e8; color: #388e3c; }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h3 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            width: 100%;
+            transition: transform 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #6c757d, #495057);
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #ffc107, #fd7e14);
+        }
+
+        .vault-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .vault-info h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .vault-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .contract-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .contract-info h4 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .contract-address {
+            font-family: monospace;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 5px 0;
+            word-break: break-all;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .wallet-info {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏦 Shrish Finance</h1>
+            <p>DeFi Vault Management Platform</p>
+        </div>
+
+        <!-- Wallet Connection Section -->
+        <div class="wallet-section">
+            <div class="wallet-info">
+                <div>
+                    <div class="wallet-address" id="walletAddress">Not Connected</div>
+                    <span class="role-badge role-user" id="userRole">User</span>
+                    <span class="role-badge role-manager" id="managerRole" style="display: none;">Manager</span>
+                    <span class="role-badge role-keeper" id="keeperRole" style="display: none;">Keeper</span>
+                </div>
+                <button class="connect-btn" id="connectWallet">Connect Wallet</button>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div class="dashboard">
+            <!-- User Actions -->
+            <div class="card">
+                <h3>👤 User Actions</h3>
+                <div class="vault-info">
+                    <h4>Vault Information</h4>
+                    <p><strong>Name:</strong> <span id="vaultName">AaveUNI6040</span></p>
+                    <p><strong>Symbol:</strong> <span id="vaultSymbol">AUNI</span></p>
+                    <p><strong>Asset:</strong> <span id="vaultAsset">USDC</span></p>
+                    <p><strong>Total Assets:</strong> <span id="totalAssets">0</span> USDC</p>
+                    <p><strong>Your Shares:</strong> <span id="userShares">0</span></p>
+                    <p><strong>Your Assets:</strong> <span id="userAssets">0</span> USDC</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="depositAmount">Deposit Amount (USDC)</label>
+                    <input type="number" id="depositAmount" placeholder="Enter amount to deposit" step="0.000001">
+                </div>
+                <button class="btn" id="depositBtn" onclick="deposit()">Deposit</button>
+                
+                <div class="form-group">
+                    <label for="withdrawAmount">Withdraw Amount (Shares)</label>
+                    <input type="number" id="withdrawAmount" placeholder="Enter shares to withdraw" step="0.000001">
+                </div>
+                <button class="btn btn-secondary" id="withdrawBtn" onclick="withdraw()">Withdraw</button>
+            </div>
+
+            <!-- Manager Actions -->
+            <div class="card">
+                <h3>🎯 Manager Actions</h3>
+                <div class="vault-info">
+                    <h4>Strategy Allocation</h4>
+                    <p><strong>Aave Strategy:</strong> <span id="aaveAllocation">60%</span></p>
+                    <p><strong>Uniswap Strategy:</strong> <span id="uniAllocation">40%</span></p>
+                    <p><strong>Idle Funds:</strong> <span id="idleFunds">0</span> USDC</p>
+                </div>
+                
+                <button class="btn btn-success" id="investIdleBtn" onclick="investIdle()">Invest Idle Funds</button>
+                
+                <div class="form-group">
+                    <label for="strategyAddress">Strategy Address</label>
+                    <input type="text" id="strategyAddress" placeholder="0x...">
+                </div>
+                <div class="form-group">
+                    <label for="allocationBps">Allocation (Basis Points)</label>
+                    <input type="number" id="allocationBps" placeholder="5000" min="0" max="10000">
+                </div>
+                <button class="btn btn-secondary" id="setStrategyBtn" onclick="setStrategy()">Set Strategy</button>
+            </div>
+
+            <!-- Keeper Actions -->
+            <div class="card">
+                <h3>⚡ Keeper Actions</h3>
+                <div class="vault-info">
+                    <h4>Harvest Information</h4>
+                    <p><strong>Last Harvest:</strong> <span id="lastHarvest">Never</span></p>
+                    <p><strong>Min Harvest Interval:</strong> <span id="minHarvestInterval">3600</span> seconds</p>
+                    <p><strong>Can Harvest:</strong> <span id="canHarvest">Yes</span></p>
+                </div>
+                
+                <button class="btn btn-warning" id="harvestBtn" onclick="harvestAll()">Harvest All Strategies</button>
+                
+                <div class="form-group">
+                    <label for="harvestInterval">Set Harvest Interval (seconds)</label>
+                    <input type="number" id="harvestInterval" placeholder="3600" min="60">
+                </div>
+                <button class="btn btn-secondary" id="setHarvestIntervalBtn" onclick="setHarvestInterval()">Set Interval</button>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="statusMessages"></div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing transaction...</p>
+        </div>
+
+        <!-- Contract Information -->
+        <div class="contract-info">
+            <h4>📋 Contract Addresses (Sepolia Testnet)</h4>
+            <div class="contract-address">
+                <strong>Vault:</strong> 0xD995048010d777185e70bBe8FD48Ca2d0eF741a0
+            </div>
+            <div class="contract-address">
+                <strong>USDC:</strong> 0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8
+            </div>
+            <div class="contract-address">
+                <strong>Aave Strategy:</strong> 0xCc02bC41a7AF1A35af4935346cABC7335167EdC9
+            </div>
+            <div class="contract-address">
+                <strong>Uniswap Strategy:</strong> 0xA87bFB6973b92685C66D2BDc37A670Ee995a4C3B
+            </div>
+            <div class="contract-address">
+                <strong>Access Controller:</strong> 0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2
+            </div>
+        </div>
+    </div>
+
+    <!-- Include Ethers.js -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script>
+        // Fallback if first CDN fails
+        if (typeof ethers === 'undefined') {
+            console.log('Loading Ethers.js from fallback CDN...');
+            const script = document.createElement('script');
+            script.src = 'https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js';
+            document.head.appendChild(script);
+        }
+    </script>
+    <!-- Include Configuration -->
+    <script src="config.js"></script>
+    <!-- Include Integration Module -->
+    <script src="integration.js"></script>
+    
+    <script>
+        // Global integration instance
+        let vaultIntegration = null;
+        let userAddress = null;
+        let userRole = 'user';
+
+        // Initialize when page loads
+        window.addEventListener('load', async () => {
+            // Wait a bit for scripts to load
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Check if Ethers.js is loaded
+            if (typeof ethers === 'undefined') {
+                showStatus('Ethers.js library not loaded. Please refresh the page.', 'error');
+                console.error('Ethers.js not found');
+                return;
+            }
+            
+            console.log('Ethers.js loaded successfully:', typeof ethers);
+            
+            if (typeof window.ethereum !== 'undefined') {
+                vaultIntegration = new VaultIntegration();
+                await loadVaultInfo();
+                
+                // Listen for network changes
+                window.ethereum.on('chainChanged', (chainId) => {
+                    console.log('Network changed to:', chainId);
+                    if (chainId === '0xaa36a7') {
+                        showStatus('Switched to Sepolia testnet!', 'success');
+                    } else {
+                        showStatus('Please switch to Sepolia testnet', 'error');
+                    }
+                });
+                
+                // Listen for account changes
+                window.ethereum.on('accountsChanged', (accounts) => {
+                    console.log('Account changed:', accounts);
+                    if (accounts.length > 0) {
+                        userAddress = accounts[0];
+                        document.getElementById('walletAddress').textContent = userAddress;
+                        showStatus('Account changed', 'info');
+                    } else {
+                        // User disconnected
+                        userAddress = null;
+                        document.getElementById('walletAddress').textContent = 'Not Connected';
+                        document.getElementById('connectWallet').textContent = 'Connect Wallet';
+                        document.getElementById('connectWallet').disabled = false;
+                        showStatus('Wallet disconnected', 'info');
+                    }
+                });
+            } else {
+                showStatus('Please install MetaMask to use this application', 'error');
+            }
+        });
+
+        // Connect wallet
+        document.getElementById('connectWallet').addEventListener('click', connectWallet);
+
+        async function connectWallet() {
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    showStatus('Please install MetaMask', 'error');
+                    return;
+                }
+
+                showStatus('Connecting wallet...', 'info');
+
+                // Request account access
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                userAddress = accounts[0];
+                
+                console.log('Connected to wallet:', userAddress);
+
+                // Check network
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                console.log('Current chain ID:', chainId);
+                
+                if (chainId !== '0xaa36a7') { // Sepolia chain ID
+                    showStatus('Please switch to Sepolia testnet in MetaMask (Current: Mainnet)', 'error');
+                    // Don't return, continue with connection but show warning
+                }
+
+                // Initialize integration
+                vaultIntegration = new VaultIntegration();
+                await vaultIntegration.initialize();
+                userRole = vaultIntegration.userRole;
+
+                console.log('Integration initialized, user role:', userRole);
+
+                // Update UI
+                document.getElementById('walletAddress').textContent = userAddress;
+                document.getElementById('connectWallet').textContent = 'Connected';
+                document.getElementById('connectWallet').disabled = true;
+                
+                console.log('UI updated - wallet address:', userAddress);
+                console.log('UI updated - button text:', document.getElementById('connectWallet').textContent);
+
+                // Update role badges
+                updateRoleBadges();
+
+                await loadVaultInfo();
+                
+                showStatus('Wallet connected successfully!', 'success');
+            } catch (error) {
+                console.error('Wallet connection error:', error);
+                showStatus('Failed to connect wallet: ' + error.message, 'error');
+            }
+        }
+
+        function updateRoleBadges() {
+            // Hide all role badges first
+            document.getElementById('userRole').style.display = 'none';
+            document.getElementById('managerRole').style.display = 'none';
+            document.getElementById('keeperRole').style.display = 'none';
+
+            // Show appropriate role badge
+            if (userRole === 'manager') {
+                document.getElementById('managerRole').style.display = 'inline-block';
+            } else if (userRole === 'keeper') {
+                document.getElementById('keeperRole').style.display = 'inline-block';
+            } else {
+                document.getElementById('userRole').style.display = 'inline-block';
+            }
+        }
+
+        async function loadVaultInfo() {
+            if (!vaultIntegration) {
+                console.log('VaultIntegration not initialized, skipping vault info load');
+                return;
+            }
+
+            try {
+                console.log('Loading vault info...');
+                
+                // Load vault info using integration
+                const vaultInfo = await vaultIntegration.getVaultInfo();
+                const strategyInfo = await vaultIntegration.getStrategyInfo();
+                const feeInfo = await vaultIntegration.getFeeInfo();
+
+                console.log('Vault info loaded:', vaultInfo);
+
+                // Update vault basic info
+                if (vaultInfo && vaultInfo.name) {
+                    document.getElementById('vaultName').textContent = vaultInfo.name;
+                    document.getElementById('vaultSymbol').textContent = vaultInfo.symbol;
+                    document.getElementById('totalAssets').textContent = vaultInfo.totalAssets;
+                    document.getElementById('userShares').textContent = vaultInfo.userShares;
+                    document.getElementById('userAssets').textContent = vaultInfo.userAssets;
+
+                    // Update harvest info
+                    document.getElementById('lastHarvest').textContent = vaultInfo.lastHarvest;
+                    document.getElementById('minHarvestInterval').textContent = vaultInfo.minHarvestInterval;
+                    document.getElementById('canHarvest').textContent = vaultInfo.canHarvest ? 'Yes' : 'No';
+                }
+
+                // Update strategy info
+                if (strategyInfo) {
+                    document.getElementById('idleFunds').textContent = strategyInfo.idleFunds;
+                    
+                    // Update strategy allocations
+                    const aaveStrategy = strategyInfo.strategies.find(s => s.name === 'Aave V3');
+                    const uniStrategy = strategyInfo.strategies.find(s => s.name === 'Uniswap V3');
+                    
+                    document.getElementById('aaveAllocation').textContent = aaveStrategy ? aaveStrategy.allocation + '%' : '0%';
+                    document.getElementById('uniAllocation').textContent = uniStrategy ? uniStrategy.allocation + '%' : '0%';
+                }
+
+                console.log('Vault info updated successfully');
+
+            } catch (error) {
+                console.error('Error loading vault info:', error);
+                showStatus('Error loading vault information: ' + error.message, 'error');
+            }
+        }
+
+
+        async function deposit() {
+            if (typeof ethers === 'undefined') {
+                showStatus('Ethers.js library not loaded. Please refresh the page.', 'error');
+                return;
+            }
+            
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            const amount = document.getElementById('depositAmount').value;
+            if (!amount || amount <= 0) {
+                showStatus('Please enter a valid deposit amount', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                console.log('Attempting deposit of:', amount, 'USDC');
+                const result = await vaultIntegration.deposit(amount);
+
+                showStatus(`Successfully deposited ${amount} USDC! Transaction: ${result.txHash}`, 'success');
+                document.getElementById('depositAmount').value = '';
+                await loadVaultInfo();
+
+            } catch (error) {
+                console.error('Deposit error:', error);
+                showStatus('Deposit failed: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function withdraw() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            const shares = document.getElementById('withdrawAmount').value;
+            if (!shares || shares <= 0) {
+                showStatus('Please enter a valid withdrawal amount', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const result = await vaultIntegration.withdraw(shares);
+
+                showStatus(`Successfully withdrew ${shares} shares! Transaction: ${result.txHash}`, 'success');
+                document.getElementById('withdrawAmount').value = '';
+                await loadVaultInfo();
+
+            } catch (error) {
+                showStatus('Withdrawal failed: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function investIdle() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const result = await vaultIntegration.investIdle();
+
+                showStatus(`Successfully invested idle funds! Transaction: ${result.txHash}`, 'success');
+                await loadVaultInfo();
+
+            } catch (error) {
+                showStatus('Invest idle failed: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function harvestAll() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const result = await vaultIntegration.harvestAll();
+
+                showStatus(`Successfully harvested all strategies! Transaction: ${result.txHash}`, 'success');
+                await loadVaultInfo();
+
+            } catch (error) {
+                showStatus('Harvest failed: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function setStrategy() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            const strategyAddress = document.getElementById('strategyAddress').value;
+            const allocationBps = document.getElementById('allocationBps').value;
+
+            if (!strategyAddress || !allocationBps) {
+                showStatus('Please enter strategy address and allocation', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const result = await vaultIntegration.setStrategy(strategyAddress, allocationBps);
+
+                showStatus(`Successfully set strategy! Transaction: ${result.txHash}`, 'success');
+                document.getElementById('strategyAddress').value = '';
+                document.getElementById('allocationBps').value = '';
+                await loadVaultInfo();
+
+            } catch (error) {
+                showStatus('Set strategy failed: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function setHarvestInterval() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            const interval = document.getElementById('harvestInterval').value;
+            if (!interval || interval < 60) {
+                showStatus('Please enter a valid interval (minimum 60 seconds)', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                const result = await vaultIntegration.setHarvestInterval(interval);
+
+                showStatus(`Successfully set harvest interval! Transaction: ${result.txHash}`, 'success');
+                document.getElementById('harvestInterval').value = '';
+                await loadVaultInfo();
+
+            } catch (error) {
+                showStatus('Set harvest interval failed: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            
+            const container = document.getElementById('statusMessages');
+            container.appendChild(statusDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (statusDiv.parentNode) {
+                    statusDiv.parentNode.removeChild(statusDiv);
+                }
+            }, 5000);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Refresh vault info every 30 seconds
+        setInterval(loadVaultInfo, 30000);
+    </script>
+</body>
+</html>
