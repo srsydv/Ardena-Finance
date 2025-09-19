@@ -37,6 +37,9 @@ class VaultIntegration {
                 "function setMinHarvestInterval(uint256 interval) external",
                 "function withdrawFromStrategy(address strat, uint256 amount, bytes[] calldata swapData) external returns (uint256 got)",
                 "function totalAssets() external view returns (uint256)",
+                "function strategiesLength() external view returns (uint256)",
+                "function strategies(uint256) external view returns (address)",
+                "function access() external view returns (address)",
                 "function convertToAssets(uint256 shares) external view returns (uint256)",
                 "function convertToShares(uint256 assets) external view returns (uint256)",
                 "function balanceOf(address account) external view returns (uint256)",
@@ -111,7 +114,7 @@ class VaultIntegration {
             }
 
             console.log('MetaMask detected, creating provider...');
-            this.provider = new ethers.providers.Web3Provider(window.ethereum);
+            this.provider = new ethers.BrowserProvider(window.ethereum);
             this.signer = await this.provider.getSigner();
             this.userAddress = await this.signer.getAddress();
             
@@ -121,7 +124,7 @@ class VaultIntegration {
             this.contracts.vault = new ethers.Contract(this.CONTRACTS.vault, this.ABIS.vault, this.signer);
             this.contracts.usdc = new ethers.Contract(this.CONTRACTS.usdc, this.ABIS.erc20, this.signer);
             this.contracts.weth = new ethers.Contract(this.CONTRACTS.weth, this.ABIS.erc20, this.signer);
-            this.contracts.accessController = new ethers.Contract(this.CONTRACTS.accessController, this.ABIS.accessController, this.provider);
+            this.contracts.accessController = new ethers.Contract(this.CONTRACTS.accessController, this.ABIS.accessController, this.signer);
             this.contracts.feeModule = new ethers.Contract(this.CONTRACTS.feeModule, this.ABIS.feeModule, this.provider);
             this.contracts.exchanger = new ethers.Contract(this.CONTRACTS.exchanger, this.ABIS.exchanger, this.signer);
             this.contracts.aaveStrategy = new ethers.Contract(this.CONTRACTS.aaveStrategy, this.ABIS.strategy, this.signer);
@@ -141,17 +144,36 @@ class VaultIntegration {
 
     async checkUserRoles() {
         try {
+            console.log('Checking roles for address:', this.userAddress);
+            console.log('AccessController address:', this.CONTRACTS.accessController);
+            
             const [isManager, isKeeper] = await Promise.all([
                 this.contracts.accessController.managers(this.userAddress),
                 this.contracts.accessController.keepers(this.userAddress)
             ]);
 
-            if (isManager) this.userRole = 'manager';
-            if (isKeeper) this.userRole = 'keeper';
+            console.log('Role check results:', { isManager, isKeeper });
+            
+            // Reset role first
+            this.userRole = 'user';
+            
+            if (isManager) {
+                this.userRole = 'manager';
+                console.log('✅ User is a manager');
+            }
+            if (isKeeper) {
+                this.userRole = 'keeper';
+                console.log('✅ User is a keeper');
+            }
+            
+            if (!isManager && !isKeeper) {
+                console.log('⚠️ User has no special roles, staying as:', this.userRole);
+            }
 
             return { isManager, isKeeper };
         } catch (error) {
             console.error('Error checking roles:', error);
+            this.userRole = 'user';
             return { isManager: false, isKeeper: false };
         }
     }
@@ -180,13 +202,13 @@ class VaultIntegration {
                 name,
                 symbol,
                 asset,
-                totalAssets: ethers.utils.formatUnits(totalAssets, decimals),
-                totalSupply: ethers.utils.formatUnits(totalSupply, decimals),
-                userShares: ethers.utils.formatUnits(userShares, decimals),
-                userAssets: ethers.utils.formatUnits(userAssets, decimals),
+                totalAssets: ethers.formatUnits(totalAssets, decimals),
+                totalSupply: ethers.formatUnits(totalSupply, decimals),
+                userShares: ethers.formatUnits(userShares, decimals),
+                userAssets: ethers.formatUnits(userAssets, decimals),
                 lastHarvest: lastHarvest > 0 ? new Date(Number(lastHarvest) * 1000).toLocaleString() : 'Never',
                 minHarvestInterval: minHarvestInterval.toString(),
-                depositCap: ethers.utils.formatUnits(depositCap, decimals),
+                depositCap: ethers.formatUnits(depositCap, decimals),
                 decimals: decimals.toString(),
                 canHarvest: Number(lastHarvest) + Number(minHarvestInterval) <= Math.floor(Date.now() / 1000)
             };
@@ -210,7 +232,7 @@ class VaultIntegration {
                 strategies.push({
                     address: strategyAddress,
                     allocation: Number(allocation) / 100,
-                    totalAssets: ethers.utils.formatUnits(totalAssets, 6),
+                    totalAssets: ethers.formatUnits(totalAssets, 6),
                     name: strategyAddress === this.CONTRACTS.aaveStrategy ? 'Aave V3' : 'Uniswap V3'
                 });
 
@@ -223,7 +245,7 @@ class VaultIntegration {
             return {
                 strategies,
                 totalAllocation: totalAllocation / 100,
-                idleFunds: ethers.utils.formatUnits(vaultBalance, 6)
+                idleFunds: ethers.formatUnits(vaultBalance, 6)
             };
         } catch (error) {
             console.error('Error getting strategy info:', error);
@@ -256,7 +278,7 @@ class VaultIntegration {
 
     async deposit(amount) {
         try {
-            const amountWei = ethers.utils.parseUnits(amount, 6);
+            const amountWei = ethers.parseUnits(amount, 6);
 
             // Check allowance
             const allowance = await this.contracts.usdc.allowance(this.userAddress, this.CONTRACTS.vault);
@@ -278,7 +300,7 @@ class VaultIntegration {
 
     async withdraw(shares) {
         try {
-            const sharesWei = ethers.utils.parseUnits(shares, 6);
+            const sharesWei = ethers.parseUnits(shares, 6);
 
             // Create empty swap data for withdrawal
             const allSwapData = [[], []]; // Empty arrays for both strategies
@@ -294,45 +316,102 @@ class VaultIntegration {
     }
 
     async investIdle() {
-        if (this.userRole !== 'manager') {
-            throw new Error('Only managers can invest idle funds');
-        }
-
         try {
-            console.log('Starting investIdle process...');
+            console.log('=== STARTING INVEST IDLE PROCESS ===');
+            console.log('User address:', this.userAddress);
+            console.log('Signer address:', await this.signer.getAddress());
+            console.log('Contracts initialized:', !!this.contracts.vault);
+            console.log('AccessController exists:', !!this.contracts.accessController);
+            
+            // Double-check the manager role directly from the contract
+            console.log('=== CHECKING MANAGER ROLE ===');
+            console.log('AccessController contract:', !!this.contracts.accessController);
+            console.log('AccessController address:', this.contracts.accessController.target);
+            
+            try {
+                console.log('About to call managers() function...');
+                const isManager = await this.contracts.accessController.managers(this.userAddress);
+                console.log('Is manager according to contract:', isManager);
+                
+                if (!isManager) {
+                    throw new Error(`Address ${this.userAddress} is not a manager. Please connect with a manager account.`);
+                }
+                console.log('Manager role check passed!');
+            } catch (error) {
+                console.error('Error checking manager role:', error);
+                throw error;
+            }
             
             // Get current idle amount
             const idleAmount = await this.contracts.usdc.balanceOf(this.CONTRACTS.vault);
             console.log('Idle amount in vault:', idleAmount.toString());
             
-            if (idleAmount.eq(0)) {
+            if (idleAmount == 0) {
                 throw new Error('No idle funds to invest');
             }
 
-            // Get strategy count to determine how many strategies we have
-            const strategyCount = await this.contracts.vault.strategyCount();
-            console.log('Strategy count:', strategyCount.toString());
+            // Get the number of strategies to understand the structure
+            const strategiesLength = await this.contracts.vault.strategiesLength();
+            console.log('Number of strategies:', strategiesLength.toString());
+            
+            // Get individual strategies by index
+            const strategies = [];
+            for (let i = 0; i < strategiesLength; i++) {
+                const strategyAddress = await this.contracts.vault.strategies(i);
+                strategies.push(strategyAddress);
+            }
+            console.log('Strategies:', strategies);
 
-            // Create swap data for Uniswap strategy
+            // Create swap data for Uniswap strategy (following test pattern exactly)
             const swapData = await this.createSwapDataForInvest(idleAmount);
             console.log('Created swap data:', swapData);
+            console.log('SwapData type:', typeof swapData);
+            console.log('SwapData is array:', Array.isArray(swapData));
+            console.log('SwapData length:', swapData ? swapData.length : 'undefined');
 
-            // Prepare swap data array - one entry per strategy
-            let allSwapData = [];
-            
-            if (strategyCount.eq(1)) {
-                // Only one strategy (likely Uniswap)
-                allSwapData = [swapData];
-            } else if (strategyCount.eq(2)) {
-                // Two strategies - assume first is Aave (no swap needed), second is Uniswap
-                allSwapData = [[], swapData]; // Empty for Aave, swap data for Uniswap
-            } else {
-                // Fallback: just use swap data for the last strategy
-                allSwapData = swapData;
+            // Check if swapData is valid
+            if (!swapData || !Array.isArray(swapData) || swapData.length === 0) {
+                throw new Error('Invalid swap data returned from createSwapDataForInvest');
             }
 
+            // Create allSwapData array with correct structure
+            // If we have 2 strategies, we need [strategy0Data, strategy1Data]
+            // For Aave strategy (index 0): empty array []
+            // For UniswapV3 strategy (index 1): our swap data [payload]
+            const allSwapData = [];
+            
+            // Add empty array for Aave strategy (index 0)
+            allSwapData.push([]);
+            
+            // Add swap data for UniswapV3 strategy (index 1)
+            allSwapData.push(swapData);
+            
             console.log('Final swap data array:', allSwapData);
+            console.log('AllSwapData structure check - should be array of arrays:', Array.isArray(allSwapData[0]), Array.isArray(allSwapData[1]));
+            console.log('AllSwapData length:', allSwapData.length);
+            console.log('AllSwapData[0] length:', allSwapData[0].length);
+            console.log('AllSwapData[1] length:', allSwapData[1].length);
+            console.log('AllSwapData[1][0] (first payload):', allSwapData[1][0]);
 
+            // Debug contract and method
+            console.log('Vault contract address:', this.contracts.vault.target);
+            console.log('Vault contract has investIdle method:', typeof this.contracts.vault.investIdle);
+            
+            // Check what AccessController the Vault is actually using
+            const vaultAccessController = await this.contracts.vault.access();
+            console.log('Vault is using AccessController at:', vaultAccessController);
+            console.log('Our AccessController address:', this.contracts.accessController.target);
+            console.log('AccessController addresses match:', vaultAccessController === this.contracts.accessController.target);
+            
+            // Check manager role on the Vault's AccessController
+            const vaultAccessControllerContract = new ethers.Contract(vaultAccessController, this.ABIS.accessController, this.signer);
+            const isManagerOnVaultAccessController = await vaultAccessControllerContract.managers(this.userAddress);
+            console.log('Is manager on Vault\'s AccessController:', isManagerOnVaultAccessController);
+            
+            // Final check before transaction
+            console.log('About to call investIdle with data:', allSwapData);
+            console.log('Transaction will be sent from:', this.userAddress);
+            
             const tx = await this.contracts.vault.investIdle(allSwapData);
             console.log('InvestIdle transaction sent:', tx.hash);
             
@@ -402,74 +481,82 @@ class VaultIntegration {
         try {
             console.log('Creating swap data for invest with amount:', totalIdleAmount.toString());
             
-            // Calculate amount for Uniswap strategy (40% of total)
-            const uniAmount = (totalIdleAmount * 40n) / 100n;
-            const swapAmount = uniAmount / 2n; // Half will be swapped to WETH by the strategy
+            // Get the UniswapV3 strategy allocation from the vault
+            const uniStrategyAddress = this.CONTRACTS.uniStrategy;
+            const targetBps = await this.contracts.vault.targetBps(uniStrategyAddress);
+            console.log('UniswapV3 strategy targetBps:', targetBps.toString());
+            
+            // Calculate how much goes to UniswapV3 strategy
+            const idleAmountBigInt = BigInt(totalIdleAmount.toString());
+            const targetBpsBigInt = BigInt(targetBps.toString());
+            const toUniStrategy = (idleAmountBigInt * targetBpsBigInt) / 10000n;
+            console.log('Amount going to UniswapV3 strategy:', toUniStrategy.toString());
+            
+            // For UniswapV3, swap half to WETH (like in vault.e2e.test.js)
+            const amountIn = toUniStrategy / 2n;
+            console.log('Amount to swap (USDC -> WETH):', amountIn.toString());
 
-            console.log('Uni amount (total sent to strategy):', uniAmount.toString());
-            console.log('Swap amount (USDC -> WETH):', swapAmount.toString());
-            console.log('Note: Strategy receives full USDC amount, then swaps half to WETH internally');
-
-            // Uniswap V3 Router address (SwapRouter02)
+            // Uniswap V3 Router address (SwapRouter02) - same as test
             const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
             const poolFee = 500; // 0.05% fee tier
 
-            // Create SwapRouter02 interface
+            // Create SwapRouter02 interface - same as test
             const swapRouterABI = [
                 "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
             ];
-            const swapRouterInterface = new ethers.utils.Interface(swapRouterABI);
+            // const artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+      
+            const swapRouterInterface = new ethers.Interface(swapRouterABI);
 
-            // Get deadline (20 minutes from now)
+            // Get deadline (20 minutes from now) - same as test
             const deadline = Math.floor(Date.now() / 1000) + 1200;
 
-            // Create exactInputSingle parameters
+            // Create exactInputSingle parameters - exactly like test
             const params = {
                 tokenIn: this.CONTRACTS.usdc,
                 tokenOut: this.CONTRACTS.weth,
                 fee: poolFee,
                 recipient: this.CONTRACTS.uniStrategy, // deliver WETH to the strategy
                 deadline: deadline,
-                amountIn: swapAmount,
-                amountOutMinimum: 0, // for tests; in prod use a quoted minOut
-                sqrtPriceLimitX96: 0
+                amountIn: amountIn,
+                amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
+                sqrtPriceLimitX96: 0n
             };
 
             console.log('Swap params:', params);
 
-            // Encode exactInputSingle call
+            // Encode exactInputSingle call - same as test
             const routerCalldata = swapRouterInterface.encodeFunctionData("exactInputSingle", [params]);
 
             console.log('Router calldata:', routerCalldata);
 
-            // Pack payload for ExchangeHandler.swap(bytes)
+            // Pack payload for ExchangeHandler.swap(bytes) - EXACTLY like test
             // abi.encode(address router, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address to, bytes routerCalldata)
-            const abiCoder = ethers.utils.defaultAbiCoder;
-            const payload = abiCoder.encode(
+            const payload = ethers.AbiCoder.defaultAbiCoder().encode(
                 [
                     "address",
-                    "address", 
+                    "address",
                     "address",
                     "uint256",
                     "uint256",
                     "address",
-                    "bytes"
+                    "bytes",
                 ],
                 [
                     UNISWAP_V3_ROUTER,
                     this.CONTRACTS.usdc,
                     this.CONTRACTS.weth,
-                    swapAmount,
-                    0, // minOut
+                    amountIn,
+                    0n,
                     this.CONTRACTS.uniStrategy,
-                    routerCalldata
+                    routerCalldata,
                 ]
             );
 
             console.log('Final payload:', payload);
 
-            // Allow the router in ExchangeHandler
-            await this.contracts.exchanger.setRouter(UNISWAP_V3_ROUTER, true);
+            // Allow the router in ExchangeHandler - same as test
+            // await this.contracts.exchanger.setRouter(UNISWAP_V3_ROUTER, true);
             console.log('Router allowed in ExchangeHandler');
 
             return [payload];
@@ -500,7 +587,7 @@ class VaultIntegration {
             const swapRouterABI = [
                 "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
             ];
-            const swapRouterInterface = new ethers.utils.Interface(swapRouterABI);
+            const swapRouterInterface = new ethers.Interface(swapRouterABI);
 
             // Get deadline (20 minutes from now)
             const deadline = Math.floor(Date.now() / 1000) + 1200;
@@ -513,8 +600,8 @@ class VaultIntegration {
                 recipient: this.CONTRACTS.uniStrategy, // deliver USDC to the strategy
                 deadline: deadline,
                 amountIn: wethBalance,
-                amountOutMinimum: 0, // for tests; in prod use a quoted minOut
-                sqrtPriceLimitX96: 0
+                amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
+                sqrtPriceLimitX96: 0n
             };
 
             console.log('Harvest swap params:', params);
@@ -525,7 +612,7 @@ class VaultIntegration {
             console.log('Harvest router calldata:', routerCalldata);
 
             // Pack payload for ExchangeHandler.swap(bytes)
-            const abiCoder = ethers.utils.defaultAbiCoder;
+            const abiCoder = ethers.AbiCoder.defaultAbiCoder();
             const payload = abiCoder.encode(
                 [
                     "address",
@@ -593,7 +680,7 @@ class VaultIntegration {
             const tokenContract = new ethers.Contract(tokenAddress, this.ABIS.erc20, this.provider);
             const balance = await tokenContract.balanceOf(accountAddress);
             const decimals = await tokenContract.decimals();
-            return ethers.utils.formatUnits(balance, decimals);
+            return ethers.formatUnits(balance, decimals);
         } catch (error) {
             console.error('Error getting token balance:', error);
             throw error;
@@ -605,7 +692,7 @@ class VaultIntegration {
             const tokenContract = new ethers.Contract(tokenAddress, this.ABIS.erc20, this.provider);
             const allowance = await tokenContract.allowance(owner, spender);
             const decimals = await tokenContract.decimals();
-            return ethers.utils.formatUnits(allowance, decimals);
+            return ethers.formatUnits(allowance, decimals);
         } catch (error) {
             console.error('Error getting token allowance:', error);
             throw error;
@@ -614,11 +701,11 @@ class VaultIntegration {
 
     // Utility methods
     formatUnits(value, decimals = 6) {
-        return ethers.utils.formatUnits(value, decimals);
+        return ethers.formatUnits(value, decimals);
     }
 
     parseUnits(value, decimals = 6) {
-        return ethers.utils.parseUnits(value, decimals);
+        return ethers.parseUnits(value, decimals);
     }
 
     async waitForTransaction(txHash) {

@@ -339,6 +339,7 @@
                 </div>
                 
                 <button class="btn btn-success" id="investIdleBtn" onclick="investIdle()">Invest Idle Funds</button>
+                <div id="investIdleStatus"></div>
                 
                 <div class="form-group">
                     <label for="strategyAddress">Strategy Address</label>
@@ -401,14 +402,14 @@
         </div>
     </div>
 
-    <!-- Include Ethers.js -->
-    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <!-- Include Ethers.js v6 -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.15.0/dist/ethers.umd.min.js"></script>
     <script>
         // Fallback if first CDN fails
         if (typeof ethers === 'undefined') {
             console.log('Loading Ethers.js from fallback CDN...');
             const script = document.createElement('script');
-            script.src = 'https://cdn.ethers.io/lib/ethers-5.7.2.umd.min.js';
+            script.src = 'https://cdn.ethers.io/lib/ethers-6.15.0.umd.min.js';
             document.head.appendChild(script);
         }
     </script>
@@ -662,12 +663,15 @@
 
             try {
                 showLoading(true);
+                showStatus('Starting invest idle process...', 'info');
+                
                 const result = await vaultIntegration.investIdle();
 
                 showStatus(`Successfully invested idle funds! Transaction: ${result.txHash}`, 'success');
                 await loadVaultInfo();
 
             } catch (error) {
+                console.error('Invest idle error:', error);
                 showStatus('Invest idle failed: ' + error.message, 'error');
             } finally {
                 showLoading(false);

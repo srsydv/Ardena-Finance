@@ -83,7 +83,7 @@ async function addLiquidity() {
     
     // Create a narrow range around current tick (±50 ticks)
     const tickSpacing = 10;
-    const range = 50;
+    const range = 200;
     const currentTickNum = Number(currentTick);
     const tickLower = Math.floor((currentTickNum - range) / tickSpacing) * tickSpacing;
     const tickUpper = Math.floor((currentTickNum + range) / tickSpacing) * tickSpacing;
