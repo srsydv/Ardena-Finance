@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 interface IExchangeHandler {
     // Implemented in your repo; routes swaps through whitelisted routers
@@ -142,7 +143,7 @@ interface IUniswapV3MathAdapter {
 
 /// @notice Strategy assumes `want` is either token0 or token1.
 /// Manager/keeper should prepare amounts (swap via ExchangeHandler) before calling deposit here.
-contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
+contract UniswapV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable, IStrategy {
     using SafeTransferLib for address;
 
     address public vault;
@@ -172,6 +173,7 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
         address _math
     ) public initializer {
         __UUPSUpgradeable_init();
+        __Ownable_init(_vault); // Initialize Ownable with vault as owner
         require(
             _vault != address(0) &&
                 _want != address(0) &&
@@ -659,8 +661,7 @@ require(lower < upper, "TLU");
 
     function _authorizeUpgrade(
         address /*newImplementation*/
-    ) internal view override {
-        require(msg.sender == vault, "NOT_VAULT");
+    ) internal view override onlyOwner {
     }
 
     uint256[50] private __gap;

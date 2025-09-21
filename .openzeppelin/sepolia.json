@@ -130,6 +130,21 @@
       "address": "0x34C4E1883Ed95aeb100F79bdEe0291F44C214fA2",
       "txHash": "0x254e1ac9acf6ff9f11d484a9728fa98407dcdfce9c6f5b95898ec3846ffe039c",
       "kind": "uups"
+    },
+    {
+      "address": "0xE5CFC707CBD6B6114bCf3662be4C6fDb57E7FB6C",
+      "txHash": "0xac6a3a488295c59fa4287b2caa0b40f896490f3da2968cb1f05b72b6a9628061",
+      "kind": "uups"
+    },
+    {
+      "address": "0xe7bA69Ffbc10Be7c5dA5776d768d5eF6a34Aa191",
+      "txHash": "0x477756082cca65bbd19d2823d60864b2baec616c49b16c374c00104824fab02b",
+      "kind": "uups"
+    },
+    {
+      "address": "0x350e30c578cbcFA4eeba04855DC909F3252EEFe6",
+      "txHash": "0xf4e03a32e65e54444ae73e49091674ec76bf03a5a32f61079ebda4221c609f5f",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -906,7 +921,7 @@
             "label": "pm",
             "offset": 0,
             "slot": "2",
-            "type": "t_contract(INonfungiblePositionManager)5911",
+            "type": "t_contract(INonfungiblePositionManager)1501",
             "contract": "UniswapV3Strategy",
             "src": "contracts/strategies/UniswapV3Strategy.sol:150"
           },
@@ -914,7 +929,7 @@
             "label": "pool",
             "offset": 0,
             "slot": "3",
-            "type": "t_contract(IUniswapV3Pool)5949",
+            "type": "t_contract(IUniswapV3Pool)1539",
             "contract": "UniswapV3Strategy",
             "src": "contracts/strategies/UniswapV3Strategy.sol:151"
           },
@@ -922,7 +937,7 @@
             "label": "exchanger",
             "offset": 0,
             "slot": "4",
-            "type": "t_contract(IExchangeHandler)5764",
+            "type": "t_contract(IExchangeHandler)1354",
             "contract": "UniswapV3Strategy",
             "src": "contracts/strategies/UniswapV3Strategy.sol:152"
           },
@@ -930,7 +945,7 @@
             "label": "oracle",
             "offset": 0,
             "slot": "5",
-            "type": "t_contract(IOracleRouter)5779",
+            "type": "t_contract(IOracleRouter)1369",
             "contract": "UniswapV3Strategy",
             "src": "contracts/strategies/UniswapV3Strategy.sol:153"
           },
@@ -938,7 +953,7 @@
             "label": "math",
             "offset": 0,
             "slot": "6",
-            "type": "t_contract(IUniswapV3MathAdapter)5972",
+            "type": "t_contract(IUniswapV3MathAdapter)1562",
             "contract": "UniswapV3Strategy",
             "src": "contracts/strategies/UniswapV3Strategy.sol:154"
           },
@@ -994,23 +1009,23 @@
             "label": "uint256[50]",
             "numberOfBytes": "1600"
           },
-          "t_contract(IExchangeHandler)5764": {
+          "t_contract(IExchangeHandler)1354": {
             "label": "contract IExchangeHandler",
             "numberOfBytes": "20"
           },
-          "t_contract(INonfungiblePositionManager)5911": {
+          "t_contract(INonfungiblePositionManager)1501": {
             "label": "contract INonfungiblePositionManager",
             "numberOfBytes": "20"
           },
-          "t_contract(IOracleRouter)5779": {
+          "t_contract(IOracleRouter)1369": {
             "label": "contract IOracleRouter",
             "numberOfBytes": "20"
           },
-          "t_contract(IUniswapV3MathAdapter)5972": {
+          "t_contract(IUniswapV3MathAdapter)1562": {
             "label": "contract IUniswapV3MathAdapter",
             "numberOfBytes": "20"
           },
-          "t_contract(IUniswapV3Pool)5949": {
+          "t_contract(IUniswapV3Pool)1539": {
             "label": "contract IUniswapV3Pool",
             "numberOfBytes": "20"
           },
@@ -1568,6 +1583,350 @@
           }
         },
         "namespaces": {
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "b0054077b035581e7f3930ab662981c669692fd67f782b6ab2c34e365511ddf1": {
+      "address": "0x730D9284fFE48bD4f3684244CF922c983E67185d",
+      "txHash": "0x3bba30e705a4a78fd454131db77d16e493ecf72c55b85bd14d5119cc4a6d059c",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "vault",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:148"
+          },
+          {
+            "label": "wantToken",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:149"
+          },
+          {
+            "label": "pm",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_contract(INonfungiblePositionManager)1942",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:150"
+          },
+          {
+            "label": "pool",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_contract(IUniswapV3Pool)1980",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:151"
+          },
+          {
+            "label": "exchanger",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_contract(IExchangeHandler)1795",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:152"
+          },
+          {
+            "label": "oracle",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_contract(IOracleRouter)1810",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:153"
+          },
+          {
+            "label": "math",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_contract(IUniswapV3MathAdapter)2003",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:154"
+          },
+          {
+            "label": "tokenId",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:156"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:666"
+          }
+        ],
+        "types": {
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)7_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(IExchangeHandler)1795": {
+            "label": "contract IExchangeHandler",
+            "numberOfBytes": "20"
+          },
+          "t_contract(INonfungiblePositionManager)1942": {
+            "label": "contract INonfungiblePositionManager",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IOracleRouter)1810": {
+            "label": "contract IOracleRouter",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IUniswapV3MathAdapter)2003": {
+            "label": "contract IUniswapV3MathAdapter",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IUniswapV3Pool)1980": {
+            "label": "contract IUniswapV3Pool",
+            "numberOfBytes": "20"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "ce0b333ba50e6519575ab7e6d10eac5996b68645e5a4720eb8a702337cb5e7e6": {
+      "address": "0xA254cf0A2e19Af7D8537D9b4D4EF88b5F806719B",
+      "txHash": "0x118c0f5ca0512ee19cdbbf56d3967e5fcee7e421e4284f24170e2b95a03d6cf5",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "vault",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:149"
+          },
+          {
+            "label": "wantToken",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:150"
+          },
+          {
+            "label": "pm",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_contract(INonfungiblePositionManager)1743",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:151"
+          },
+          {
+            "label": "pool",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_contract(IUniswapV3Pool)1781",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:152"
+          },
+          {
+            "label": "exchanger",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_contract(IExchangeHandler)1596",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:153"
+          },
+          {
+            "label": "oracle",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_contract(IOracleRouter)1611",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:154"
+          },
+          {
+            "label": "math",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_contract(IUniswapV3MathAdapter)1804",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:155"
+          },
+          {
+            "label": "tokenId",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:157"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "UniswapV3Strategy",
+            "src": "contracts/strategies/UniswapV3Strategy.sol:667"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(IExchangeHandler)1596": {
+            "label": "contract IExchangeHandler",
+            "numberOfBytes": "20"
+          },
+          "t_contract(INonfungiblePositionManager)1743": {
+            "label": "contract INonfungiblePositionManager",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IOracleRouter)1611": {
+            "label": "contract IOracleRouter",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IUniswapV3MathAdapter)1804": {
+            "label": "contract IUniswapV3MathAdapter",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IUniswapV3Pool)1781": {
+            "label": "contract IUniswapV3Pool",
+            "numberOfBytes": "20"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
           "erc7201:openzeppelin.storage.Initializable": [
             {
               "contract": "Initializable",
