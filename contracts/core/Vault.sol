@@ -18,7 +18,7 @@ contract Vault is Initializable, UUPSUpgradeable {
     string public name;
     string public symbol;
     uint8 public decimals;
-    address public asset; // ERC20 underlying (e.g., USDC)
+    IERC20 public asset; // ERC20 underlying (e.g., USDC)
     AccessController public access; // role control
     FeeModule public fees; // fee module
 
@@ -76,7 +76,7 @@ contract Vault is Initializable, UUPSUpgradeable {
         uint8 _decimals
     ) public initializer {
         __UUPSUpgradeable_init();
-        asset = _asset;
+        asset = IERC20(_asset);
         name = _name;
         symbol = _symbol;
         access = AccessController(_access);
@@ -120,7 +120,7 @@ contract Vault is Initializable, UUPSUpgradeable {
         address receiver
     ) external returns (uint256 shares) {
         require(totalAssets() + assets <= depositCap, "CAP");
-        asset.safeTransferFrom(msg.sender, address(this), assets);
+        asset.transferFrom(msg.sender, address(this), assets);
         (uint256 net, uint256 entryFee) = fees.takeEntryFee(assets);
         if (entryFee > 0) IERC20(asset).transfer(fees.treasury(), entryFee);
         shares = convertToShares(net);
@@ -172,7 +172,7 @@ contract Vault is Initializable, UUPSUpgradeable {
 
         // Pay user
         require(totalGot >= assets, "WITHDRAW_FAILED");
-        asset.safeTransfer(receiver, net);
+        asset.transfer(receiver, net);
 
         emit Withdraw(msg.sender, receiver, net, shares);
     }
@@ -192,7 +192,7 @@ contract Vault is Initializable, UUPSUpgradeable {
     // Management
     // -----------------
     function setStrategy(IStrategy s, uint16 bps) external onlyManager {
-        require(s.want() == asset, "STRAT_WANT");
+        require(s.want() == address(asset), "STRAT_WANT");
         if (!_hasStrategy(s)) strategies.push(s);
         targetBps[s] = bps;
         emit StrategySet(address(s), bps);
@@ -224,8 +224,8 @@ contract Vault is Initializable, UUPSUpgradeable {
             IStrategy s = strategies[i];
             uint256 toSend = (idle * targetBps[s]) / 1e4;
             if (toSend > 0) {
-                asset.safeApprove(address(s), 0);
-                asset.safeApprove(address(s), toSend);
+                asset.approve(address(s), 0);
+                asset.approve(address(s), toSend);
                 s.deposit(toSend, allSwapData[i]);
             }
         }

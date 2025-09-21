@@ -157,7 +157,7 @@ async function testInvestIdleDirect() {
     const artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
     const iface = new ethers.Interface(artifact.abi);
     const deadline =
-      (await ethers.provider.getBlock("latest")).timestamp + 1200;
+      (await ethers.provider.getBlock("latest")).timestamp + 3600;
 
     const params = {
       tokenIn: USDC_ADDRESS,
@@ -225,49 +225,150 @@ async function testInvestIdleDirect() {
     console.log("Calling investIdle with data:", allSwapData);
     console.log("Transaction will be sent from:", wallet.address);
 
-    try {
-      // Try gas estimation first
-      console.log("Estimating gas...");
-      const gasEstimate = await vault.investIdle.estimateGas(allSwapData);
-      console.log("✅ Gas estimate:", gasEstimate.toString());
+    // --- debug callStatic / provider.call block (insert before gas estimation) ---
+console.log("\n=== ATTEMPTING STATIC CALL (no tx sent) ===");
 
-      // If gas estimation works, try the actual transaction
-      console.log("Sending transaction...");
-      const tx = await vault.investIdle(allSwapData, {
-        gasLimit: gasEstimate * 2n, // Use 2x gas limit for safety
-      });
-      console.log("Transaction sent:", tx.hash);
+// encode calldata for investIdle to ensure identical call data
+const calldata = vault.interface.encodeFunctionData("investIdle", [allSwapData]);
 
-      const receipt = await tx.wait();
-      console.log("Transaction confirmed:", receipt.hash);
-      console.log("Gas used:", receipt.gasUsed.toString());
-      console.log("Transaction status:", receipt.status);
+// Option A: provider.call (low-level, often reveals revert bytes)
+try {
+  console.log("Running provider.call(...) to get revert reason (low-level)...");
+  const callTx = {
+    to: VAULT_ADDRESS,
+    from: wallet.address,
+    data: calldata,
+    // optional: value if function needs ETH, e.g. value: 0
+  };
 
-      if (receipt.status === 1) {
-        console.log("\n=== SUCCESS! ===");
-        console.log("InvestIdle completed successfully!");
-      } else {
-        console.log("\n=== FAILED ===");
-        console.log("Transaction reverted during execution");
-      }
-    } catch (error) {
-      console.error("InvestIdle failed:", error.message);
+  // run the call at the latest block (or specific block number if needed)
+  await provider.call(callTx);
+  console.log("provider.call succeeded (unexpected) — no revert thrown.");
+} catch (err) {
+  console.log("provider.call threw — attempting to decode revert data...");
 
-      if (error.message.includes("execution reverted")) {
+  // try a few common places the node might stash the revert bytes
+  const raw = err.data || err.error?.data || err.result || err; 
+  console.log("raw revert payload:", raw);
+
+  // If it's the standard Error(string) ABI, decode it:
+  try {
+    // raw sometimes includes '0x' + full payload; Error(string) selector is 0x08c379a0
+    const payloadHex = typeof raw === "string" ? raw : raw?.data || raw?.result;
+    if (payloadHex && payloadHex.startsWith("0x08c379a0")) {
+      // strip selector + offset (first 4 bytes selector + 32 bytes offset = 4+32=36 bytes -> 72 hex chars)
+      // but safest is to slice off the selector (10 chars incl '0x') and decode as string
+      const reason = ethers.utils.defaultAbiCoder.decode(
+        ["string"],
+        "0x" + payloadHex.slice(10)
+      )[0];
+      console.log("Decoded revert reason (Error(string)):", reason);
+    } else {
+      // fallback: try to interpret trailing bytes as utf8 (common)
+      try {
+        // try different offsets if needed; 138 is often where the string bytes start
         console.log(
-          "This is a smart contract revert. The issue is in the contract logic."
+          "Fallback UTF8 attempt:",
+          ethers.utils.toUtf8String("0x" + (payloadHex || "").slice(138))
         );
-      }
-
-      if (error.message.includes("missing revert data")) {
-        console.log(
-          "The transaction is reverting but the error message isn't being decoded properly."
-        );
-        console.log(
-          "This suggests the revert is happening in an external contract or with custom errors."
-        );
+      } catch (utf8Err) {
+        console.log("Couldn't decode UTF8 fallback:", utf8Err.message || utf8Err);
       }
     }
+  } catch (decodeErr) {
+    console.log("Couldn't decode revert reason using standard Error(string):", decodeErr.message || decodeErr);
+  }
+}
+
+// Option B: contract.callStatic (nicer, may surface revert reason)
+try {
+  console.log("\nTrying contract.callStatic.investIdle(...)");
+  // If ethers supports callStatic, this will throw with the revert reason
+  await vault.callStatic.investIdle(allSwapData);
+  console.log("callStatic succeeded (unexpected) — no revert thrown.");
+} catch (callStaticErr) {
+  console.log("callStatic threw. Raw error:", callStaticErr);
+
+  const raw2 = callStaticErr.data || callStaticErr.error?.data || callStaticErr;
+  try {
+    if (typeof raw2 === "string" && raw2.startsWith("0x08c379a0")) {
+      const reason2 = ethers.utils.defaultAbiCoder.decode(
+        ["string"],
+        "0x" + raw2.slice(10)
+      )[0];
+      console.log("Decoded revert reason from callStatic:", reason2);
+    } else {
+      console.log("callStatic raw payload:", raw2);
+      // try utf8 fallback
+      try {
+        console.log("callStatic utf8 fallback:", ethers.utils.toUtf8String("0x" + raw2.slice(138)));
+      } catch {}
+    }
+  } catch (e) {
+    console.log("Couldn't decode callStatic revert:", e.message || e);
+  }
+}
+
+console.log("=== END STATIC CALL DEBUG ===\n");
+// --- end debug block ---
+
+    // try {
+    //   // Try gas estimation first
+    //   console.log("Estimating gas...");
+    //   const gasEstimate = await vault.investIdle.estimateGas(allSwapData);
+    //   console.log("✅ Gas estimate:", gasEstimate.toString());
+
+    //   // If gas estimation works, try the actual transaction
+    //   console.log("Sending transaction...");
+    //   const tx = await vault.investIdle(allSwapData, {
+    //     gasLimit: gasEstimate * 2n, // Use 2x gas limit for safety
+    //   });
+    //   console.log("Transaction sent:", tx.hash);
+
+    //   const receipt = await tx.wait();
+    //   console.log("Transaction confirmed:", receipt.hash);
+    //   console.log("Gas used:", receipt.gasUsed.toString());
+    //   console.log("Transaction status:", receipt.status);
+
+    //   if (receipt.status === 1) {
+    //     console.log("\n=== SUCCESS! ===");
+    //     console.log("InvestIdle completed successfully!");
+    //   } else {
+    //     console.log("\n=== FAILED ===");
+    //     console.log("Transaction reverted during execution");
+    //   }
+    // } catch (error) {
+
+    //     const data = error.data || error.error?.data || error.reason || error;
+    // // Typical revert abi: 0x08c379a0 + offset + length + reason
+    // try {
+    //   // attempt to decode as Error(string)
+    //   const reason = ethers.utils.defaultAbiCoder.decode(["string"], "0x" + data.slice(10))[0];
+    //   console.log("revert reason:", reason);
+    // } catch (e) {
+    //   // fallback: try to extract raw UTF-8 bytes (works often)
+    //   console.log("raw revert data:", data);
+    //   try { console.log("utf8:", ethers.utils.toUtf8String("0x" + data.slice(138))); } catch {}
+    // }
+
+
+//       console.error("InvestIdle failed:", error.message);
+
+//       if (error.message.includes("execution reverted")) {
+//         console.log(
+//           "This is a smart contract revert. The issue is in the contract logic."
+//         );
+//       }
+
+//       if (error.message.includes("missing revert data")) {
+//         console.log(
+//           "The transaction is reverting but the error message isn't being decoded properly."
+//         );
+//         console.log(
+//           "This suggests the revert is happening in an external contract or with custom errors."
+//         );
+//       }
+//     }
   } catch (error) {
     console.error("Test failed:", error);
   }

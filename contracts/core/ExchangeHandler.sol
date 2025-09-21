@@ -84,8 +84,8 @@ contract ExchangeHandler is Initializable, UUPSUpgradeable, IExchangeHandler {
         uint256 balBefore = IERC20(tokenOut).balanceOf(to);
 
         // Approve router to spend handler's tokens
-        tokenIn.safeApprove(router, 0);
-        tokenIn.safeApprove(router, amountIn);
+        IERC20(tokenIn).approve(router, 0);
+        IERC20(tokenIn).approve(router, amountIn);
 
         // Call the router with the pre-encoded calldata (swapExactTokensForTokens, etc.)
         // (bool ok, bytes memory returnData) = router.call{value: amountIn}(routerCalldata);

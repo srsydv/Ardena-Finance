@@ -322,10 +322,10 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
         uint256 bal1 = IERC20(t1).balanceOf(address(this));
         require(bal0 > 0 || bal1 > 0, "NO_FUNDS");
 
-        t0.safeApprove(address(pm), 0);
-        t0.safeApprove(address(pm), bal0);
-        t1.safeApprove(address(pm), 0);
-        t1.safeApprove(address(pm), bal1);
+        IERC20(t0).approve(address(pm), 0);
+        IERC20(t0).approve(address(pm), bal0);
+        IERC20(t1).approve(address(pm), 0);
+        IERC20(t1).approve(address(pm), bal1);
 
         if (tokenId == 0) {
             /*
