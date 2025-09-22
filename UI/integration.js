@@ -449,39 +449,76 @@ class VaultIntegration {
             // Real earnings would require tracking historical data
             
             // 1. Trading fees from Uniswap V3 strategy (both WETH and USDC)
-            let estimatedTradingFeesUSDCBigInt = 0n;
-            let estimatedTradingFeesWETHBigInt = 0n;
+            let actualTradingFeesUSDCBigInt = 0n;
+            let actualTradingFeesWETHBigInt = 0n;
             try {
                 const strategiesLength = await this.contracts.vault.strategiesLength();
                 for (let i = 0; i < strategiesLength; i++) {
                     const strategyAddress = await this.contracts.vault.strategies(i);
                     if (strategyAddress === this.CONTRACTS.uniStrategy) {
-                        // Get Uniswap strategy assets
-                        const strategyContract = new ethers.Contract(strategyAddress, this.ABIS.strategy, this.signer);
-                        const strategyAssets = await strategyContract.totalAssets();
+                        console.log('=== CALCULATING ACTUAL UNISWAP V3 TRADING FEES ===');
                         
-                        // Get actual token balances in the strategy to estimate fees
-                        const wethContract = new ethers.Contract(this.CONTRACTS.weth, this.ABIS.erc20, this.signer);
-                        const usdcContract = new ethers.Contract(this.CONTRACTS.usdc, this.ABIS.erc20, this.signer);
+                        // Get the UniswapV3Strategy contract to access position data
+                        const strategyABI = [
+                            "function totalAssets() external view returns (uint256)",
+                            "function tokenId() external view returns (uint256)",
+                            "function pool() external view returns (address)"
+                        ];
+                        const strategyContract = new ethers.Contract(strategyAddress, strategyABI, this.signer);
                         
-                        const strategyWETHBalance = await wethContract.balanceOf(strategyAddress);
-                        const strategyUSDCBalance = await usdcContract.balanceOf(strategyAddress);
+                        // Get the tokenId (NFT position ID)
+                        const tokenId = await strategyContract.tokenId();
+                        console.log('Strategy tokenId:', tokenId.toString());
                         
-                        // Estimate trading fees (0.1% of each token balance)
-                        const estimatedWETHFeesBigInt = strategyWETHBalance / 1000n;
-                        const estimatedUSDCFeesBigInt = strategyUSDCBalance / 1000n;
+                        if (tokenId === 0n) {
+                            console.log('No Uniswap V3 position found (tokenId = 0)');
+                            break;
+                        }
                         
-                        // User's share of trading fees for each token
-                        estimatedTradingFeesWETHBigInt = (estimatedWETHFeesBigInt * userShares) / totalSupply;
-                        estimatedTradingFeesUSDCBigInt = (estimatedUSDCFeesBigInt * userShares) / totalSupply;
+                        // Get the NonfungiblePositionManager to read position data
+                        const positionManagerABI = [
+                            "function positions(uint256 tokenId) external view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)"
+                        ];
+                        const positionManagerAddress = "0x1238536071E1c677A632429e3655c799b22cDA52"; // Sepolia Position Manager
+                        const positionManager = new ethers.Contract(positionManagerAddress, positionManagerABI, this.provider);
                         
-                        console.log('Estimated WETH trading fees for user:', ethers.formatEther(estimatedTradingFeesWETHBigInt), 'WETH');
-                        console.log('Estimated USDC trading fees for user:', ethers.formatUnits(estimatedTradingFeesUSDCBigInt, 6), 'USDC');
+                        // Get position data
+                        const position = await positionManager.positions(tokenId);
+                        const tokensOwed0 = position.tokensOwed0;
+                        const tokensOwed1 = position.tokensOwed1;
+                        const token0 = position.token0;
+                        const token1 = position.token1;
+                        
+                        console.log('Position tokensOwed0:', tokensOwed0.toString());
+                        console.log('Position tokensOwed1:', tokensOwed1.toString());
+                        console.log('Position token0:', token0);
+                        console.log('Position token1:', token1);
+                        
+                        // Determine which token is WETH and which is USDC
+                        let wethOwed, usdcOwed;
+                        if (token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase()) {
+                            wethOwed = tokensOwed0;
+                            usdcOwed = tokensOwed1;
+                        } else {
+                            wethOwed = tokensOwed1;
+                            usdcOwed = tokensOwed0;
+                        }
+                        
+                        console.log('WETH fees owed:', ethers.formatEther(wethOwed), 'WETH');
+                        console.log('USDC fees owed:', ethers.formatUnits(usdcOwed, 6), 'USDC');
+                        
+                        // Calculate user's share of the actual trading fees
+                        actualTradingFeesWETHBigInt = (wethOwed * userShares) / totalSupply;
+                        actualTradingFeesUSDCBigInt = (usdcOwed * userShares) / totalSupply;
+                        
+                        console.log('User share of WETH trading fees:', ethers.formatEther(actualTradingFeesWETHBigInt), 'WETH');
+                        console.log('User share of USDC trading fees:', ethers.formatUnits(actualTradingFeesUSDCBigInt, 6), 'USDC');
                         break;
                     }
                 }
             } catch (error) {
-                console.log('Could not calculate trading fees:', error.message);
+                console.log('Could not calculate actual trading fees:', error.message);
+                console.log('Error details:', error);
             }
             
             // 2. Management fees (annual) - using BigInt arithmetic
@@ -499,15 +536,15 @@ class VaultIntegration {
             console.log('Estimated performance fees:', ethers.formatUnits(estimatedPerformanceFeesBigInt, 6), 'USDC');
             
             // Total estimated fee earnings (USDC equivalent for display)
-            const totalEstimatedEarningsBigInt = estimatedTradingFeesUSDCBigInt + estimatedManagementFeesBigInt + estimatedPerformanceFeesBigInt;
+            const totalEstimatedEarningsBigInt = actualTradingFeesUSDCBigInt + estimatedManagementFeesBigInt + estimatedPerformanceFeesBigInt;
             
             return {
                 userSharePercentage: userSharePercentage * 100,
                 estimatedFeeEarnings: ethers.formatUnits(totalEstimatedEarningsBigInt, 6),
                 
-                // Trading fees in both tokens
-                estimatedTradingFeesUSDC: ethers.formatUnits(estimatedTradingFeesUSDCBigInt, 6),
-                estimatedTradingFeesWETH: ethers.formatEther(estimatedTradingFeesWETHBigInt),
+                // Actual trading fees in both tokens (from Uniswap V3 position)
+                estimatedTradingFeesUSDC: ethers.formatUnits(actualTradingFeesUSDCBigInt, 6),
+                estimatedTradingFeesWETH: ethers.formatEther(actualTradingFeesWETHBigInt),
                 
                 // Management and performance fees (in USDC)
                 estimatedManagementFees: ethers.formatUnits(estimatedManagementFeesBigInt, 6),
