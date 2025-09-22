@@ -25,7 +25,7 @@ async function testInvestIdleDirect() {
     const WETH_ADDRESS = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
     const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
-    const UNI_STRATEGY_ADDRESS = "0xe7bA69Ffbc10Be7c5dA5776d768d5eF6a34Aa191";
+    const UNI_STRATEGY_ADDRESS = "0x7Ef19f5Bfd3FD28bcAFf5249DA0f0cb5f835CDCC";
     const POOL_FEE = 500; // 0.05% fee tier
 
     // Contract ABIs
@@ -220,6 +220,11 @@ async function testInvestIdleDirect() {
         allSwapData.push([]); // Inactive strategies get empty array
       }
     }
+    
+    // Ensure we have exactly the right number of arrays
+    console.log("Strategies count:", strategies.length);
+    console.log("AllSwapData count:", allSwapData.length);
+    console.log("Active strategy index:", activeStrategyIndex);
 
     console.log("Created swap payload for active strategy");
     console.log("AllSwapData structure:", allSwapData);

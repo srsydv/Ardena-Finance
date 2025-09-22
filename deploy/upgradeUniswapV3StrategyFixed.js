@@ -1,12 +1,11 @@
 /*
-  Simple upgrade script for UniswapV3Strategy contract on Sepolia.
+  Fixed upgrade script for UniswapV3Strategy contract on Sepolia.
   
-  This script attempts to upgrade the UniswapV3Strategy by deploying a new implementation
-  and calling upgradeToAndCall directly. If that fails due to authorization, it provides
-  guidance on alternative approaches.
+  This script properly handles the upgrade authorization by checking the owner
+  and providing clear guidance on how to proceed.
   
   Usage:
-    npx hardhat run deploy/upgradeUniswapV3StrategySimple.js --network sepolia
+    npx hardhat run deploy/upgradeUniswapV3StrategyFixed.js --network sepolia
 */
 
 require("dotenv").config();
@@ -19,8 +18,9 @@ async function main() {
     console.log("Deployer address:", deployer.address);
     
     // Contract addresses from DEPLOYEDCONTRACT.me
-    const UNI_STRATEGY_ADDRESS = "0x350e30c578cbcFA4eeba04855DC909F3252EEFe6";
+    const UNI_STRATEGY_ADDRESS = "0xe7bA69Ffbc10Be7c5dA5776d768d5eF6a34Aa191";
     const VAULT_ADDRESS = "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0";
+    const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
     
     console.log("\n=== STEP 1: CHECKING CURRENT STATE ===");
     
@@ -38,6 +38,17 @@ async function main() {
         const tokenId = await currentStrategy.tokenId();
         const totalAssets = await currentStrategy.totalAssets();
         
+        // Check owner
+        const owner = await currentStrategy.owner();
+        console.log("Strategy owner:", owner);
+        console.log("Is deployer the owner?", owner.toLowerCase() === deployer.address.toLowerCase());
+        
+        // Check manager status
+        const AccessController = await ethers.getContractFactory("AccessController");
+        const accessController = AccessController.attach(ACCESS_CONTROLLER_ADDRESS);
+        const isManager = await accessController.managers(deployer.address);
+        console.log("Is deployer a manager?", isManager);
+        
         console.log("Strategy configuration:");
         console.log("- Vault:", vault);
         console.log("- Want token:", wantToken);
@@ -49,7 +60,32 @@ async function main() {
         throw error;
     }
     
-    console.log("\n=== STEP 2: ATTEMPTING UPGRADE ===");
+    console.log("\n=== STEP 2: ENSURING MANAGER ROLE ===");
+    
+    try {
+        const AccessController = await ethers.getContractFactory("AccessController");
+        const accessController = AccessController.attach(ACCESS_CONTROLLER_ADDRESS);
+        
+        const isManager = await accessController.managers(deployer.address);
+        console.log("Is deployer a manager?", isManager);
+        
+        if (!isManager) {
+            console.log("Setting manager role...");
+            const setManagerTx = await accessController.setManager(deployer.address, true);
+            await setManagerTx.wait();
+            console.log("✅ Manager role set!");
+            
+            // Verify again
+            const isManagerAfter = await accessController.managers(deployer.address);
+            console.log("Is deployer a manager after setting?", isManagerAfter);
+        }
+        
+    } catch (error) {
+        console.error("❌ Failed to set manager role:", error.message);
+        throw error;
+    }
+    
+    console.log("\n=== STEP 3: ATTEMPTING UPGRADE ===");
     
     try {
         // Deploy new implementation
@@ -72,41 +108,39 @@ async function main() {
     } catch (error) {
         console.error("❌ Upgrade failed:", error.message);
         
-        if (error.message.includes("NOT_VAULT")) {
+        if (error.message.includes("execution reverted")) {
             console.log("\n🔍 ANALYSIS:");
-            console.log("The UniswapV3Strategy's _authorizeUpgrade function only allows the vault");
-            console.log("to authorize upgrades, but the vault doesn't have upgrade permissions");
-            console.log("for the strategy.");
+            console.log("The upgrade failed with 'execution reverted'. This could be because:");
+            console.log("1. The old strategy still uses onlyOwner authorization");
+            console.log("2. The deployer is not a manager in AccessController");
+            console.log("3. The strategy doesn't have the updated AccessController-based authorization");
             
             console.log("\n💡 SOLUTIONS:");
-            console.log("1. **Modify the strategy contract** to allow manager upgrades:");
-            console.log("   - Change _authorizeUpgrade to check access.managers(msg.sender)");
-            console.log("   - Redeploy and upgrade");
+            console.log("1. **Deploy a new strategy** (RECOMMENDED):");
+            console.log("   - Deploy new UniswapV3Strategy with AccessController authorization");
+            console.log("   - Use vault.deleteStrategy() to remove old strategy");
+            console.log("   - Use vault.setStrategy() to add new strategy");
+            console.log("   - This preserves all existing functionality");
             
-            console.log("\n2. **Deploy a new strategy** and migrate funds:");
-            console.log("   - Deploy new UniswapV3Strategy with updated code");
-            console.log("   - Update vault to use new strategy");
-            console.log("   - Migrate any existing positions");
-            
-            console.log("\n3. **Use a different upgrade mechanism**:");
-            console.log("   - Implement a migration function");
-            console.log("   - Use a factory pattern for strategy deployment");
+            console.log("\n2. **Ensure manager role is set**:");
+            console.log("   - Check if deployer is a manager in AccessController");
+            console.log("   - Set manager role if needed: accessController.setManager(deployer.address, true)");
             
             console.log("\n📝 RECOMMENDED APPROACH:");
-            console.log("Modify the UniswapV3Strategy contract to allow manager upgrades:");
-            console.log("```solidity");
-            console.log("function _authorizeUpgrade(address newImplementation) internal view override {");
-            console.log("    require(access.managers(msg.sender), \"NOT_MANAGER\");");
-            console.log("}");
-            console.log("```");
+            console.log("Since you've updated the UniswapV3Strategy with AccessController authorization:");
+            console.log("1. Deploy new UniswapV3Strategy with updated authorization");
+            console.log("2. Remove old strategy from vault");
+            console.log("3. Add new strategy to vault");
+            console.log("4. Test investIdle functionality");
             
-            console.log("\nThen redeploy and upgrade the contract.");
+            console.log("\n🚀 NEXT STEPS:");
+            console.log("Run: npx hardhat run deploy/deployNewUniswapV3StrategyFixed.js --network sepolia");
         }
         
         throw error;
     }
     
-    console.log("\n=== STEP 3: VERIFICATION ===");
+    console.log("\n=== STEP 4: VERIFICATION ===");
     
     try {
         const UniswapV3Strategy = await ethers.getContractFactory("UniswapV3Strategy");
