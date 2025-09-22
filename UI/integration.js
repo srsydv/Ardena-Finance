@@ -1,5 +1,6 @@
 // Integration module for Shrish Finance DeFi Vault
 // This file contains all the Web3 integration logic based on the test patterns
+// UPDATED: Now uses the new working addresses from successful Sepolia deployment
 
 class VaultIntegration {
     constructor() {
@@ -9,21 +10,23 @@ class VaultIntegration {
         this.userAddress = null;
         this.userRole = 'user';
         
-        // Contract addresses from DEPLOYEDCONTRACT.me
+        // Contract addresses from DEPLOYEDCONTRACT.me (UPDATED with working addresses)
         this.CONTRACTS = {
             vault: "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0",
             usdc: "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8",
-            weth: "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0",
+            weth: "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762", // NEW WORKING WETH
             aaveStrategy: "0xCc02bC41a7AF1A35af4935346cABC7335167EdC9",
-            uniStrategy: "0xA87bFB6973b92685C66D2BDc37A670Ee995a4C3B",
+            uniStrategy: "0x6B018844b6Edd87f7F6355643fEB5090Da02b209", // NEW WORKING STRATEGY
             accessController: "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2",
             feeModule: "0x3873DaFa287f80792208c36AcCfC82370428b3DB",
             oracle: "0x6EE0A849079A5b63562a723367eAae77F3f5EB21",
             exchanger: "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF",
             mathAdapter: "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E",
-            poolAddress: "0xE85292C7BeDF830071cC1C8F7b5aaB5A5391B50A",
+            poolAddress: "0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39", // NEW WORKING POOL
             indexSwap: "0x34C4E1883Ed95aeb100F79bdEe0291F44C214fA2",
-            ethUsdAgg: "0x497369979EfAD100F83c509a30F38dfF90d11585"
+            ethUsdAgg: "0x497369979EfAD100F83c509a30F38dfF90d11585",
+            // New working addresses
+            newSwapRouter: "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E" // NEW WORKING ROUTER
         };
 
         // Contract ABIs
@@ -119,6 +122,13 @@ class VaultIntegration {
             this.userAddress = await this.signer.getAddress();
             
             console.log('Provider created, user address:', this.userAddress);
+            console.log('Using NEW WORKING addresses:');
+            console.log('- WETH:', this.CONTRACTS.weth);
+            console.log('- UniswapV3Strategy:', this.CONTRACTS.uniStrategy);
+            console.log('- Pool:', this.CONTRACTS.poolAddress);
+            console.log('- SwapRouter:', this.CONTRACTS.newSwapRouter);
+            console.log('🔍 VERIFICATION: Router should be 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
+            console.log('🔍 VERIFICATION: Router matches expected:', this.CONTRACTS.newSwapRouter === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
 
             // Initialize contracts
             this.contracts.vault = new ethers.Contract(this.CONTRACTS.vault, this.ABIS.vault, this.signer);
@@ -227,13 +237,28 @@ class VaultIntegration {
             for (let i = 0; i < strategiesLength; i++) {
                 const strategyAddress = await this.contracts.vault.strategies(i);
                 const allocation = await this.contracts.vault.targetBps(strategyAddress);
-                const totalAssets = await this.contracts[strategyAddress === this.CONTRACTS.aaveStrategy ? 'aaveStrategy' : 'uniStrategy'].totalAssets();
+                // Determine which strategy contract to use
+                let strategyContract;
+                let strategyName;
+                if (strategyAddress === this.CONTRACTS.aaveStrategy) {
+                    strategyContract = this.contracts.aaveStrategy;
+                    strategyName = 'Aave V3';
+                } else if (strategyAddress === this.CONTRACTS.uniStrategy) {
+                    strategyContract = this.contracts.uniStrategy;
+                    strategyName = 'Uniswap V3 (NEW)';
+                } else {
+                    // Handle any other strategies
+                    strategyContract = new ethers.Contract(strategyAddress, this.ABIS.strategy, this.signer);
+                    strategyName = 'Unknown Strategy';
+                }
+
+                const totalAssets = await strategyContract.totalAssets();
 
                 strategies.push({
                     address: strategyAddress,
                     allocation: Number(allocation) / 100,
                     totalAssets: ethers.formatUnits(totalAssets, 6),
-                    name: strategyAddress === this.CONTRACTS.aaveStrategy ? 'Aave V3' : 'Uniswap V3'
+                    name: strategyName
                 });
 
                 totalAllocation += Number(allocation);
@@ -496,8 +521,11 @@ class VaultIntegration {
             const amountIn = toUniStrategy / 2n;
             console.log('Amount to swap (USDC -> WETH):', amountIn.toString());
 
-            // Uniswap V3 Router address (SwapRouter02) - same as test
-            const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
+            // Uniswap V3 Router address (SwapRouter02) - NEW WORKING ROUTER
+            const UNISWAP_V3_ROUTER = this.CONTRACTS.newSwapRouter; // Use new working router
+            console.log('🔍 DEBUG: Using router address:', UNISWAP_V3_ROUTER);
+            console.log('🔍 DEBUG: Expected new router:', '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
+            console.log('🔍 DEBUG: Router addresses match:', UNISWAP_V3_ROUTER === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             const poolFee = 500; // 0.05% fee tier
 
             // Create SwapRouter02 interface - same as test
@@ -579,8 +607,11 @@ class VaultIntegration {
                 return []; // No WETH to swap
             }
 
-            // Uniswap V3 Router address (SwapRouter02)
-            const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
+            // Uniswap V3 Router address (SwapRouter02) - NEW WORKING ROUTER
+            const UNISWAP_V3_ROUTER = this.CONTRACTS.newSwapRouter; // Use new working router
+            console.log('🔍 DEBUG HARVEST: Using router address:', UNISWAP_V3_ROUTER);
+            console.log('🔍 DEBUG HARVEST: Expected new router:', '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
+            console.log('🔍 DEBUG HARVEST: Router addresses match:', UNISWAP_V3_ROUTER === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             const poolFee = 500; // 0.05% fee tier
 
             // Create SwapRouter02 interface
