@@ -359,8 +359,17 @@ require(lower < upper, "TLU");
             // First deposit → mint a new position
             (, int24 currentTick, , , , , ) = pool.slot0();
             // int24 tickSpacing = 60;
+            // FIXED: Proper tick alignment with spacing
             int24 lower = (currentTick / spacing - 100) * spacing;
             int24 upper = (currentTick / spacing + 100) * spacing;
+            
+            // Ensure ticks are properly aligned with spacing
+            if (lower % spacing != 0) {
+                lower = (lower / spacing) * spacing;
+            }
+            if (upper % spacing != 0) {
+                upper = (upper / spacing) * spacing;
+            }
 
             (uint256 _tokenId, , , ) = pm.mint(
                 INonfungiblePositionManager.MintParams({

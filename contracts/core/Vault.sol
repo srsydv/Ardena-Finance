@@ -198,6 +198,25 @@ contract Vault is Initializable, UUPSUpgradeable {
         emit StrategySet(address(s), bps);
     }
 
+    function deleteStrategy(IStrategy s) external onlyManager {
+        require(_hasStrategy(s), "NOT_STRATEGY");
+        
+        // Remove strategy from array
+        for (uint256 i = 0; i < strategies.length; i++) {
+            if (address(strategies[i]) == address(s)) {
+                // Move last element to current position
+                strategies[i] = strategies[strategies.length - 1];
+                strategies.pop();
+                break;
+            }
+        }
+        
+        // Clear target allocation
+        targetBps[s] = 0;
+        
+        emit StrategySet(address(s), 0);
+    }
+
     /*
         Q:- why 2d allSwapData bytes[][] calldata allSwapData
         What’s happening

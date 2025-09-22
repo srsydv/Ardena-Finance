@@ -25,7 +25,7 @@ async function testInvestIdleDirect() {
     const WETH_ADDRESS = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
     const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
-    const UNI_STRATEGY_ADDRESS = "0xA87bFB6973b92685C66D2BDc37A670Ee995a4C3B";
+    const UNI_STRATEGY_ADDRESS = "0xe7bA69Ffbc10Be7c5dA5776d768d5eF6a34Aa191";
     const POOL_FEE = 500; // 0.05% fee tier
 
     // Contract ABIs
@@ -120,17 +120,31 @@ async function testInvestIdleDirect() {
     }
     console.log("Strategies:", strategies);
 
-    // Get UniswapV3 strategy allocation
-    const uniStrategyIndex = strategies.findIndex(
-      (addr) => addr.toLowerCase() === UNI_STRATEGY_ADDRESS.toLowerCase()
-    );
-    if (uniStrategyIndex === -1) {
-      console.log("UniswapV3 strategy not found!");
+    // Find the strategy with allocation > 0
+    let activeStrategyIndex = -1;
+    let activeStrategyAddress = "";
+    let targetBps = 0;
+    
+    for (let i = 0; i < strategies.length; i++) {
+      const bps = await vault.targetBps(strategies[i]);
+      console.log(`Strategy ${i}: ${strategies[i]} allocation: ${bps.toString()} bps`);
+      if (bps > 0) {
+        activeStrategyIndex = i;
+        activeStrategyAddress = strategies[i];
+        targetBps = bps;
+        break;
+      }
+    }
+    
+    if (activeStrategyIndex === -1) {
+      console.log("No active strategy found!");
       return;
     }
-
-    const targetBps = await vault.targetBps(UNI_STRATEGY_ADDRESS);
-    console.log("UniswapV3 strategy targetBps:", targetBps.toString());
+    
+    console.log("Active strategy found:");
+    console.log("- Index:", activeStrategyIndex);
+    console.log("- Address:", activeStrategyAddress);
+    console.log("- Allocation:", targetBps.toString(), "bps");
 
     // Create swap data following uniswapV2Router.test.js pattern
     console.log("\n=== CREATING SWAP DATA ===");
@@ -163,7 +177,7 @@ async function testInvestIdleDirect() {
       tokenIn: USDC_ADDRESS,
       tokenOut: WETH_ADDRESS,
       fee: POOL_FEE,
-      recipient: UNI_STRATEGY_ADDRESS, // deliver WETH to the strategy
+      recipient: activeStrategyAddress, // deliver WETH to the active strategy
       deadline,
       amountIn,
       amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
@@ -192,23 +206,25 @@ async function testInvestIdleDirect() {
         WETH_ADDRESS,
         amountIn,
         0,
-        UNI_STRATEGY_ADDRESS,
+        activeStrategyAddress,
         routerCalldata,
       ]
     );
 
-    // Create allSwapData: empty array for AaveV3Strategy (index 0), payload for UniswapV3Strategy (index 1)
-    const allSwapData = [[], [payload]];
+    // Create allSwapData: empty arrays for all strategies, payload only for active strategy
+    const allSwapData = [];
+    for (let i = 0; i < strategies.length; i++) {
+      if (i === activeStrategyIndex) {
+        allSwapData.push([payload]); // Active strategy gets the swap payload
+      } else {
+        allSwapData.push([]); // Inactive strategies get empty array
+      }
+    }
 
-    console.log("Created swap payload for UniswapV3Strategy");
+    console.log("Created swap payload for active strategy");
     console.log("AllSwapData structure:", allSwapData);
     console.log("AllSwapData length:", allSwapData.length);
-    console.log("AllSwapData[0] (AaveV3Strategy):", allSwapData[0]);
-    console.log(
-      "AllSwapData[1] (UniswapV3Strategy):",
-      allSwapData[1].length,
-      "bytes"
-    );
+    console.log(`AllSwapData[${activeStrategyIndex}] (Active Strategy):`, allSwapData[activeStrategyIndex].length, "bytes");
 
     // Set router in exchanger
     console.log("\n=== SETTING ROUTER ===");
@@ -232,59 +248,59 @@ console.log("\n=== ATTEMPTING STATIC CALL (no tx sent) ===");
 const calldata = vault.interface.encodeFunctionData("investIdle", [allSwapData]);
 
 // Option A: provider.call (low-level, often reveals revert bytes)
-try {
-  console.log("Running provider.call(...) to get revert reason (low-level)...");
-  const callTx = {
-    to: VAULT_ADDRESS,
-    from: wallet.address,
-    data: calldata,
-    // optional: value if function needs ETH, e.g. value: 0
-  };
+// try {
+//   console.log("Running provider.call(...) to get revert reason (low-level)...");
+//   const callTx = {
+//     to: VAULT_ADDRESS,
+//     from: wallet.address,
+//     data: calldata,
+//     // optional: value if function needs ETH, e.g. value: 0
+//   };
 
-  // run the call at the latest block (or specific block number if needed)
-  await provider.call(callTx);
-  console.log("provider.call succeeded (unexpected) — no revert thrown.");
-} catch (err) {
-  console.log("provider.call threw — attempting to decode revert data...");
+//   // run the call at the latest block (or specific block number if needed)
+//   await provider.call(callTx);
+//   console.log("provider.call succeeded (unexpected) — no revert thrown.");
+// } catch (err) {
+//   console.log("provider.call threw — attempting to decode revert data...");
 
-  // try a few common places the node might stash the revert bytes
-  const raw = err.data || err.error?.data || err.result || err; 
-  console.log("raw revert payload:", raw);
+//   // try a few common places the node might stash the revert bytes
+//   const raw = err.data || err.error?.data || err.result || err; 
+//   console.log("raw revert payload:", raw);
 
-  // If it's the standard Error(string) ABI, decode it:
-  try {
-    // raw sometimes includes '0x' + full payload; Error(string) selector is 0x08c379a0
-    const payloadHex = typeof raw === "string" ? raw : raw?.data || raw?.result;
-    if (payloadHex && payloadHex.startsWith("0x08c379a0")) {
-      // strip selector + offset (first 4 bytes selector + 32 bytes offset = 4+32=36 bytes -> 72 hex chars)
-      // but safest is to slice off the selector (10 chars incl '0x') and decode as string
-      const reason = ethers.utils.defaultAbiCoder.decode(
-        ["string"],
-        "0x" + payloadHex.slice(10)
-      )[0];
-      console.log("Decoded revert reason (Error(string)):", reason);
-    } else {
-      // fallback: try to interpret trailing bytes as utf8 (common)
-      try {
-        // try different offsets if needed; 138 is often where the string bytes start
-        console.log(
-          "Fallback UTF8 attempt:",
-          ethers.utils.toUtf8String("0x" + (payloadHex || "").slice(138))
-        );
-      } catch (utf8Err) {
-        console.log("Couldn't decode UTF8 fallback:", utf8Err.message || utf8Err);
-      }
-    }
-  } catch (decodeErr) {
-    console.log("Couldn't decode revert reason using standard Error(string):", decodeErr.message || decodeErr);
-  }
-}
+//   // If it's the standard Error(string) ABI, decode it:
+//   try {
+//     // raw sometimes includes '0x' + full payload; Error(string) selector is 0x08c379a0
+//     const payloadHex = typeof raw === "string" ? raw : raw?.data || raw?.result;
+//     if (payloadHex && payloadHex.startsWith("0x08c379a0")) {
+//       // strip selector + offset (first 4 bytes selector + 32 bytes offset = 4+32=36 bytes -> 72 hex chars)
+//       // but safest is to slice off the selector (10 chars incl '0x') and decode as string
+//       const reason = ethers.utils.defaultAbiCoder.decode(
+//         ["string"],
+//         "0x" + payloadHex.slice(10)
+//       )[0];
+//       console.log("Decoded revert reason (Error(string)):", reason);
+//     } else {
+//       // fallback: try to interpret trailing bytes as utf8 (common)
+//       try {
+//         // try different offsets if needed; 138 is often where the string bytes start
+//         console.log(
+//           "Fallback UTF8 attempt:",
+//           ethers.utils.toUtf8String("0x" + (payloadHex || "").slice(138))
+//         );
+//       } catch (utf8Err) {
+//         console.log("Couldn't decode UTF8 fallback:", utf8Err.message || utf8Err);
+//       }
+//     }
+//   } catch (decodeErr) {
+//     console.log("Couldn't decode revert reason using standard Error(string):", decodeErr.message || decodeErr);
+//   }
+// }
 
-// Option B: contract.callStatic (nicer, may surface revert reason)
+// // Option B: contract.callStatic (nicer, may surface revert reason)
 try {
   console.log("\nTrying contract.callStatic.investIdle(...)");
   // If ethers supports callStatic, this will throw with the revert reason
-  await vault.callStatic.investIdle(allSwapData);
+  await vault.investIdle(allSwapData);
   console.log("callStatic succeeded (unexpected) — no revert thrown.");
 } catch (callStaticErr) {
   console.log("callStatic threw. Raw error:", callStaticErr);
@@ -309,7 +325,7 @@ try {
   }
 }
 
-console.log("=== END STATIC CALL DEBUG ===\n");
+// console.log("=== END STATIC CALL DEBUG ===\n");
 // --- end debug block ---
 
     // try {
