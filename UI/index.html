@@ -699,7 +699,15 @@
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
+            animation: float 6s ease-in-out infinite;
         }
+
+        .doc-card:nth-child(1) { animation-delay: 0s; }
+        .doc-card:nth-child(2) { animation-delay: 1s; }
+        .doc-card:nth-child(3) { animation-delay: 2s; }
+        .doc-card:nth-child(4) { animation-delay: 3s; }
+        .doc-card:nth-child(5) { animation-delay: 4s; }
+        .doc-card:nth-child(6) { animation-delay: 5s; }
 
         .doc-card::before {
             content: '';
@@ -719,6 +727,7 @@
         }
 
         .doc-card:hover {
+            animation-play-state: paused;
             transform: translateY(-8px);
             box-shadow: 
                 0 20px 60px rgba(0, 0, 0, 0.4),
@@ -824,6 +833,19 @@
             box-shadow: 
                 0 8px 32px rgba(0, 212, 255, 0.2),
                 inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            animation: float 6s ease-in-out infinite;
+            animation-delay: 2.5s;
+            transition: all 0.3s ease;
+        }
+
+        .doc-cta:hover {
+            animation-play-state: paused;
+            transform: translateY(-8px);
+            box-shadow: 
+                0 20px 60px rgba(0, 212, 255, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                0 0 0 1px rgba(0, 212, 255, 0.4),
+                0 0 40px rgba(0, 212, 255, 0.3);
         }
 
         .doc-cta h3 {
@@ -1851,9 +1873,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=57"></script>
+    <script src="config.js?v=58"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=59"></script>
+    <script src="integration.js?v=60"></script>
     
     <script>
         // Global integration instance
