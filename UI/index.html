@@ -160,6 +160,57 @@
             border-color: #667eea;
         }
 
+        .earnings-breakdown {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+        }
+
+        .vault-stats {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #2196f3;
+        }
+
+        .earnings-breakdown h5,
+        .vault-stats h5 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 1rem;
+        }
+
+        .price-display {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #ffc107;
+            text-align: center;
+        }
+
+        .price-display p {
+            margin: 8px 0;
+            font-size: 1.1rem;
+        }
+
+        .pool-info {
+            background: #d1ecf1;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #17a2b8;
+        }
+
+        .pool-info h5 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 1rem;
+        }
+
         .btn {
             background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
@@ -367,6 +418,53 @@
                 <button class="btn btn-secondary" id="setStrategyBtn" onclick="setStrategy()">Set Strategy</button>
             </div>
 
+            <!-- Token Price Display -->
+            <div class="card">
+                <h3>💰 Token Prices</h3>
+                <div class="vault-info">
+                    <h4>Current Exchange Rates</h4>
+                    <div class="price-display">
+                        <p><strong>1 WETH =</strong> <span id="wethToUsdcPrice">-</span> <strong>USDC</strong></p>
+                        <p><strong>1 USDC =</strong> <span id="usdcToWethPrice">-</span> <strong>WETH</strong></p>
+                    </div>
+                    
+                    <div class="pool-info">
+                        <h5>Pool Information:</h5>
+                        <p><strong>Pool Address:</strong> <span id="poolAddress">-</span></p>
+                        <p><strong>Tokens:</strong> <span id="tokenPair">-</span></p>
+                        <p><strong>Pool Fee:</strong> <span id="poolFee">-</span>%</p>
+                    </div>
+                    
+                    <button class="btn btn-info" onclick="refreshTokenPrice()">🔄 Refresh Price</button>
+                </div>
+            </div>
+
+            <!-- User Fee Earnings -->
+            <div class="card">
+                <h3>💎 Your Fee Earnings</h3>
+                <div class="vault-info">
+                    <h4>Estimated Earnings Breakdown</h4>
+                    <p><strong>Your Vault Share:</strong> <span id="userSharePercentage">-</span>%</p>
+                    <p><strong>Total Estimated Earnings:</strong> <span id="totalFeeEarnings">-</span> USDC</p>
+                    
+                    <div class="earnings-breakdown">
+                        <h5>Earnings Sources:</h5>
+                        <p><strong>Trading Fees (USDC):</strong> <span id="tradingFeesUSDC">-</span> USDC</p>
+                        <p><strong>Trading Fees (WETH):</strong> <span id="tradingFeesWETH">-</span> WETH</p>
+                        <p><strong>Management Fees:</strong> <span id="managementFees">-</span> USDC</p>
+                        <p><strong>Performance Fees:</strong> <span id="performanceFees">-</span> USDC</p>
+                    </div>
+                    
+                    <div class="vault-stats">
+                        <h5>Vault Statistics:</h5>
+                        <p><strong>Your Shares:</strong> <span id="userSharesDisplay">-</span> USDC</p>
+                        <p><strong>Total Vault Assets:</strong> <span id="totalVaultAssets">-</span> USDC</p>
+                    </div>
+                    
+                    <button class="btn btn-info" onclick="refreshFeeEarnings()">🔄 Refresh Earnings</button>
+                </div>
+            </div>
+
             <!-- Swap Section -->
             <div class="card">
                 <h3>🔄 Token Swap</h3>
@@ -464,9 +562,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=11"></script>
+    <script src="config.js?v=18"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=11"></script>
+    <script src="integration.js?v=18"></script>
     
     <script>
         // Global integration instance
@@ -612,6 +710,8 @@
                 const vaultInfo = await vaultIntegration.getVaultInfo();
                 const strategyInfo = await vaultIntegration.getStrategyInfo();
                 const feeInfo = await vaultIntegration.getFeeInfo();
+                const feeEarnings = await vaultIntegration.getUserFeeEarnings();
+                const tokenPrice = await vaultIntegration.getTokenPrice();
 
                 console.log('Vault info loaded:', vaultInfo);
 
@@ -641,6 +741,27 @@
                     document.getElementById('uniAllocation').textContent = uniStrategy ? uniStrategy.allocation + '%' : '0%';
                 }
 
+                // Update token prices
+                if (tokenPrice) {
+                    document.getElementById('wethToUsdcPrice').textContent = tokenPrice.wethToUsdc;
+                    document.getElementById('usdcToWethPrice').textContent = tokenPrice.usdcToWeth;
+                    document.getElementById('poolAddress').textContent = tokenPrice.poolAddress;
+                    document.getElementById('tokenPair').textContent = `${tokenPrice.token0Symbol}/${tokenPrice.token1Symbol}`;
+                    document.getElementById('poolFee').textContent = (parseFloat(tokenPrice.poolFee) / 10000).toFixed(2);
+                }
+
+                // Update fee earnings
+                if (feeEarnings) {
+                    document.getElementById('userSharePercentage').textContent = feeEarnings.userSharePercentage.toFixed(4);
+                    document.getElementById('totalFeeEarnings').textContent = parseFloat(feeEarnings.estimatedFeeEarnings).toFixed(6);
+                    document.getElementById('tradingFeesUSDC').textContent = parseFloat(feeEarnings.estimatedTradingFeesUSDC).toFixed(6);
+                    document.getElementById('tradingFeesWETH').textContent = parseFloat(feeEarnings.estimatedTradingFeesWETH).toFixed(8);
+                    document.getElementById('managementFees').textContent = parseFloat(feeEarnings.estimatedManagementFees).toFixed(6);
+                    document.getElementById('performanceFees').textContent = parseFloat(feeEarnings.estimatedPerformanceFees).toFixed(6);
+                    document.getElementById('userSharesDisplay').textContent = parseFloat(feeEarnings.userShares).toFixed(6);
+                    document.getElementById('totalVaultAssets').textContent = parseFloat(feeEarnings.totalAssets).toFixed(6);
+                }
+
                 console.log('Vault info updated successfully');
 
             } catch (error) {
@@ -649,6 +770,58 @@
             }
         }
 
+        async function refreshFeeEarnings() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Refreshing fee earnings...', 'info');
+                const feeEarnings = await vaultIntegration.getUserFeeEarnings();
+                
+                if (feeEarnings) {
+                    document.getElementById('userSharePercentage').textContent = feeEarnings.userSharePercentage.toFixed(4);
+                    document.getElementById('totalFeeEarnings').textContent = parseFloat(feeEarnings.estimatedFeeEarnings).toFixed(6);
+                    document.getElementById('tradingFeesUSDC').textContent = parseFloat(feeEarnings.estimatedTradingFeesUSDC).toFixed(6);
+                    document.getElementById('tradingFeesWETH').textContent = parseFloat(feeEarnings.estimatedTradingFeesWETH).toFixed(8);
+                    document.getElementById('managementFees').textContent = parseFloat(feeEarnings.estimatedManagementFees).toFixed(6);
+                    document.getElementById('performanceFees').textContent = parseFloat(feeEarnings.estimatedPerformanceFees).toFixed(6);
+                    document.getElementById('userSharesDisplay').textContent = parseFloat(feeEarnings.userShares).toFixed(6);
+                    document.getElementById('totalVaultAssets').textContent = parseFloat(feeEarnings.totalAssets).toFixed(6);
+                    
+                    showStatus('Fee earnings refreshed successfully!', 'success');
+                }
+            } catch (error) {
+                console.error('Error refreshing fee earnings:', error);
+                showStatus('Error refreshing fee earnings: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshTokenPrice() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Refreshing token prices...', 'info');
+                const tokenPrice = await vaultIntegration.getTokenPrice();
+                
+                if (tokenPrice) {
+                    document.getElementById('wethToUsdcPrice').textContent = tokenPrice.wethToUsdc;
+                    document.getElementById('usdcToWethPrice').textContent = tokenPrice.usdcToWeth;
+                    document.getElementById('poolAddress').textContent = tokenPrice.poolAddress;
+                    document.getElementById('tokenPair').textContent = `${tokenPrice.token0Symbol}/${tokenPrice.token1Symbol}`;
+                    document.getElementById('poolFee').textContent = (parseFloat(tokenPrice.poolFee) / 10000).toFixed(2);
+                    
+                    showStatus('Token prices refreshed successfully!', 'success');
+                }
+            } catch (error) {
+                console.error('Error refreshing token prices:', error);
+                showStatus('Error refreshing token prices: ' + error.message, 'error');
+            }
+        }
 
         async function deposit() {
             if (typeof ethers === 'undefined') {

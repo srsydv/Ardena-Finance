@@ -311,6 +311,220 @@ class VaultIntegration {
         }
     }
 
+    async getTokenPrice() {
+        try {
+            // Check if contracts are initialized
+            if (!this.contracts.vault) {
+                throw new Error('Vault contract not initialized. Please connect your wallet first.');
+            }
+
+            console.log('=== GETTING TOKEN PRICE ===');
+            
+            // Get the Uniswap V3 pool to read current price
+            const poolABI = [
+                "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
+                "function token0() external view returns (address)",
+                "function token1() external view returns (address)",
+                "function fee() external view returns (uint24)"
+            ];
+            
+            const pool = new ethers.Contract(this.CONTRACTS.poolAddress, poolABI, this.provider);
+            
+            // Get pool state
+            const [slot0, token0, token1, fee] = await Promise.all([
+                pool.slot0(),
+                pool.token0(),
+                pool.token1(),
+                pool.fee()
+            ]);
+            
+            const sqrtPriceX96 = slot0.sqrtPriceX96;
+            console.log('Pool sqrtPriceX96:', sqrtPriceX96.toString());
+            console.log('Token0:', token0);
+            console.log('Token1:', token1);
+            console.log('Pool fee:', fee.toString());
+            
+            // Get token decimals
+            const token0Contract = new ethers.Contract(token0, this.ABIS.erc20, this.provider);
+            const token1Contract = new ethers.Contract(token1, this.ABIS.erc20, this.provider);
+            
+            const [token0Decimals, token1Decimals, token0Symbol, token1Symbol] = await Promise.all([
+                token0Contract.decimals(),
+                token1Contract.decimals(),
+                token0Contract.symbol(),
+                token1Contract.symbol()
+            ]);
+            
+            console.log('Token0:', token0Symbol, 'decimals:', token0Decimals);
+            console.log('Token1:', token1Symbol, 'decimals:', token1Decimals);
+            
+            // Calculate price from sqrtPriceX96 using the correct Uniswap V3 formula
+            // This follows the exact pattern from the working test file
+            const Q96 = 1n << 96n;
+            const Q192 = Q96 * Q96;
+            const sp = sqrtPriceX96;
+            const sp2 = sp * sp; // price in Q64.96^2
+            const ONE18 = 10n ** 18n;
+            
+            console.log('sqrtPriceX96:', sp.toString());
+            console.log('sp2 (price in Q64.96^2):', sp2.toString());
+            console.log('Token0 (WETH):', token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase());
+            console.log('Token1 (USDC):', token1.toLowerCase() === this.CONTRACTS.usdc.toLowerCase());
+            
+            // Calculate USDC per 1 WETH at 1e18 scale (following working test pattern)
+            let usdcPerWeth1e18;
+            if (token0.toLowerCase() === this.CONTRACTS.usdc.toLowerCase()) {
+                // token0=USDC(6), token1=WETH(18) → price(token0/token1)
+                const scale = 10n ** BigInt(Number(token1Decimals) - Number(token0Decimals)); // 10^(18-6)=1e12
+                usdcPerWeth1e18 = (Q192 * scale * ONE18) / sp2;
+                console.log('Case 1: token0=USDC, scale:', scale.toString());
+            } else {
+                // token0=WETH(18), token1=USDC(6) → price(token1/token0)
+                const scale = 10n ** BigInt(Number(token0Decimals) - Number(token1Decimals)); // 10^(18-6)=1e12
+                usdcPerWeth1e18 = (sp2 * scale * ONE18) / Q192;
+                console.log('Case 2: token0=WETH, scale:', scale.toString());
+            }
+            
+            console.log('usdcPerWeth1e18:', usdcPerWeth1e18.toString());
+            
+            // Convert to readable format (USDC has 6 decimals)
+            const priceInUSDC = Number(usdcPerWeth1e18) / (10 ** 18); // Convert from 1e18 scale to normal scale
+            console.log('Final 1 WETH =', priceInUSDC.toFixed(6), 'USDC');
+            
+            return {
+                wethToUsdc: priceInUSDC.toFixed(6),
+                usdcToWeth: (1 / priceInUSDC).toFixed(8),
+                poolAddress: this.CONTRACTS.poolAddress,
+                token0: token0,
+                token1: token1,
+                token0Symbol: token0Symbol,
+                token1Symbol: token1Symbol,
+                poolFee: fee.toString()
+            };
+            
+        } catch (error) {
+            console.error('Error getting token price:', error);
+            throw error;
+        }
+    }
+
+    async getUserFeeEarnings() {
+        try {
+            // Check if contracts are initialized
+            if (!this.contracts.vault) {
+                throw new Error('Vault contract not initialized. Please connect your wallet first.');
+            }
+
+            console.log('=== CALCULATING USER FEE EARNINGS ===');
+            
+            // Get user's vault shares and total supply
+            const userShares = await this.contracts.vault.balanceOf(this.userAddress);
+            const totalSupply = await this.contracts.vault.totalSupply();
+            const totalAssets = await this.contracts.vault.totalAssets();
+            
+            console.log('User shares:', ethers.formatUnits(userShares, 6));
+            console.log('Total supply:', ethers.formatUnits(totalSupply, 6));
+            console.log('Total assets:', ethers.formatUnits(totalAssets, 6));
+            
+            if (totalSupply === 0n) {
+                return {
+                    userSharePercentage: 0,
+                    estimatedFeeEarnings: 0,
+                    estimatedTradingFees: 0,
+                    estimatedManagementFees: 0,
+                    estimatedPerformanceFees: 0
+                };
+            }
+            
+            // Calculate user's share percentage
+            const userSharePercentage = Number(userShares) / Number(totalSupply);
+            console.log('User share percentage:', (userSharePercentage * 100).toFixed(4) + '%');
+            
+            // Get fee information
+            const feeInfo = await this.getFeeInfo();
+            console.log('Fee info:', feeInfo);
+            
+            // Calculate estimated earnings from different sources
+            // Note: This is an estimation based on current vault performance
+            // Real earnings would require tracking historical data
+            
+            // 1. Trading fees from Uniswap V3 strategy (both WETH and USDC)
+            let estimatedTradingFeesUSDCBigInt = 0n;
+            let estimatedTradingFeesWETHBigInt = 0n;
+            try {
+                const strategiesLength = await this.contracts.vault.strategiesLength();
+                for (let i = 0; i < strategiesLength; i++) {
+                    const strategyAddress = await this.contracts.vault.strategies(i);
+                    if (strategyAddress === this.CONTRACTS.uniStrategy) {
+                        // Get Uniswap strategy assets
+                        const strategyContract = new ethers.Contract(strategyAddress, this.ABIS.strategy, this.signer);
+                        const strategyAssets = await strategyContract.totalAssets();
+                        
+                        // Get actual token balances in the strategy to estimate fees
+                        const wethContract = new ethers.Contract(this.CONTRACTS.weth, this.ABIS.erc20, this.signer);
+                        const usdcContract = new ethers.Contract(this.CONTRACTS.usdc, this.ABIS.erc20, this.signer);
+                        
+                        const strategyWETHBalance = await wethContract.balanceOf(strategyAddress);
+                        const strategyUSDCBalance = await usdcContract.balanceOf(strategyAddress);
+                        
+                        // Estimate trading fees (0.1% of each token balance)
+                        const estimatedWETHFeesBigInt = strategyWETHBalance / 1000n;
+                        const estimatedUSDCFeesBigInt = strategyUSDCBalance / 1000n;
+                        
+                        // User's share of trading fees for each token
+                        estimatedTradingFeesWETHBigInt = (estimatedWETHFeesBigInt * userShares) / totalSupply;
+                        estimatedTradingFeesUSDCBigInt = (estimatedUSDCFeesBigInt * userShares) / totalSupply;
+                        
+                        console.log('Estimated WETH trading fees for user:', ethers.formatEther(estimatedTradingFeesWETHBigInt), 'WETH');
+                        console.log('Estimated USDC trading fees for user:', ethers.formatUnits(estimatedTradingFeesUSDCBigInt, 6), 'USDC');
+                        break;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not calculate trading fees:', error.message);
+            }
+            
+            // 2. Management fees (annual) - using BigInt arithmetic
+            // managementFees = totalAssets * managementFeeRate * userSharePercentage
+            // Convert fee rate to basis points: feeInfo.managementFee is already a decimal (e.g., 0.02 for 2%)
+            const managementFeeBps = BigInt(Math.floor(feeInfo.managementFee * 10000)); // Convert to basis points
+            const estimatedManagementFeesBigInt = (totalAssets * managementFeeBps * userShares) / (10000n * totalSupply);
+            console.log('Estimated annual management fees:', ethers.formatUnits(estimatedManagementFeesBigInt, 6), 'USDC');
+            
+            // 3. Performance fees (on profits) - using BigInt arithmetic
+            // Assume 5% profit: performanceFees = totalAssets * 0.05 * performanceFeeRate * userSharePercentage
+            const profitBps = 500n; // 5% profit in basis points
+            const performanceFeeBps = BigInt(Math.floor(feeInfo.performanceFee * 10000)); // Convert to basis points
+            const estimatedPerformanceFeesBigInt = (totalAssets * profitBps * performanceFeeBps * userShares) / (10000n * 10000n * totalSupply);
+            console.log('Estimated performance fees:', ethers.formatUnits(estimatedPerformanceFeesBigInt, 6), 'USDC');
+            
+            // Total estimated fee earnings (USDC equivalent for display)
+            const totalEstimatedEarningsBigInt = estimatedTradingFeesUSDCBigInt + estimatedManagementFeesBigInt + estimatedPerformanceFeesBigInt;
+            
+            return {
+                userSharePercentage: userSharePercentage * 100,
+                estimatedFeeEarnings: ethers.formatUnits(totalEstimatedEarningsBigInt, 6),
+                
+                // Trading fees in both tokens
+                estimatedTradingFeesUSDC: ethers.formatUnits(estimatedTradingFeesUSDCBigInt, 6),
+                estimatedTradingFeesWETH: ethers.formatEther(estimatedTradingFeesWETHBigInt),
+                
+                // Management and performance fees (in USDC)
+                estimatedManagementFees: ethers.formatUnits(estimatedManagementFeesBigInt, 6),
+                estimatedPerformanceFees: ethers.formatUnits(estimatedPerformanceFeesBigInt, 6),
+                
+                // Vault statistics
+                userShares: ethers.formatUnits(userShares, 6),
+                totalSupply: ethers.formatUnits(totalSupply, 6),
+                totalAssets: ethers.formatUnits(totalAssets, 6)
+            };
+            
+        } catch (error) {
+            console.error('Error calculating user fee earnings:', error);
+            throw error;
+        }
+    }
+
     async deposit(amount) {
         try {
             const amountWei = ethers.parseUnits(amount, 6);
