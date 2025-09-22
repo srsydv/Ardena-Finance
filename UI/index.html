@@ -1074,9 +1074,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=40"></script>
+    <script src="config.js?v=45"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=40"></script>
+    <script src="integration.js?v=47"></script>
     
     <script>
         // Global integration instance
@@ -1353,33 +1353,66 @@
             }
 
             try {
+                // Debug: Check if vaultIntegration is properly initialized
+                console.log('=== DEPOSIT DEBUG ===');
+                console.log('VaultIntegration exists:', !!vaultIntegration);
+                console.log('VaultIntegration contracts:', !!vaultIntegration?.contracts);
+                console.log('VaultIntegration contracts.vault:', !!vaultIntegration?.contracts?.vault);
+                console.log('User address:', vaultIntegration?.userAddress);
+                console.log('Amount to deposit:', amount);
+                
+                // Check user's USDC balance before deposit
+                if (vaultIntegration?.contracts?.usdc) {
+                    const userBalance = await vaultIntegration.contracts.usdc.balanceOf(vaultIntegration.userAddress);
+                    console.log('User USDC balance:', ethers.formatUnits(userBalance, 6), 'USDC');
+                    
+                    if (userBalance < ethers.parseUnits(amount, 6)) {
+                        throw new Error(`Insufficient USDC balance. You have ${ethers.formatUnits(userBalance, 6)} USDC, trying to deposit ${amount} USDC`);
+                    }
+                }
+                
                 // Show processing overlay for User Actions card
                 showTransactionProcessing('userActionsProcessing', true);
                 hideTransactionResult('userActionsResult');
                 
                 // Create transaction steps
-                const steps = ['Checking allowance...', 'Approving USDC...', 'Depositing to vault...', 'Transaction complete'];
+                const steps = ['Checking allowance...', 'Approving USDC...', 'Depositing to vault...', 'Deposit complete'];
                 createTransactionSteps('userActionsSteps', steps);
                 
                 // Step 1: Check allowance
                 updateTransactionText('userActionsProcessing', 'Preparing deposit...', 'Checking USDC allowance');
                 updateTransactionStep('userActionsSteps', 0, 'active');
                 
+                // Small delay to show the step
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
                 // Step 2: Approve if needed
                 updateTransactionText('userActionsProcessing', 'Approving USDC...', 'Setting USDC allowance for vault');
                 updateTransactionStep('userActionsSteps', 0, 'completed');
                 updateTransactionStep('userActionsSteps', 1, 'active');
                 
-                console.log('Attempting deposit of:', amount, 'USDC');
-                const result = await vaultIntegration.deposit(amount);
+                // Small delay to show the approving step
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                // Step 3: Depositing
+                // Step 3: Depositing (this will wait for MetaMask confirmation)
                 updateTransactionText('userActionsProcessing', 'Depositing to vault...', 'Deposit transaction in progress');
                 updateTransactionStep('userActionsSteps', 1, 'completed');
                 updateTransactionStep('userActionsSteps', 2, 'active');
                 
+                console.log('Attempting deposit of:', amount, 'USDC');
+                
+                // Add more detailed error handling
+                let result;
+                try {
+                    result = await vaultIntegration.deposit(amount);
+                    console.log('Deposit result:', result);
+                } catch (depositError) {
+                    console.error('Deposit failed with error:', depositError);
+                    throw depositError; // Re-throw to be caught by outer try-catch
+                }
+                
                 // Step 4: Complete
-                updateTransactionText('userActionsProcessing', 'Deposit completed!', 'Transaction successful');
+                updateTransactionText('userActionsProcessing', 'Deposit completed!', 'Successfully deposited to vault');
                 updateTransactionStep('userActionsSteps', 2, 'completed');
                 updateTransactionStep('userActionsSteps', 3, 'completed');
 
@@ -1387,6 +1420,11 @@
                 showTransactionResult('userActionsResult', 'success', 
                     `Successfully deposited ${amount} USDC!`, 
                     `Transaction Hash: ${result.txHash}`);
+                
+                // Make transaction hash clickable for copying
+                setTimeout(() => {
+                    makeTransactionHashClickable('userActionsResultDetails', result.txHash);
+                }, 100);
                 
                 document.getElementById('depositAmount').value = '';
                 await loadVaultInfo();
@@ -1397,7 +1435,12 @@
                 }, 2000);
 
             } catch (error) {
-                console.error('Deposit error:', error);
+                console.error('=== DEPOSIT ERROR ===');
+                console.error('Error type:', typeof error);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
+                console.error('Full error object:', error);
+                
                 // Show error result
                 showTransactionResult('userActionsResult', 'error', 
                     'Deposit Failed', 
@@ -1447,27 +1490,33 @@
                 hideTransactionResult('managerActionsResult');
                 
                 // Create transaction steps
-                const steps = ['Preparing investment...', 'Creating swap data...', 'Executing invest idle...', 'Transaction complete'];
+                const steps = ['Preparing investment...', 'Investing in strategies...', 'Executing invest idle...', 'Investment complete'];
                 createTransactionSteps('managerActionsSteps', steps);
                 
                 // Step 1: Preparing
                 updateTransactionText('managerActionsProcessing', 'Preparing investment...', 'Analyzing idle funds and strategies');
                 updateTransactionStep('managerActionsSteps', 0, 'active');
                 
-                // Step 2: Creating swap data
-                updateTransactionText('managerActionsProcessing', 'Creating swap data...', 'Preparing Uniswap V3 swap parameters');
+                // Small delay to show the step
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Step 2: Investing in strategies
+                updateTransactionText('managerActionsProcessing', 'Investing in strategies...', 'Deploying funds to Uniswap V3 and Aave strategies');
                 updateTransactionStep('managerActionsSteps', 0, 'completed');
                 updateTransactionStep('managerActionsSteps', 1, 'active');
                 
-                const result = await vaultIntegration.investIdle();
+                // Small delay to show the investing step
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                // Step 3: Executing
+                // Step 3: Executing (this will wait for MetaMask confirmation)
                 updateTransactionText('managerActionsProcessing', 'Executing invest idle...', 'Investment transaction in progress');
                 updateTransactionStep('managerActionsSteps', 1, 'completed');
                 updateTransactionStep('managerActionsSteps', 2, 'active');
                 
+                const result = await vaultIntegration.investIdle();
+                
                 // Step 4: Complete
-                updateTransactionText('managerActionsProcessing', 'Investment completed!', 'Transaction successful');
+                updateTransactionText('managerActionsProcessing', 'Investment completed!', 'Successfully invested idle funds in strategies');
                 updateTransactionStep('managerActionsSteps', 2, 'completed');
                 updateTransactionStep('managerActionsSteps', 3, 'completed');
 
@@ -1475,6 +1524,11 @@
                 showTransactionResult('managerActionsResult', 'success', 
                     `Investment Successful!`, 
                     `Transaction Hash: ${result.txHash}`);
+                
+                // Make transaction hash clickable for copying
+                setTimeout(() => {
+                    makeTransactionHashClickable('managerActionsResultDetails', result.txHash);
+                }, 100);
                 
                 await loadVaultInfo();
                 
@@ -1635,6 +1689,11 @@
                     `Swap Successful!`, 
                     `Swapped ${result.amountSpent} ${fromToken} for ${result.amountReceived} ${toToken}`);
                 
+                // Make transaction hash clickable for copying
+                setTimeout(() => {
+                    makeTransactionHashClickable('swapResultDetails', result.txHash);
+                }, 100);
+                
                 document.getElementById('swapAmount').value = '';
                 await loadVaultInfo();
                 
@@ -1781,13 +1840,25 @@
 
         // Transaction processing helper functions
         function showTransactionProcessing(processingId, show) {
+            console.log(`showTransactionProcessing called: ${processingId}, show: ${show}`);
+            
+            // First, hide all processing overlays to ensure only one is active
+            const allProcessingElements = document.querySelectorAll('.transaction-processing');
+            allProcessingElements.forEach(element => {
+                element.classList.remove('active');
+            });
+            
             const processingElement = document.getElementById(processingId);
             if (processingElement) {
                 if (show) {
                     processingElement.classList.add('active');
+                    console.log(`Activated processing overlay: ${processingId}`);
                 } else {
                     processingElement.classList.remove('active');
+                    console.log(`Deactivated processing overlay: ${processingId}`);
                 }
+            } else {
+                console.error(`Processing element not found: ${processingId}`);
             }
         }
 
@@ -1817,6 +1888,72 @@
             const resultElement = document.getElementById(resultId);
             if (resultElement) {
                 resultElement.classList.remove('show');
+            }
+        }
+
+        function makeTransactionHashClickable(detailsId, txHash) {
+            const detailsElement = document.getElementById(detailsId);
+            if (detailsElement && txHash) {
+                // Find the transaction hash in the text and make it clickable
+                const text = detailsElement.textContent;
+                const hashIndex = text.indexOf(txHash);
+                
+                if (hashIndex !== -1) {
+                    const beforeHash = text.substring(0, hashIndex);
+                    const afterHash = text.substring(hashIndex + txHash.length);
+                    
+                    // Create clickable hash element
+                    const clickableHash = document.createElement('span');
+                    clickableHash.textContent = txHash;
+                    clickableHash.style.color = '#00d4ff';
+                    clickableHash.style.cursor = 'pointer';
+                    clickableHash.style.textDecoration = 'underline';
+                    clickableHash.style.fontWeight = 'bold';
+                    clickableHash.title = 'Click to copy transaction hash';
+                    
+                    // Add click event to copy hash
+                    clickableHash.addEventListener('click', async () => {
+                        try {
+                            await navigator.clipboard.writeText(txHash);
+                            
+                            // Show temporary feedback
+                            const originalText = clickableHash.textContent;
+                            clickableHash.textContent = 'Copied!';
+                            clickableHash.style.color = '#28a745';
+                            
+                            setTimeout(() => {
+                                clickableHash.textContent = originalText;
+                                clickableHash.style.color = '#00d4ff';
+                            }, 1500);
+                            
+                        } catch (err) {
+                            console.error('Failed to copy hash:', err);
+                            // Fallback for older browsers
+                            const textArea = document.createElement('textarea');
+                            textArea.value = txHash;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textArea);
+                            
+                            // Show feedback
+                            const originalText = clickableHash.textContent;
+                            clickableHash.textContent = 'Copied!';
+                            clickableHash.style.color = '#28a745';
+                            
+                            setTimeout(() => {
+                                clickableHash.textContent = originalText;
+                                clickableHash.style.color = '#00d4ff';
+                            }, 1500);
+                        }
+                    });
+                    
+                    // Replace the text content with clickable elements
+                    detailsElement.innerHTML = '';
+                    detailsElement.appendChild(document.createTextNode(beforeHash));
+                    detailsElement.appendChild(clickableHash);
+                    detailsElement.appendChild(document.createTextNode(afterHash));
+                }
             }
         }
 

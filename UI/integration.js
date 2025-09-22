@@ -649,22 +649,67 @@ class VaultIntegration {
 
     async deposit(amount) {
         try {
+            console.log('=== INTEGRATION DEPOSIT START ===');
+            console.log('Amount:', amount);
+            console.log('User address:', this.userAddress);
+            console.log('Vault address:', this.CONTRACTS.vault);
+            console.log('USDC address:', this.CONTRACTS.usdc);
+            
             const amountWei = ethers.parseUnits(amount, 6);
+            console.log('Amount in wei:', amountWei.toString());
 
             // Check allowance
+            console.log('Checking USDC allowance...');
             const allowance = await this.contracts.usdc.allowance(this.userAddress, this.CONTRACTS.vault);
-            if (allowance.lt(amountWei)) {
+            console.log('Current allowance:', allowance.toString());
+            console.log('Allowance type:', typeof allowance);
+            console.log('AmountWei type:', typeof amountWei);
+            
+            // Convert allowance to BigNumber if it's not already
+            const allowanceBigInt = BigInt(allowance.toString());
+            const amountWeiBigInt = BigInt(amountWei.toString());
+            
+            console.log('Allowance BigInt:', allowanceBigInt.toString());
+            console.log('AmountWei BigInt:', amountWeiBigInt.toString());
+            
+            if (allowanceBigInt < amountWeiBigInt) {
+                console.log('Setting USDC allowance...');
                 const approveTx = await this.contracts.usdc.approve(this.CONTRACTS.vault, amountWei);
+                console.log('Approval transaction sent:', approveTx.hash);
                 await approveTx.wait();
+                console.log('Approval transaction confirmed');
+            } else {
+                console.log('Allowance sufficient, proceeding with deposit');
             }
 
             // Deposit
+            console.log('Calling vault.deposit...');
             const tx = await this.contracts.vault.deposit(amountWei, this.userAddress);
+            console.log('Deposit transaction sent:', tx.hash);
+            
             const receipt = await tx.wait();
+            console.log('Deposit transaction confirmed:', receipt.hash);
+            console.log('Receipt logs:', receipt.logs);
 
-            return { success: true, txHash: receipt.hash, shares: receipt.logs[0].args.shares };
+            // Try to extract shares from logs, with fallback
+            let shares = '0';
+            try {
+                if (receipt.logs && receipt.logs.length > 0 && receipt.logs[0].args && receipt.logs[0].args.shares) {
+                    shares = receipt.logs[0].args.shares.toString();
+                }
+            } catch (logError) {
+                console.log('Could not extract shares from logs:', logError.message);
+            }
+
+            console.log('=== INTEGRATION DEPOSIT SUCCESS ===');
+            return { success: true, txHash: receipt.hash, shares: shares };
         } catch (error) {
-            console.error('Deposit failed:', error);
+            console.error('=== INTEGRATION DEPOSIT ERROR ===');
+            console.error('Error type:', typeof error);
+            console.error('Error message:', error.message);
+            console.error('Error code:', error.code);
+            console.error('Error data:', error.data);
+            console.error('Full error:', error);
             throw error;
         }
     }
