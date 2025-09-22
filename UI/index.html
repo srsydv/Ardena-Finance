@@ -145,6 +145,21 @@
             border-color: #667eea;
         }
 
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+            background: white;
+        }
+
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .btn {
             background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
@@ -352,6 +367,41 @@
                 <button class="btn btn-secondary" id="setStrategyBtn" onclick="setStrategy()">Set Strategy</button>
             </div>
 
+            <!-- Swap Section -->
+            <div class="card">
+                <h3>🔄 Token Swap</h3>
+                <div class="vault-info">
+                    <h4>Direct Token Swapping</h4>
+                    <p><strong>Swap between WETH and USDC</strong></p>
+                    <p><strong>Router:</strong> 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E</p>
+                    <p><strong>Pool:</strong> 0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="swapFromToken">From Token</label>
+                    <select id="swapFromToken">
+                        <option value="USDC">USDC</option>
+                        <option value="WETH">WETH</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="swapAmount">Amount to Swap</label>
+                    <input type="number" id="swapAmount" placeholder="Enter amount" step="0.000001">
+                </div>
+                
+                <div class="form-group">
+                    <label for="swapToToken">To Token</label>
+                    <select id="swapToToken">
+                        <option value="WETH">WETH</option>
+                        <option value="USDC">USDC</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-success" id="swapBtn" onclick="performSwap()">Execute Swap</button>
+                <div id="swapStatus"></div>
+            </div>
+
             <!-- Keeper Actions -->
             <div class="card">
                 <h3>⚡ Keeper Actions</h3>
@@ -414,9 +464,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=2"></script>
+    <script src="config.js?v=10"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=2"></script>
+    <script src="integration.js?v=10"></script>
     
     <script>
         // Global integration instance
@@ -440,7 +490,7 @@
             
             if (typeof window.ethereum !== 'undefined') {
                 vaultIntegration = new VaultIntegration();
-                await loadVaultInfo();
+                // Don't load vault info yet - wait for wallet connection
                 
                 // Listen for network changes
                 window.ethereum.on('chainChanged', (chainId) => {
@@ -546,6 +596,12 @@
         async function loadVaultInfo() {
             if (!vaultIntegration) {
                 console.log('VaultIntegration not initialized, skipping vault info load');
+                return;
+            }
+
+            // Check if contracts are initialized
+            if (!vaultIntegration.contracts || !vaultIntegration.contracts.vault) {
+                console.log('Contracts not initialized, skipping vault info load');
                 return;
             }
 
@@ -750,6 +806,44 @@
 
             } catch (error) {
                 showStatus('Set harvest interval failed: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function performSwap() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            const fromToken = document.getElementById('swapFromToken').value;
+            const toToken = document.getElementById('swapToToken').value;
+            const amount = document.getElementById('swapAmount').value;
+
+            if (!amount || amount <= 0) {
+                showStatus('Please enter a valid swap amount', 'error');
+                return;
+            }
+
+            if (fromToken === toToken) {
+                showStatus('Please select different tokens for swapping', 'error');
+                return;
+            }
+
+            try {
+                showLoading(true);
+                showStatus(`Swapping ${amount} ${fromToken} to ${toToken}...`, 'info');
+                
+                const result = await vaultIntegration.performSwap(fromToken, toToken, amount);
+
+                showStatus(`Successfully swapped ${result.amountSpent} ${fromToken} for ${result.amountReceived} ${toToken}! Transaction: ${result.txHash}`, 'success');
+                document.getElementById('swapAmount').value = '';
+                await loadVaultInfo();
+
+            } catch (error) {
+                console.error('Swap error:', error);
+                showStatus('Swap failed: ' + error.message, 'error');
             } finally {
                 showLoading(false);
             }

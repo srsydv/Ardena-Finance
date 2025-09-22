@@ -190,6 +190,11 @@ class VaultIntegration {
 
     async getVaultInfo() {
         try {
+            // Check if contracts are initialized
+            if (!this.contracts.vault) {
+                throw new Error('Vault contract not initialized. Please connect your wallet first.');
+            }
+
             const [
                 name, symbol, asset, totalAssets, totalSupply, 
                 lastHarvest, minHarvestInterval, depositCap, decimals
@@ -230,6 +235,11 @@ class VaultIntegration {
 
     async getStrategyInfo() {
         try {
+            // Check if contracts are initialized
+            if (!this.contracts.vault) {
+                throw new Error('Vault contract not initialized. Please connect your wallet first.');
+            }
+
             const strategiesLength = await this.contracts.vault.strategiesLength();
             const strategies = [];
             let totalAllocation = 0;
@@ -769,6 +779,165 @@ class VaultIntegration {
     // Remove all listeners
     removeAllListeners() {
         this.contracts.vault.removeAllListeners();
+    }
+
+    // Swap functionality
+    async performSwap(fromToken, toToken, amount) {
+        try {
+            console.log('=== STARTING DIRECT SWAP ===');
+            console.log('From token:', fromToken);
+            console.log('To token:', toToken);
+            console.log('Amount:', amount);
+
+            // Token addresses
+            const USDC_ADDRESS = this.CONTRACTS.usdc;
+            const WETH_ADDRESS = this.CONTRACTS.weth;
+            const SWAP_ROUTER = this.CONTRACTS.newSwapRouter;
+            const POOL_FEE = 500; // 0.05% fee tier
+            console.log('SWAP_ROUTER:', SWAP_ROUTER);
+
+            // Determine token addresses
+            let tokenIn, tokenOut, tokenInDecimals, tokenOutDecimals;
+            if (fromToken === 'USDC') {
+                tokenIn = USDC_ADDRESS;
+                tokenOut = WETH_ADDRESS;
+                tokenInDecimals = 6;
+                tokenOutDecimals = 18;
+            } else {
+                tokenIn = WETH_ADDRESS;
+                tokenOut = USDC_ADDRESS;
+                tokenInDecimals = 18;
+                tokenOutDecimals = 6;
+            }
+
+            console.log('Token In:', tokenIn);
+            console.log('Token Out:', tokenOut);
+
+            // Parse amount with correct decimals
+            const amountIn = ethers.parseUnits(amount, tokenInDecimals);
+            console.log('Amount in wei:', amountIn.toString());
+
+            // Check balance
+            const tokenInContract = new ethers.Contract(tokenIn, this.ABIS.erc20, this.signer);
+            const balance = await tokenInContract.balanceOf(this.userAddress);
+            console.log('User balance:', ethers.formatUnits(balance, tokenInDecimals));
+            console.log('Amount to swap:', ethers.formatUnits(amountIn, tokenInDecimals));
+
+            if (balance < amountIn) {
+                throw new Error(`Insufficient ${fromToken} balance. You have ${ethers.formatUnits(balance, tokenInDecimals)} ${fromToken}, trying to swap ${ethers.formatUnits(amountIn, tokenInDecimals)} ${fromToken}`);
+            }
+
+            // Also check the other token balance for debugging
+            const tokenOutContract = new ethers.Contract(tokenOut, this.ABIS.erc20, this.signer);
+            const tokenOutBalance = await tokenOutContract.balanceOf(this.userAddress);
+            console.log('User tokenOut balance:', ethers.formatUnits(tokenOutBalance, tokenOutDecimals));
+
+            // Check allowance
+            const allowance = await tokenInContract.allowance(this.userAddress, SWAP_ROUTER);
+            console.log('Current allowance:', ethers.formatUnits(allowance, tokenInDecimals));
+
+            if (allowance < amountIn) {
+                console.log('Setting allowance...');
+                const approveTx = await tokenInContract.approve(SWAP_ROUTER, amountIn);
+                await approveTx.wait();
+                console.log('✅ Allowance set');
+            }
+
+            // Create swap parameters (same as testSepoliaSwapRouter02.js)
+            const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes
+            const swapParams = {
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                fee: POOL_FEE,
+                recipient: this.userAddress,
+                deadline: deadline,
+                amountIn: amountIn,
+                amountOutMinimum: 0n, // For UI, we'll accept any amount
+                sqrtPriceLimitX96: 0n,
+            };
+
+            console.log('Swap parameters:', swapParams);
+
+            // Check if user has any WETH at all (for debugging)
+            const wethContract = new ethers.Contract(WETH_ADDRESS, this.ABIS.erc20, this.signer);
+            const wethBalance = await wethContract.balanceOf(this.userAddress);
+            console.log('User WETH balance:', ethers.formatEther(wethBalance), 'WETH');
+
+            // Check if user has any USDC at all (for debugging)
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, this.ABIS.erc20, this.signer);
+            const usdcBalance = await usdcContract.balanceOf(this.userAddress);
+            console.log('User USDC balance:', ethers.formatUnits(usdcBalance, 6), 'USDC');
+
+            // Browser-compatible require for Uniswap artifact
+            let artifact;
+            try {
+                // Try to use require if available (Node.js environment)
+                if (typeof require !== 'undefined') {
+                    artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+                    console.log('✅ Using require() for SwapRouter02 artifact');
+                } else {
+                    // Browser environment - load from CDN
+                    console.log('require() not available, loading from CDN...');
+                    const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
+                    if (!response.ok) throw new Error('CDN load failed');
+                    artifact = await response.json();
+                    console.log('✅ Loaded SwapRouter02 artifact from CDN');
+                }
+            } catch (error) {
+                console.log('Failed to load artifact, using fallback ABI:', error.message);
+                // Fallback to direct ABI
+                artifact = {
+                    abi: [
+                        "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
+                    ]
+                };
+                console.log('✅ Using fallback SwapRouter02 ABI');
+            }
+        
+            const swapRouterInterface = new ethers.Interface(artifact.abi);
+
+            // Encode the function call
+            const calldata = swapRouterInterface.encodeFunctionData("exactInputSingle", [swapParams]);
+            console.log('Encoded calldata length:', calldata.length);
+
+            // Execute the swap directly (browser environment doesn't support provider.call)
+            console.log('Executing swap transaction...');
+            const swapTx = await this.signer.sendTransaction({
+                to: SWAP_ROUTER,
+                data: calldata,
+            });
+            
+            console.log('Swap transaction sent:', swapTx.hash);
+            const receipt = await swapTx.wait();
+            console.log('Swap transaction confirmed:', receipt.hash);
+            console.log('Gas used:', receipt.gasUsed.toString());
+
+            if (receipt.status === 1) {
+                console.log('🎉 SUCCESS! Swap completed!');
+                
+                // Get new balances
+                const newBalance = await tokenInContract.balanceOf(this.userAddress);
+                const tokenOutContract = new ethers.Contract(tokenOut, this.ABIS.erc20, this.signer);
+                const newTokenOutBalance = await tokenOutContract.balanceOf(this.userAddress);
+
+                const amountSpent = balance - newBalance;
+                console.log(`${fromToken} spent:`, ethers.formatUnits(amountSpent, tokenInDecimals));
+                console.log(`${toToken} received:`, ethers.formatUnits(newTokenOutBalance, tokenOutDecimals));
+
+                return {
+                    success: true,
+                    txHash: receipt.hash,
+                    amountSpent: ethers.formatUnits(amountSpent, tokenInDecimals),
+                    amountReceived: ethers.formatUnits(newTokenOutBalance, tokenOutDecimals)
+                };
+            } else {
+                throw new Error('Swap transaction reverted');
+            }
+
+        } catch (error) {
+            console.error('Swap failed:', error);
+            throw error;
+        }
     }
 }
 

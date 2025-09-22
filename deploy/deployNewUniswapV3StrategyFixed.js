@@ -17,19 +17,22 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deployer address:", deployer.address);
     
-    // Contract addresses from DEPLOYEDCONTRACT.me
+    // Contract addresses from DEPLOYEDCONTRACT.me (UPDATED with new working addresses)
     const VAULT_ADDRESS = "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0";
     const OLD_STRATEGY_ADDRESS = "0xe7bA69Ffbc10Be7c5dA5776d768d5eF6a34Aa191";
     const USDC_ADDRESS = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
-    const WETH_ADDRESS = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
+    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762"; // NEW WORKING WETH
     const UNISWAP_POSITION_MANAGER = "0x1238536071E1c677A632429e3655c799b22cDA52";
-    const POOL_ADDRESS = "0xE85292C7BeDF830071cC1C8F7b5aaB5A5391B50A";
+    const POOL_ADDRESS = "0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39"; // NEW WORKING POOL
     const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
     const ORACLE_ADDRESS = "0x6EE0A849079A5b63562a723367eAae77F3f5EB21";
     const MATH_ADAPTER_ADDRESS = "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E";
     const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
     
     console.log("\n=== STEP 1: CHECKING CURRENT VAULT STATE ===");
+    console.log("Using NEW WORKING addresses:");
+    console.log("- WETH:", WETH_ADDRESS);
+    console.log("- Pool:", POOL_ADDRESS);
     
     try {
         const Vault = await ethers.getContractFactory("Vault");

@@ -2,58 +2,58 @@ const { ethers } = require("hardhat");
 require("dotenv").config();
 
 async function testInvestIdleDirect() {
-  try {
-    console.log("=== TESTING INVEST IDLE DIRECTLY ===");
-
-    // Setup provider and wallet
+    try {
+        console.log("=== TESTING INVEST IDLE DIRECTLY ===");
+        
+        // Setup provider and wallet
     const provider = new ethers.JsonRpcProvider(
       "https://eth-sepolia.g.alchemy.com/v2/jROdUKjJxmz2XYwNpS5Ik"
     );
-    const wallet = new ethers.Wallet(process.env.PK, provider);
-
-    console.log("Wallet address:", wallet.address);
+        const wallet = new ethers.Wallet(process.env.PK, provider);
+        
+        console.log("Wallet address:", wallet.address);
     console.log(
       "Wallet balance:",
       ethers.formatEther(await provider.getBalance(wallet.address))
     );
-
-    // Contract addresses
-    const VAULT_ADDRESS = "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0";
+        
+        // Contract addresses
+        const VAULT_ADDRESS = "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0";
     const ACCESS_CONTROLLER_ADDRESS =
       "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
-    const USDC_ADDRESS = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
-    const WETH_ADDRESS = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
-    const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
-    const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
-    const UNI_STRATEGY_ADDRESS = "0x7Ef19f5Bfd3FD28bcAFf5249DA0f0cb5f835CDCC";
+        const USDC_ADDRESS = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
+    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762"; // NEW WORKING WETH
+    const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"; // NEW WORKING ROUTER
+        const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
+    const UNI_STRATEGY_ADDRESS = "0x6B018844b6Edd87f7F6355643fEB5090Da02b209"; // NEW WORKING STRATEGY
     const POOL_FEE = 500; // 0.05% fee tier
-
-    // Contract ABIs
-    const vaultABI = [
-      "function investIdle(bytes[][] calldata allSwapData) external",
-      "function access() external view returns (address)",
-      "function strategiesLength() external view returns (uint256)",
-      "function strategies(uint256) external view returns (address)",
-      "function targetBps(address) external view returns (uint16)",
+        
+        // Contract ABIs
+        const vaultABI = [
+            "function investIdle(bytes[][] calldata allSwapData) external",
+            "function access() external view returns (address)",
+            "function strategiesLength() external view returns (uint256)",
+            "function strategies(uint256) external view returns (address)",
+            "function targetBps(address) external view returns (uint16)",
       "function totalAssets() external view returns (uint256)",
-    ];
-
-    const accessControllerABI = [
-      "function managers(address account) external view returns (bool)",
+        ];
+        
+        const accessControllerABI = [
+            "function managers(address account) external view returns (bool)",
       "function setManager(address account, bool status) external",
-    ];
-
-    const exchangerABI = [
+        ];
+        
+        const exchangerABI = [
       "function setRouter(address router, bool allowed) external",
-    ];
-
-    const usdcABI = [
-      "function balanceOf(address account) external view returns (uint256)",
+        ];
+        
+        const usdcABI = [
+            "function balanceOf(address account) external view returns (uint256)",
       "function decimals() external view returns (uint8)",
-    ];
-
-    // Initialize contracts
-    const vault = new ethers.Contract(VAULT_ADDRESS, vaultABI, wallet);
+        ];
+        
+        // Initialize contracts
+        const vault = new ethers.Contract(VAULT_ADDRESS, vaultABI, wallet);
     const accessController = new ethers.Contract(
       ACCESS_CONTROLLER_ADDRESS,
       accessControllerABI,
@@ -64,91 +64,77 @@ async function testInvestIdleDirect() {
       exchangerABI,
       wallet
     );
-    const usdc = new ethers.Contract(USDC_ADDRESS, usdcABI, wallet);
-
-    console.log("\n=== CHECKING VAULT STATE ===");
-
-    // Check what AccessController the vault is using
-    const vaultAccessController = await vault.access();
-    console.log("Vault is using AccessController at:", vaultAccessController);
-    console.log("Expected AccessController:", ACCESS_CONTROLLER_ADDRESS);
+        const usdc = new ethers.Contract(USDC_ADDRESS, usdcABI, wallet);
+        
+        console.log("\n=== CHECKING VAULT STATE ===");
+        
+        // Check what AccessController the vault is using
+        const vaultAccessController = await vault.access();
+        console.log("Vault is using AccessController at:", vaultAccessController);
+        console.log("Expected AccessController:", ACCESS_CONTROLLER_ADDRESS);
     console.log(
       "Addresses match:",
       vaultAccessController.toLowerCase() ===
         ACCESS_CONTROLLER_ADDRESS.toLowerCase()
     );
-
-    // Check manager role
-    const isManager = await accessController.managers(wallet.address);
-    console.log("Is manager:", isManager);
-
-    if (!isManager) {
-      console.log("Setting manager role...");
+        
+        // Check manager role
+        const isManager = await accessController.managers(wallet.address);
+        console.log("Is manager:", isManager);
+        
+        if (!isManager) {
+            console.log("Setting manager role...");
       const setManagerTx = await accessController.setManager(
         wallet.address,
         true
       );
-      await setManagerTx.wait();
-      console.log("Manager role set!");
-
-      // Verify again
-      const isManagerAfter = await accessController.managers(wallet.address);
-      console.log("Is manager after setting:", isManagerAfter);
-    }
-
-    // Check vault idle amount
-    const idleAmount = await usdc.balanceOf(VAULT_ADDRESS);
+            await setManagerTx.wait();
+            console.log("Manager role set!");
+            
+            // Verify again
+            const isManagerAfter = await accessController.managers(wallet.address);
+            console.log("Is manager after setting:", isManagerAfter);
+        }
+        
+        // Check vault idle amount
+        const idleAmount = await usdc.balanceOf(VAULT_ADDRESS);
     console.log(
       "Idle amount in vault:",
       ethers.formatUnits(idleAmount, 6),
       "USDC"
     );
-
-    if (idleAmount === 0n) {
-      console.log("No idle funds to invest!");
-      return;
-    }
-
-    // Get strategies
-    const strategiesLength = await vault.strategiesLength();
-    console.log("Number of strategies:", strategiesLength.toString());
-
-    const strategies = [];
-    for (let i = 0; i < strategiesLength; i++) {
-      const strategyAddress = await vault.strategies(i);
-      strategies.push(strategyAddress);
-    }
-    console.log("Strategies:", strategies);
-
-    // Find the strategy with allocation > 0
-    let activeStrategyIndex = -1;
-    let activeStrategyAddress = "";
-    let targetBps = 0;
+        
+        if (idleAmount === 0n) {
+            console.log("No idle funds to invest!");
+            return;
+        }
+        
+        // Get strategies
+        const strategiesLength = await vault.strategiesLength();
+        console.log("Number of strategies:", strategiesLength.toString());
+        
+        const strategies = [];
+        for (let i = 0; i < strategiesLength; i++) {
+            const strategyAddress = await vault.strategies(i);
+            strategies.push(strategyAddress);
+        }
+        console.log("Strategies:", strategies);
+        
+    // Use the new strategy directly (now at index 1 since old strategy was removed)
+    const activeStrategyIndex = 1; // New strategy is at index 1
+    const activeStrategyAddress = UNI_STRATEGY_ADDRESS; // Use our new strategy
+    const targetBps = 4000; // 40% allocation
     
-    for (let i = 0; i < strategies.length; i++) {
-      const bps = await vault.targetBps(strategies[i]);
-      console.log(`Strategy ${i}: ${strategies[i]} allocation: ${bps.toString()} bps`);
-      if (bps > 0) {
-        activeStrategyIndex = i;
-        activeStrategyAddress = strategies[i];
-        targetBps = bps;
-        break;
-      }
-    }
-    
-    if (activeStrategyIndex === -1) {
-      console.log("No active strategy found!");
-      return;
-    }
-    
+    console.log(`Using NEW strategy at index ${activeStrategyIndex}: ${activeStrategyAddress}`);
+        
     console.log("Active strategy found:");
     console.log("- Index:", activeStrategyIndex);
     console.log("- Address:", activeStrategyAddress);
     console.log("- Allocation:", targetBps.toString(), "bps");
 
     // Create swap data following uniswapV2Router.test.js pattern
-    console.log("\n=== CREATING SWAP DATA ===");
-
+        console.log("\n=== CREATING SWAP DATA ===");
+        
     // Create UniswapV3 swap payload for UniswapV3Strategy
     // Following the exact pattern from uniswapV2Router.test.js lines 500-544
 
@@ -228,24 +214,24 @@ async function testInvestIdleDirect() {
 
     console.log("Created swap payload for active strategy");
     console.log("AllSwapData structure:", allSwapData);
-    console.log("AllSwapData length:", allSwapData.length);
+        console.log("AllSwapData length:", allSwapData.length);
     console.log(`AllSwapData[${activeStrategyIndex}] (Active Strategy):`, allSwapData[activeStrategyIndex].length, "bytes");
-
-    // Set router in exchanger
-    console.log("\n=== SETTING ROUTER ===");
-    try {
-      const setRouterTx = await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
-      await setRouterTx.wait();
-      console.log("Router set successfully!");
-    } catch (error) {
-      console.log("Router might already be set:", error.message);
-    }
-
-    // Call investIdle
-    console.log("\n=== CALLING INVEST IDLE ===");
-    console.log("Calling investIdle with data:", allSwapData);
-    console.log("Transaction will be sent from:", wallet.address);
-
+        
+        // Set router in exchanger
+        console.log("\n=== SETTING ROUTER ===");
+        try {
+            const setRouterTx = await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
+            await setRouterTx.wait();
+            console.log("Router set successfully!");
+        } catch (error) {
+            console.log("Router might already be set:", error.message);
+        }
+        
+        // Call investIdle
+        console.log("\n=== CALLING INVEST IDLE ===");
+        console.log("Calling investIdle with data:", allSwapData);
+        console.log("Transaction will be sent from:", wallet.address);
+        
     // --- debug callStatic / provider.call block (insert before gas estimation) ---
 console.log("\n=== ATTEMPTING STATIC CALL (no tx sent) ===");
 
@@ -390,9 +376,9 @@ try {
 //         );
 //       }
 //     }
-  } catch (error) {
-    console.error("Test failed:", error);
-  }
+    } catch (error) {
+        console.error("Test failed:", error);
+    }
 }
 
 testInvestIdleDirect();
