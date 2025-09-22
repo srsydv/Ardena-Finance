@@ -73,67 +73,116 @@
             box-shadow: var(--shadow-light);
         }
 
-        .header h1 {
-            font-size: 3.5rem;
-            font-weight: 800;
+        .logo-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        .logo-image-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+            background: transparent;
+            border-radius: 8px;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .logo-image-container:hover {
+            transform: none;
+        }
+
+        .logo-image {
+            height: 50px;
+            width: auto;
+            max-width: 120px;
+            filter: none;
+            transition: none;
+        }
+
+        .logo-image:hover {
+            filter: none;
+        }
+
+        .logo-text h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
             background: linear-gradient(135deg, #00d4ff 0%, #0099cc 50%, #0066ff 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 1rem;
-            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            margin: 0;
+            text-shadow: none;
             position: relative;
             overflow: hidden;
         }
 
-        .flying-bird {
+        .tagline {
+            font-size: 1rem;
+            color: rgba(232, 232, 232, 0.7);
+            margin: 0.5rem 0 0 0;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            text-align: center;
+        }
+
+        .flying-star {
             position: absolute;
+            top: 20px;
             font-size: 2.5rem;
-            animation: flyAcross 8s ease-in-out infinite;
+            animation: flyAcross 8s ease-in-out infinite, twinkle 2s ease-in-out infinite;
             z-index: 10;
             pointer-events: none;
-            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5)) drop-shadow(2px 2px 6px rgba(0, 0, 0, 0.7));
-            color: #ffffff;
-            text-shadow: 0 0 12px rgba(255, 255, 255, 0.8);
+            filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 40px rgba(255, 255, 255, 0.6));
+            color: #FFD700;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 1), 0 0 30px rgba(255, 255, 255, 0.8);
+            transform: rotate(0deg);
         }
 
 
         @keyframes flyAcross {
             0% {
                 left: -50px;
-                transform: translateY(0px) rotate(0deg);
+                opacity: 0;
+                transform: translateY(0px) rotate(0deg) scale(0.8);
             }
             10% {
-                transform: translateY(-10px) rotate(5deg);
+                opacity: 1;
+                transform: translateY(-5px) rotate(45deg) scale(1);
             }
-            20% {
-                transform: translateY(5px) rotate(-3deg);
-            }
-            30% {
-                transform: translateY(-8px) rotate(4deg);
-            }
-            40% {
-                transform: translateY(3px) rotate(-2deg);
+            25% {
+                transform: translateY(3px) rotate(90deg) scale(1.1);
             }
             50% {
                 left: 50%;
-                transform: translateY(-5px) rotate(0deg);
+                transform: translateY(-3px) rotate(180deg) scale(1);
             }
-            60% {
-                transform: translateY(8px) rotate(3deg);
-            }
-            70% {
-                transform: translateY(-3px) rotate(-4deg);
-            }
-            80% {
-                transform: translateY(6px) rotate(2deg);
+            75% {
+                transform: translateY(5px) rotate(270deg) scale(1.1);
             }
             90% {
-                transform: translateY(-2px) rotate(-1deg);
+                opacity: 1;
+                transform: translateY(-2px) rotate(360deg) scale(1);
             }
             100% {
                 left: calc(100% + 50px);
-                transform: translateY(0px) rotate(0deg);
+                opacity: 0;
+                transform: translateY(0px) rotate(360deg) scale(0.8);
+            }
+        }
+
+        @keyframes twinkle {
+            0%, 100% {
+                filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 40px rgba(255, 255, 255, 0.6));
+            }
+            50% {
+                filter: drop-shadow(0 0 30px rgba(255, 215, 0, 1)) drop-shadow(0 0 60px rgba(255, 255, 255, 0.8));
             }
         }
 
@@ -1400,8 +1449,22 @@
                 padding: 1rem;
             }
             
-            .header h1 {
-                font-size: 2.5rem;
+            .logo-container {
+                gap: 0.8rem;
+                flex-direction: row;
+            }
+            .logo-image-container {
+                padding: 0.3rem;
+            }
+            .logo-image {
+                height: 40px;
+                max-width: 100px;
+            }
+            .logo-text h1 {
+                font-size: 1.8rem;
+            }
+            .tagline {
+                font-size: 0.9rem;
             }
             
             .dashboard {
@@ -1419,11 +1482,16 @@
 <body>
     <div class="container">
         <div class="header floating">
-            <h1>
-                🏦 Ardena Finance
-                <span class="flying-bird">🐦</span>
-            </h1>
-            <p>DeFi Vault Management Platform</p>
+            <div class="logo-container">
+                <div class="logo-image-container">
+                    <img src="images/ardena-finance-logo.png" alt="Ardena Finance Logo" class="logo-image" />
+                </div>
+                <div class="logo-text">
+                    <h1>Ardena Finance</h1>
+                </div>
+            </div>
+            <p class="tagline">DeFi Vault Management Platform</p>
+            <span class="flying-star">⭐</span>
         </div>
 
         <!-- Wallet Connection Section -->
@@ -1783,9 +1851,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=52"></script>
+    <script src="config.js?v=57"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=54"></script>
+    <script src="integration.js?v=59"></script>
     
     <script>
         // Global integration instance
