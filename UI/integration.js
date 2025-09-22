@@ -538,13 +538,33 @@ class VaultIntegration {
             console.log('🔍 DEBUG: Router addresses match:', UNISWAP_V3_ROUTER === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             const poolFee = 500; // 0.05% fee tier
 
-            // Create SwapRouter02 interface - same as test
-            const swapRouterABI = [
-                "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
-            ];
-            // const artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+            // Browser-compatible require for Uniswap artifact (same as performSwap)
+            let artifact;
+            try {
+                // Try to use require if available (Node.js environment)
+                if (typeof require !== 'undefined') {
+                    artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+                    console.log('✅ Using require() for SwapRouter02 artifact in invest');
+                } else {
+                    // Browser environment - load from CDN
+                    console.log('require() not available, loading from CDN for invest...');
+                    const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
+                    if (!response.ok) throw new Error('CDN load failed');
+                    artifact = await response.json();
+                    console.log('✅ Loaded SwapRouter02 artifact from CDN for invest');
+                }
+            } catch (error) {
+                console.log('Failed to load artifact for invest, using fallback ABI:', error.message);
+                // Fallback to direct ABI
+                artifact = {
+                    abi: [
+                        "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
+                    ]
+                };
+                console.log('✅ Using fallback SwapRouter02 ABI for invest');
+            }
       
-            const swapRouterInterface = new ethers.Interface(swapRouterABI);
+            const swapRouterInterface = new ethers.Interface(artifact.abi);
 
             // Get deadline (20 minutes from now) - same as test
             const deadline = Math.floor(Date.now() / 1000) + 1200;
@@ -624,11 +644,32 @@ class VaultIntegration {
             console.log('🔍 DEBUG HARVEST: Router addresses match:', UNISWAP_V3_ROUTER === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             const poolFee = 500; // 0.05% fee tier
 
-            // Create SwapRouter02 interface
-            const swapRouterABI = [
-                "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
-            ];
-            const swapRouterInterface = new ethers.Interface(swapRouterABI);
+            // Browser-compatible require for Uniswap artifact (same as performSwap and invest)
+            let artifact;
+            try {
+                // Try to use require if available (Node.js environment)
+                if (typeof require !== 'undefined') {
+                    artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+                    console.log('✅ Using require() for SwapRouter02 artifact in harvest');
+                } else {
+                    // Browser environment - load from CDN
+                    console.log('require() not available, loading from CDN for harvest...');
+                    const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
+                    if (!response.ok) throw new Error('CDN load failed');
+                    artifact = await response.json();
+                    console.log('✅ Loaded SwapRouter02 artifact from CDN for harvest');
+                }
+            } catch (error) {
+                console.log('Failed to load artifact for harvest, using fallback ABI:', error.message);
+                // Fallback to direct ABI
+                artifact = {
+                    abi: [
+                        "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
+                    ]
+                };
+                console.log('✅ Using fallback SwapRouter02 ABI for harvest');
+            }
+            const swapRouterInterface = new ethers.Interface(artifact.abi);
 
             // Get deadline (20 minutes from now)
             const deadline = Math.floor(Date.now() / 1000) + 1200;
