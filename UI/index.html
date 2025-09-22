@@ -599,6 +599,217 @@
                 inset 0 1px 0 rgba(255, 255, 255, 0.3);
         }
 
+        /* Documentation Section */
+        .documentation-section {
+            margin: 3rem 0;
+            padding: 2rem 0;
+        }
+
+        .doc-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .doc-header h2 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 50%, #0066ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+        }
+
+        .doc-subtitle {
+            font-size: 1.2rem;
+            color: rgba(232, 232, 232, 0.8);
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .doc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .doc-card {
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1) 0%, 
+                rgba(255, 255, 255, 0.05) 50%, 
+                rgba(0, 0, 0, 0.1) 100%);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .doc-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, 
+                #00d4ff 0%, 
+                #0099cc 25%, 
+                #0066ff 50%, 
+                #8b5cf6 75%, 
+                #00d4ff 100%);
+            background-size: 200% 100%;
+            animation: gradientShift 3s ease-in-out infinite;
+        }
+
+        .doc-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2),
+                0 0 0 1px rgba(0, 212, 255, 0.3),
+                0 0 40px rgba(0, 212, 255, 0.2);
+        }
+
+        .doc-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .doc-card h3 {
+            color: #e8e8e8;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .doc-card p {
+            color: rgba(232, 232, 232, 0.8);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .doc-card ul {
+            color: rgba(232, 232, 232, 0.8);
+            line-height: 1.8;
+            padding-left: 1.5rem;
+        }
+
+        .doc-card li {
+            margin-bottom: 0.5rem;
+        }
+
+        .strategy-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .strategy-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .strategy-name {
+            font-weight: 600;
+            color: #00d4ff;
+        }
+
+        .strategy-desc {
+            color: rgba(232, 232, 232, 0.7);
+            font-size: 0.9rem;
+        }
+
+        .fee-structure {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .fee-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .fee-type {
+            font-weight: 600;
+            color: #e8e8e8;
+        }
+
+        .fee-amount {
+            color: #00d4ff;
+            font-weight: 600;
+        }
+
+        .doc-cta {
+            text-align: center;
+            background: linear-gradient(135deg, 
+                rgba(0, 212, 255, 0.1) 0%, 
+                rgba(0, 0, 0, 0.2) 100%);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 3rem 2rem;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            box-shadow: 
+                0 8px 32px rgba(0, 212, 255, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+
+        .doc-cta h3 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #e8e8e8;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .doc-cta p {
+            font-size: 1.1rem;
+            color: rgba(232, 232, 232, 0.8);
+            margin-bottom: 2rem;
+        }
+
+        .cta-features {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .cta-feature {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+        }
+
         .btn-danger {
             background: var(--danger-gradient);
         }
@@ -1233,6 +1444,90 @@
             </div>
         </div>
 
+        <!-- Project Documentation -->
+        <div class="documentation-section">
+            <div class="doc-header">
+                <h2>🚀 Shrish Finance DeFi Vault</h2>
+                <p class="doc-subtitle">Professional Yield Farming & Liquidity Management Platform</p>
+            </div>
+            
+            <div class="doc-grid">
+                <div class="doc-card">
+                    <div class="doc-icon">💎</div>
+                    <h3>What is Shrish Finance?</h3>
+                    <p>Shrish Finance is a cutting-edge DeFi vault platform that automatically manages your USDC investments across multiple yield-generating strategies. Our smart contracts optimize returns while minimizing risk through professional portfolio management.</p>
+                </div>
+                
+                <div class="doc-card">
+                    <div class="doc-icon">🎯</div>
+                    <h3>How It Works</h3>
+                    <p>Deposit USDC into our vault, and our intelligent system automatically allocates funds across Aave lending pools and Uniswap V3 liquidity positions. Earn compound interest and trading fees while our algorithms rebalance your portfolio for optimal returns.</p>
+                </div>
+                
+                <div class="doc-card">
+                    <div class="doc-icon">⚡</div>
+                    <h3>Key Features</h3>
+                    <ul>
+                        <li><strong>Automated Yield Farming:</strong> Earn from multiple DeFi protocols</li>
+                        <li><strong>Smart Rebalancing:</strong> AI-driven portfolio optimization</li>
+                        <li><strong>Low Fees:</strong> Competitive management and performance fees</li>
+                        <li><strong>Transparent:</strong> All transactions on-chain, fully auditable</li>
+                        <li><strong>Secure:</strong> Battle-tested smart contracts</li>
+                    </ul>
+                </div>
+                
+                <div class="doc-card">
+                    <div class="doc-icon">📈</div>
+                    <h3>Investment Strategies</h3>
+                    <div class="strategy-list">
+                        <div class="strategy-item">
+                            <span class="strategy-name">Aave V3 Lending</span>
+                            <span class="strategy-desc">Earn interest on USDC deposits</span>
+                        </div>
+                        <div class="strategy-item">
+                            <span class="strategy-name">Uniswap V3 LP</span>
+                            <span class="strategy-desc">Generate fees from USDC/WETH trading</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="doc-card">
+                    <div class="doc-icon">🔒</div>
+                    <h3>Security & Transparency</h3>
+                    <p>All smart contracts are deployed on Ethereum Sepolia testnet for testing. Our code is open-source and follows industry best practices. Users maintain full control of their funds with no custodial risks.</p>
+                </div>
+                
+                <div class="doc-card">
+                    <div class="doc-icon">💰</div>
+                    <h3>Fee Structure</h3>
+                    <div class="fee-structure">
+                        <div class="fee-item">
+                            <span class="fee-type">Management Fee</span>
+                            <span class="fee-amount">2% annually</span>
+                        </div>
+                        <div class="fee-item">
+                            <span class="fee-type">Performance Fee</span>
+                            <span class="fee-amount">20% of profits</span>
+                        </div>
+                        <div class="fee-item">
+                            <span class="fee-type">Entry Fee</span>
+                            <span class="fee-amount">0.5%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="doc-cta">
+                <h3>Ready to Start Earning?</h3>
+                <p>Connect your wallet and start earning yield on your USDC today!</p>
+                <div class="cta-features">
+                    <span class="cta-feature">✅ No minimum deposit</span>
+                    <span class="cta-feature">✅ Instant withdrawals</span>
+                    <span class="cta-feature">✅ Real-time tracking</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Dashboard -->
         <div class="dashboard">
             <!-- User Actions -->
@@ -1488,9 +1783,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=50"></script>
+    <script src="config.js?v=51"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=52"></script>
+    <script src="integration.js?v=53"></script>
     
     <script>
         // Global integration instance
