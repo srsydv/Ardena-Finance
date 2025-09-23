@@ -180,7 +180,21 @@ async function buildAllSwapData(totalIdleAmount) {
 
         // Allow the router in ExchangeHandler - same as test
         // await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
-        console.log('Router allowed in ExchangeHandler');
+        try {
+            // const isAllowed = await exchanger.routers(router);
+            // if (isAllowed) {
+            //   console.log("✅ Router already allowed:", router);
+            //   return true;
+            // }
+        
+            console.log("Router not allowed, setting now...");
+            const tx = await exchanger.setRouter(UNISWAP_V3_ROUTER, true);
+            console.log("setRouter tx sent:", tx.hash);
+            await tx.wait();
+            console.log("setRouter confirmed!");
+          } catch (err) {
+            console.error("Failed to set router:", err);
+          }
 
         // Create allSwapData array with correct structure
         // If we have 2 strategies, we need [strategy0Data, strategy1Data]
