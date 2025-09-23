@@ -1,6 +1,7 @@
 {
   "name": "Startup",
   "version": "1.0.0",
+  "type": "module",
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",

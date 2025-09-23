@@ -70,18 +70,17 @@ module.exports = {
   },
   networks: {
     hardhat: {
-      blockGasLimit: 1000000000, // 1B, way higher
-      allowUnlimitedContractSize: true, // sometimes needed
+      blockGasLimit: 1000000000,
+      allowUnlimitedContractSize: true,
       forking: {
-        url: process.env.ALCHEMY_ARBITRUM_URL, // your fork
-        enabled: true,
-        // blockNumber: 120000000, // optional
+        url: process.env.ALCHEMY_ARBITRUM_URL || "https://arb-mainnet.g.alchemy.com/v2/demo",
+        enabled: !!process.env.ALCHEMY_ARBITRUM_URL,
       },
     },
     sepolia: {
       url: `https://eth-sepolia.g.alchemy.com/v2/jROdUKjJxmz2XYwNpS5Ik`,
       chainId: 11155111,
-      accounts: [process.env.PK],
+      accounts: process.env.PK ? [process.env.PK] : [],
     },
   },
   etherscan: {
