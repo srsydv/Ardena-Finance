@@ -27,12 +27,14 @@
 //   },
 // };
 
-require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();
-require("hardhat-tracer");
-require("@openzeppelin/hardhat-upgrades");
+import "@nomicfoundation/hardhat-toolbox";
+import dotenv from "dotenv";
+import "hardhat-tracer";
+import "@openzeppelin/hardhat-upgrades";
 
-module.exports = {
+dotenv.config();
+
+export default {
   solidity: {
     compilers: [
       {
@@ -78,9 +80,11 @@ module.exports = {
       },
     },
     sepolia: {
-      url: `https://eth-sepolia.g.alchemy.com/v2/jROdUKjJxmz2XYwNpS5Ik`,
+      url: `https://eth-sepolia.g.alchemy.com/v2/rB2CQbcQlNubEmgJCgxDR`,
       chainId: 11155111,
       accounts: process.env.PK ? [process.env.PK] : [],
+      timeout: 60000, // 60 seconds timeout
+      gasPrice: "auto",
     },
   },
   etherscan: {

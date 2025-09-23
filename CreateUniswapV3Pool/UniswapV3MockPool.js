@@ -1,20 +1,20 @@
 /*
-  Uniswap V3 pool creator for Ethereum Sepolia: WETH <-> USDC (Circle testnet)
+  Uniswap V3 pool creator for Ethereum Sepolia: WETH <-> AAVE (Circle testnet)
 
   How to use:
-  1) Get Sepolia USDC (testnet) from Circle Faucet (10 USDC/hr):
+  1) Get Sepolia AAVE (testnet) from Circle Faucet (10 AAVE/hr):
      https://faucet.circle.com/
   2) Ensure you have Sepolia ETH for gas; wrap to WETH if you plan to seed liquidity.
   3) Set env vars (dotenv supported) and run:
-     WETH=0xYourWETH USDC=0xYourUSDC INIT_USDC_PER_WETH=100 SEED_USDC=5000000 SEED_WETH_WEI=50000000000000000 \
+     WETH=0xYourWETH AAVE=0xYourAAVE INIT_AAVE_PER_WETH=100 SEED_AAVE=5000000 SEED_WETH_WEI=50000000000000000 \
        npx hardhat run deploy/UniswapV3MockPool.js --network sepolia
 
   Env vars:
   - WETH: address of WETH9 on Sepolia (required)
-  - USDC: address of Circle testnet USDC on Sepolia (required)
+  - AAVE: address of Circle testnet AAVE on Sepolia (required)
   - FEE: 500|3000|10000 (default 500)
-  - INIT_USDC_PER_WETH: initial human price (default 100)
-  - SEED_USDC: amount in USDC smallest units to seed (optional, e.g., 5000000 for 5 USDC)
+  - INIT_AAVE_PER_WETH: initial human price (default 100)
+  - SEED_AAVE: amount in AAVE smallest units to seed (optional, e.g., 5000000 for 5 AAVE)
   - SEED_WETH_WEI: amount in wei to seed (optional, e.g., 50000000000000000 for 0.05 WETH)
   - WRAP_ETH_WEI: if set >0, wraps that much ETH into WETH9 before seeding
 
@@ -25,8 +25,9 @@
     SwapRouter:   0xE592427A0AEce92De3Edee1F18E0157C05861564
 */
 
-require("dotenv").config();
-const hre = require("hardhat");
+import dotenv from "dotenv";
+dotenv.config();
+import hre from "hardhat";
 const { ethers } = hre;
 
 // const UNIV3_FACTORY = "0x1F98431c8aD98523631AE4a59f267346ea31F984";
@@ -99,11 +100,11 @@ function encodeSqrtPriceX96ByAmounts(amount1, amount0) {
 async function main() {
   const [deployer] = await ethers.getSigners();
 
-  const WETH = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
-  const USDC = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
-  if (!WETH || !USDC) {
+  const WETH = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762";
+  const AAVE = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a"
+  if (!WETH || !AAVE) {
     throw new Error(
-      "Please set WETH and USDC env vars to Sepolia token addresses."
+      "Please set WETH and AAVE env vars to Sepolia token addresses."
     );
   }
 
@@ -120,8 +121,8 @@ async function main() {
     );
 
   const FEE = 500; // 500=0.05%, 3000=0.3%, 10000=1%
-  const INIT_USDC_PER_WETH = 2; // human price
-  const SEED_USDC = envBigInt("SEED_USDC", undefined); // in 10^6
+  const INIT_AAVE_PER_WETH = 2; // human price
+  const SEED_AAVE = envBigInt("SEED_AAVE", undefined); // in 10^6
   const SEED_WETH_WEI = envBigInt("SEED_WETH_WEI", undefined); // in wei
   const WRAP_ETH_WEI = envBigInt("WRAP_ETH_WEI", "0");
 
@@ -136,7 +137,7 @@ async function main() {
 
   // sort tokens for Uniswap (token0 < token1)
   const [t0, t1] =
-    WETH.toLowerCase() < USDC.toLowerCase() ? [WETH, USDC] : [USDC, WETH];
+    WETH.toLowerCase() < AAVE.toLowerCase() ? [WETH, AAVE] : [AAVE, WETH];
 
   // read decimals
   const [t0c, t1c] = await Promise.all([
@@ -151,15 +152,15 @@ async function main() {
   ]);
 
   // initial price amounts in smallest units matching token order
-  const usdcPerWeth = BigInt(INIT_USDC_PER_WETH);
+  const usdcPerWeth = BigInt(INIT_AAVE_PER_WETH);
   let amount0; // for token0
   let amount1; // for token1
-  if (t0.toLowerCase() === USDC.toLowerCase()) {
-    // token0=USDC(6), token1=WETH(18): 1 WETH = P USDC → amount0= P USDC, amount1= 1 WETH
+  if (t0.toLowerCase() === AAVE.toLowerCase()) {
+    // token0=AAVE(6), token1=WETH(18): 1 WETH = P AAVE → amount0= P AAVE, amount1= 1 WETH
     amount0 = usdcPerWeth * 10n ** 6n;
     amount1 = 1n * 10n ** 18n;
   } else {
-    // token0=WETH(18), token1=USDC(6)
+    // token0=WETH(18), token1=AAVE(6)
     amount0 = 1n * 10n ** 18n;
     amount1 = usdcPerWeth * 10n ** 6n;
   }
@@ -167,13 +168,17 @@ async function main() {
   const sqrtPriceX96 = encodeSqrtPriceX96ByAmounts(amount1, amount0);
 
   // create & initialize
+  console.log("Creating and initializing pool...");
   const tx = await pm.createAndInitializePoolIfNecessary(
     t0,
     t1,
     FEE,
     sqrtPriceX96
   );
+  console.log("Transaction sent:", tx.hash);
+  console.log("Waiting for confirmation...");
   const rc = await tx.wait();
+  console.log("Transaction confirmed!");
   const poolAddr = await factory.getPool(t0, t1, FEE);
   console.log("Pool:", poolAddr);
   console.log(
@@ -181,7 +186,7 @@ async function main() {
   );
 
   // Optional: seed minimal liquidity
-  if (SEED_USDC !== undefined || SEED_WETH_WEI !== undefined) {
+  if (SEED_AAVE !== undefined || SEED_WETH_WEI !== undefined) {
     const pool = await ethers.getContractAt(IUniswapV3PoolABI, poolAddr);
     const spacing = Number(await pool.tickSpacing());
     const s0 = await pool.slot0();
@@ -201,20 +206,20 @@ async function main() {
     // approvals
     const [cW, cU] = await Promise.all([
       ethers.getContractAt(ERC20_META, WETH),
-      ethers.getContractAt(ERC20_META, USDC),
+      ethers.getContractAt(ERC20_META, AAVE),
     ]);
     if (SEED_WETH_WEI)
       await (await cW.approve(NFP_MANAGER, SEED_WETH_WEI)).wait();
-    if (SEED_USDC) await (await cU.approve(NFP_MANAGER, SEED_USDC)).wait();
+    if (SEED_AAVE) await (await cU.approve(NFP_MANAGER, SEED_AAVE)).wait();
 
     // map desired amounts to amount0/1 for mint params
     const amount0Desired =
-      t0.toLowerCase() === USDC.toLowerCase()
-        ? SEED_USDC ?? 0n
+      t0.toLowerCase() === AAVE.toLowerCase()
+        ? SEED_AAVE ?? 0n
         : SEED_WETH_WEI ?? 0n;
     const amount1Desired =
-      t1.toLowerCase() === USDC.toLowerCase()
-        ? SEED_USDC ?? 0n
+      t1.toLowerCase() === AAVE.toLowerCase()
+        ? SEED_AAVE ?? 0n
         : SEED_WETH_WEI ?? 0n;
 
     const deadline =

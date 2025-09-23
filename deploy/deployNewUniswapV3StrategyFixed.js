@@ -8,8 +8,10 @@
     npx hardhat run deploy/deployNewUniswapV3StrategyFixed.js --network sepolia
 */
 
-require("dotenv").config();
-const { ethers, upgrades } = require("hardhat");
+import dotenv from "dotenv";
+dotenv.config();
+import hre from "hardhat";
+const { ethers, upgrades } = hre;
 
 async function main() {
     console.log("=== DEPLOYING NEW UNISWAPV3STRATEGY WITH FIXED TICK CALCULATION ===");
@@ -17,20 +19,22 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deployer address:", deployer.address);
     
-    // Contract addresses from DEPLOYEDCONTRACT.me (UPDATED with new working addresses)
-    const VAULT_ADDRESS = "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0";
-    const OLD_STRATEGY_ADDRESS = "0xe7bA69Ffbc10Be7c5dA5776d768d5eF6a34Aa191";
-    const USDC_ADDRESS = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
-    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762"; // NEW WORKING WETH
+    // Contract addresses for NEW AAVE VAULT and AAVE/WETH pool
+    const VAULT_ADDRESS = "0x3cd0145707C03316B48f8A254c494600c30ebf8d"; // NEW AAVE VAULT
+    const OLD_STRATEGY_ADDRESS = "0x6B018844b6Edd87f7F6355643fEB5090Da02b209"; // OLD USDC STRATEGY
+    const AAVE_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a"; // AAVE TOKEN
+    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762"; // WETH
     const UNISWAP_POSITION_MANAGER = "0x1238536071E1c677A632429e3655c799b22cDA52";
-    const POOL_ADDRESS = "0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39"; // NEW WORKING POOL
+    const POOL_ADDRESS = "0x6eFCe0a593782545fe1bE3fF0abce18dC8181a3c"; // AAVE/WETH POOL
     const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
     const ORACLE_ADDRESS = "0x6EE0A849079A5b63562a723367eAae77F3f5EB21";
     const MATH_ADAPTER_ADDRESS = "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E";
     const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
     
     console.log("\n=== STEP 1: CHECKING CURRENT VAULT STATE ===");
-    console.log("Using NEW WORKING addresses:");
+    console.log("Using NEW AAVE VAULT and AAVE/WETH pool:");
+    console.log("- Vault:", VAULT_ADDRESS);
+    console.log("- AAVE:", AAVE_ADDRESS);
     console.log("- WETH:", WETH_ADDRESS);
     console.log("- Pool:", POOL_ADDRESS);
     
@@ -65,7 +69,7 @@ async function main() {
             UniswapV3Strategy,
             [
                 VAULT_ADDRESS,
-                USDC_ADDRESS,
+                AAVE_ADDRESS,
                 UNISWAP_POSITION_MANAGER,
                 POOL_ADDRESS,
                 EXCHANGER_ADDRESS,
@@ -158,7 +162,7 @@ async function main() {
         console.log("✅ New strategy functions working:");
         console.log("- Vault:", vault);
         console.log("- Want token:", wantToken);
-        console.log("- Total assets:", ethers.formatUnits(totalAssets, 6), "USDC");
+        console.log("- Total assets:", ethers.formatUnits(totalAssets, 18), "AAVE");
         
     } catch (error) {
         console.error("❌ Strategy test failed:", error.message);
@@ -173,12 +177,15 @@ async function main() {
     console.log("- New strategy has fixed tick calculation");
     
     console.log("\n🚀 NEXT STEPS:");
-    console.log("1. Test investIdle functionality with the new strategy");
+    console.log("1. Test investIdle functionality with the new AAVE strategy");
     console.log("2. Verify that the tick calculation bug is fixed");
     console.log("3. Update your frontend to use the new strategy address if needed");
+    console.log("4. Test AAVE deposits and swaps in the UniswapV3Strategy");
     
     console.log("\n📋 UPDATE DEPLOYEDCONTRACT.me:");
-    console.log(`UniswapV3Strategy: ${newStrategyAddress}`);
+    console.log(`NewAAVEUniswapV3Strategy: ${newStrategyAddress}`);
+    console.log(`Pool: ${POOL_ADDRESS}`);
+    console.log(`Vault: ${VAULT_ADDRESS}`);
 }
 
 main().catch((error) => {

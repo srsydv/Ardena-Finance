@@ -1,13 +1,15 @@
-const { ethers } = require("hardhat");
-require("dotenv").config();
+import hre from "hardhat";
+const { ethers } = hre;
+import dotenv from "dotenv";
+dotenv.config();
 
 async function checkPoolLiquidity() {
-    console.log("=== CHECKING SEPOLIA USDC/WETH POOL LIQUIDITY ===");
+    console.log("=== CHECKING SEPOLIA AAVE/WETH POOL LIQUIDITY ===");
     
     // Contract addresses
-    const POOL_ADDRESS = "0xE85292C7BeDF830071cC1C8F7b5aaB5A5391B50A";
-    const USDC_ADDRESS = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
-    const WETH_ADDRESS = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
+    const POOL_ADDRESS = "0x6eFCe0a593782545fe1bE3fF0abce18dC8181a3c";
+    const AAVE_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a";
+    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762";
     const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     
     // Setup
@@ -26,7 +28,7 @@ async function checkPoolLiquidity() {
         "function fee() view returns (uint24)"
     ];
     
-    const usdcABI = [
+    const aaveABI = [
         "function balanceOf(address) external view returns (uint256)",
         "function decimals() external view returns (uint8)",
         "function symbol() external view returns (string)"
@@ -44,7 +46,7 @@ async function checkPoolLiquidity() {
     
     // Initialize contracts
     const pool = new ethers.Contract(POOL_ADDRESS, poolABI, wallet);
-    const usdc = new ethers.Contract(USDC_ADDRESS, usdcABI, wallet);
+    const aave = new ethers.Contract(AAVE_ADDRESS, aaveABI, wallet);
     const weth = new ethers.Contract(WETH_ADDRESS, wethABI, wallet);
     const router = new ethers.Contract(UNISWAP_V3_ROUTER, routerABI, wallet);
     
@@ -66,10 +68,10 @@ async function checkPoolLiquidity() {
         console.log("SqrtPriceX96:", slot0.sqrtPriceX96.toString());
         
         // Check which token is which
-        const isUSDC0 = token0.toLowerCase() === USDC_ADDRESS.toLowerCase();
+        const isAAVE0 = token0.toLowerCase() === AAVE_ADDRESS.toLowerCase();
         const isWETH0 = token0.toLowerCase() === WETH_ADDRESS.toLowerCase();
         
-        console.log("Token0 is USDC:", isUSDC0);
+        console.log("Token0 is AAVE:", isAAVE0);
         console.log("Token0 is WETH:", isWETH0);
         
     } catch (error) {
@@ -81,15 +83,16 @@ async function checkPoolLiquidity() {
     console.log("\n=== STEP 2: POOL BALANCES ===");
     
     try {
-        const usdcBalance = await usdc.balanceOf(POOL_ADDRESS);
+        const aaveBalance = await aave.balanceOf(POOL_ADDRESS);
         const wethBalance = await weth.balanceOf(POOL_ADDRESS);
         
-        console.log("Pool USDC balance:", ethers.formatUnits(usdcBalance, 6), "USDC");
+        console.log("Pool AAVE balance:", ethers.formatUnits(aaveBalance, 6), "AAVE");
         console.log("Pool WETH balance:", ethers.formatEther(wethBalance), "WETH");
         
-        // Calculate total value in USDC
-        const totalValueUSDC = usdcBalance + (wethBalance * ethers.parseUnits("100", 6)) / ethers.parseEther("1"); // Assuming 1 WETH = 100 USDC
-        console.log("Estimated total pool value:", ethers.formatUnits(totalValueUSDC, 6), "USDC");
+        // Calculate total value in WETH (assuming 1 AAVE = 0.01 WETH based on current price)
+        const aaveInWETH = (aaveBalance * ethers.parseUnits("0.01", 18)) / ethers.parseUnits("1", 6);
+        const totalValueWETH = wethBalance + aaveInWETH;
+        console.log("Estimated total pool value:", ethers.formatEther(totalValueWETH), "WETH");
         
     } catch (error) {
         console.error("❌ Failed to get pool balances:", error.message);
@@ -101,11 +104,11 @@ async function checkPoolLiquidity() {
     try {
         // Test different swap amounts to see what the pool can handle
         const testAmounts = [
-            ethers.parseUnits("1", 6),    // 1 USDC
-            ethers.parseUnits("10", 6),   // 10 USDC
-            ethers.parseUnits("50", 6),   // 50 USDC
-            ethers.parseUnits("100", 6),  // 100 USDC
-            ethers.parseUnits("500", 6),  // 500 USDC
+            ethers.parseUnits("1", 6),    // 1 AAVE
+            ethers.parseUnits("10", 6),   // 10 AAVE
+            ethers.parseUnits("50", 6),   // 50 AAVE
+            ethers.parseUnits("100", 6),  // 100 AAVE
+            ethers.parseUnits("500", 6),  // 500 AAVE
         ];
         
         console.log("Testing swap capacity...");
@@ -115,7 +118,7 @@ async function checkPoolLiquidity() {
                 const deadline = Math.floor(Date.now() / 1000) + 1200;
                 
                 const params = {
-                    tokenIn: USDC_ADDRESS,
+                    tokenIn: AAVE_ADDRESS,
                     tokenOut: WETH_ADDRESS,
                     fee: 500,
                     recipient: wallet.address,
@@ -127,10 +130,10 @@ async function checkPoolLiquidity() {
                 
                 // Try to estimate the swap
                 const gasEstimate = await router.exactInputSingle.estimateGas(params);
-                console.log(`✅ Can swap ${ethers.formatUnits(amountIn, 6)} USDC (gas: ${gasEstimate.toString()})`);
+                console.log(`✅ Can swap ${ethers.formatUnits(amountIn, 6)} AAVE (gas: ${gasEstimate.toString()})`);
                 
             } catch (error) {
-                console.log(`❌ Cannot swap ${ethers.formatUnits(amountIn, 6)} USDC: ${error.message}`);
+                console.log(`❌ Cannot swap ${ethers.formatUnits(amountIn, 6)} AAVE: ${error.message}`);
                 break; // Stop testing larger amounts if smaller ones fail
             }
         }
@@ -143,14 +146,14 @@ async function checkPoolLiquidity() {
     console.log("\n=== STEP 4: INVEST IDLE REQUIREMENTS ===");
     
     try {
-        // Our investIdle sends 40 USDC to strategy, strategy swaps 20 USDC to WETH
-        const requiredSwapAmount = ethers.parseUnits("20", 6); // 20 USDC
-        console.log("Required swap amount for investIdle:", ethers.formatUnits(requiredSwapAmount, 6), "USDC");
+        // Our investIdle sends AAVE to strategy, strategy swaps AAVE to WETH
+        const requiredSwapAmount = ethers.parseUnits("100", 6); // 100 AAVE
+        console.log("Required swap amount for investIdle:", ethers.formatUnits(requiredSwapAmount, 6), "AAVE");
         
         const deadline = Math.floor(Date.now() / 1000) + 1200;
         
         const params = {
-            tokenIn: USDC_ADDRESS,
+            tokenIn: AAVE_ADDRESS,
             tokenOut: WETH_ADDRESS,
             fee: 500,
             recipient: wallet.address,
@@ -183,7 +186,7 @@ async function checkPoolLiquidity() {
         console.log("To fix this, you need to add liquidity to the pool.");
         console.log("\nYou can use your add-liquidity.js script to add liquidity:");
         console.log("1. Run: npx hardhat run add-liquidity.js --network sepolia");
-        console.log("2. This will add 20 WETH + 2000 USDC to the pool");
+        console.log("2. This will add 10 WETH + 100 AAVE to the pool");
         console.log("3. Then try investIdle() again");
         
         return;

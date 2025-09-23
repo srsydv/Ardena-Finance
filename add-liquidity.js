@@ -1,4 +1,5 @@
-const { ethers } = require("hardhat");
+import hre from "hardhat";
+const { ethers } = hre;
 
 async function addLiquidity() {
     console.log("=== Adding Liquidity to Uniswap V3 Pool ===");
@@ -8,13 +9,13 @@ async function addLiquidity() {
     console.log("Using account:", deployer.address);
     
     // Your pool details
-    const POOL_ADDRESS = "0xE85292C7BeDF830071cC1C8F7b5aaB5A5391B50A";
+    const POOL_ADDRESS = "0x6eFCe0a593782545fe1bE3fF0abce18dC8181a3c";
     const POSITION_MANAGER = "0x1238536071E1c677A632429e3655c799b22cDA52";
-    const USDC_ADDRESS = "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8";
-    const WETH_ADDRESS = "0x348B7839A8847C10EAdd196566C501eBcC2ad4C0";
+    const AAVE_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a";
+    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762";
     
     // Get contracts
-    const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS);
+    const usdc = await ethers.getContractAt("IERC20", AAVE_ADDRESS);
     const weth = await ethers.getContractAt("IERC20", WETH_ADDRESS);
     const positionManager = await ethers.getContractAt("INonfungiblePositionManager", POSITION_MANAGER);
     
@@ -23,24 +24,24 @@ async function addLiquidity() {
     const wethBalance = await weth.balanceOf(deployer.address);
     
     console.log("\n=== Current Balances ===");
-    console.log("USDC Balance:", ethers.formatUnits(usdcBalance, 6));
+    console.log("AAVE Balance:", ethers.formatUnits(usdcBalance, 6));
     console.log("WETH Balance:", ethers.formatEther(wethBalance));
     
     // Liquidity amounts
-    const wethAmount = ethers.parseEther("20"); // 20 WETH
-    const usdcAmount = ethers.parseUnits("2000", 6); // 2000 USDC
+    const wethAmount = ethers.parseEther("10"); // 10 WETH
+    const aaveAmount = ethers.parseUnits("100", 6); // 100 AAVE
     
     console.log("\n=== Liquidity Amounts ===");
     console.log("WETH Amount:", ethers.formatEther(wethAmount));
-    console.log("USDC Amount:", ethers.formatUnits(usdcAmount, 6));
+    console.log("AAVE Amount:", ethers.formatUnits(aaveAmount));
     
     // Check if we have enough balance
     if (wethBalance < wethAmount) {
         throw new Error(`Insufficient WETH balance. Have: ${ethers.formatEther(wethBalance)}, Need: ${ethers.formatEther(wethAmount)}`);
     }
     
-    if (usdcBalance < usdcAmount) {
-        throw new Error(`Insufficient USDC balance. Have: ${ethers.formatUnits(usdcBalance, 6)}, Need: ${ethers.formatUnits(usdcAmount, 6)}`);
+    if (usdcBalance < aaveAmount) {
+        throw new Error(`Insufficient AAVE balance. Have: ${ethers.formatUnits(usdcBalance, 6)}, Need: ${ethers.formatUnits(aaveAmount, 6)}`);
     }
     
     // Check and set approvals
@@ -50,7 +51,7 @@ async function addLiquidity() {
     const usdcAllowance = await usdc.allowance(deployer.address, POSITION_MANAGER);
     
     console.log("Current WETH Allowance:", ethers.formatEther(wethAllowance));
-    console.log("Current USDC Allowance:", ethers.formatUnits(usdcAllowance, 6));
+    console.log("Current AAVE Allowance:", ethers.formatUnits(usdcAllowance));
     
     if (wethAllowance < wethAmount) {
         console.log("Approving WETH...");
@@ -61,13 +62,13 @@ async function addLiquidity() {
         console.log("✅ WETH allowance sufficient");
     }
     
-    if (usdcAllowance < usdcAmount) {
-        console.log("Approving USDC...");
-        const tx2 = await usdc.approve(POSITION_MANAGER, usdcAmount);
+    if (usdcAllowance < aaveAmount) {
+        console.log("Approving AAVE...");
+        const tx2 = await usdc.approve(POSITION_MANAGER, aaveAmount);
         await tx2.wait();
-        console.log("✅ USDC approved");
+        console.log("✅ AAVE approved");
     } else {
-        console.log("✅ USDC allowance sufficient");
+        console.log("✅ AAVE allowance sufficient");
     }
     
     // Get current pool state to determine proper tick range
@@ -95,14 +96,19 @@ async function addLiquidity() {
     // Prepare mint parameters
     const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
     
+    // Sort tokens correctly (token0 < token1)
+    const [token0, token1] = WETH_ADDRESS.toLowerCase() < AAVE_ADDRESS.toLowerCase() 
+        ? [WETH_ADDRESS, AAVE_ADDRESS] 
+        : [AAVE_ADDRESS, WETH_ADDRESS];
+    
     const mintParams = {
-        token0: WETH_ADDRESS,  // WETH is token0
-        token1: USDC_ADDRESS,  // USDC is token1
+        token0: token0,
+        token1: token1,
         fee: 500,
         tickLower: tickLower,
         tickUpper: tickUpper,
-        amount0Desired: wethAmount,  // WETH amount
-        amount1Desired: usdcAmount,  // USDC amount
+        amount0Desired: token0 === WETH_ADDRESS ? wethAmount : aaveAmount,
+        amount1Desired: token1 === WETH_ADDRESS ? wethAmount : aaveAmount,
         amount0Min: 0,
         amount1Min: 0,
         recipient: deployer.address,
@@ -110,13 +116,13 @@ async function addLiquidity() {
     };
     
     console.log("\n=== Mint Parameters ===");
-    console.log("token0 (WETH):", mintParams.token0);
-    console.log("token1 (USDC):", mintParams.token1);
+    console.log("token0:", mintParams.token0, token0 === WETH_ADDRESS ? "(WETH)" : "(AAVE)");
+    console.log("token1:", mintParams.token1, token1 === WETH_ADDRESS ? "(WETH)" : "(AAVE)");
     console.log("fee:", mintParams.fee);
     console.log("tickLower:", mintParams.tickLower);
     console.log("tickUpper:", mintParams.tickUpper);
-    console.log("amount0Desired (WETH):", ethers.formatEther(mintParams.amount0Desired));
-    console.log("amount1Desired (USDC):", ethers.formatUnits(mintParams.amount1Desired, 6));
+    console.log("amount0Desired:", token0 === WETH_ADDRESS ? ethers.formatEther(mintParams.amount0Desired) + " WETH" : ethers.formatUnits(mintParams.amount0Desired, 6) + " AAVE");
+    console.log("amount1Desired:", token1 === WETH_ADDRESS ? ethers.formatEther(mintParams.amount1Desired) + " WETH" : ethers.formatUnits(mintParams.amount1Desired, 6) + " AAVE");
     console.log("recipient:", mintParams.recipient);
     console.log("deadline:", mintParams.deadline);
     
