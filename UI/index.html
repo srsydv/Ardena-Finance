@@ -1873,9 +1873,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=59"></script>
+    <script src="config.js"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=61"></script>
+    <script src="integration.js"></script>
     
     <script>
         // Global integration instance
@@ -2031,7 +2031,7 @@
             }
 
             try {
-                console.log('Loading vault info...');
+                console.log('Loading vault info at:', new Date().toISOString());
                 
                 // Load vault info using integration
                 const vaultInfo = await vaultIntegration.getVaultInfo();
@@ -2041,6 +2041,12 @@
                 const tokenPrice = await vaultIntegration.getTokenPrice();
 
                 console.log('Vault info loaded:', vaultInfo);
+                console.log('Strategy info loaded:', strategyInfo);
+                console.log('=== DEBUGGING VAULT DATA ===');
+                console.log('totalAssets from vaultInfo:', vaultInfo.totalAssets);
+                console.log('idleFunds from strategyInfo:', strategyInfo.idleFunds);
+                console.log('userShares from vaultInfo:', vaultInfo.userShares);
+                console.log('userAssets from vaultInfo:', vaultInfo.userAssets);
 
                 // Update vault basic info
                 if (vaultInfo && vaultInfo.name) {

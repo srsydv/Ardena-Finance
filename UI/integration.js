@@ -274,13 +274,14 @@ class VaultIntegration {
                 totalAllocation += Number(allocation);
             }
 
-            // Get idle funds
+            // Get idle funds from vault contract
             const vaultBalance = await this.contracts.usdc.balanceOf(this.CONTRACTS.vault);
+            const formattedBalance = ethers.formatUnits(vaultBalance, 6);
 
             return {
                 strategies,
                 totalAllocation: totalAllocation / 100,
-                idleFunds: ethers.formatUnits(vaultBalance, 6)
+                idleFunds: formattedBalance
             };
         } catch (error) {
             console.error('Error getting strategy info:', error);
