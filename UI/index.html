@@ -1873,9 +1873,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js?v=58"></script>
+    <script src="config.js?v=59"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=60"></script>
+    <script src="integration.js?v=61"></script>
     
     <script>
         // Global integration instance
@@ -2187,6 +2187,9 @@
                 }
                 
                 // Show processing overlay for User Actions card
+                console.log('About to show transaction processing...');
+                console.log('DOM ready state:', document.readyState);
+                console.log('Processing element exists:', !!document.getElementById('userActionsProcessing'));
                 showTransactionProcessing('userActionsProcessing', true);
                 hideTransactionResult('userActionsResult');
                 
@@ -2659,21 +2662,25 @@
             
             // First, hide all processing overlays to ensure only one is active
             const allProcessingElements = document.querySelectorAll('.transaction-processing');
+            console.log(`Found ${allProcessingElements.length} processing elements`);
             allProcessingElements.forEach(element => {
                 element.classList.remove('active');
             });
             
             const processingElement = document.getElementById(processingId);
+            console.log(`Processing element found:`, !!processingElement);
             if (processingElement) {
                 if (show) {
                     processingElement.classList.add('active');
-                    console.log(`Activated processing overlay: ${processingId}`);
+                    console.log(`✅ Activated processing overlay: ${processingId}`);
                 } else {
                     processingElement.classList.remove('active');
-                    console.log(`Deactivated processing overlay: ${processingId}`);
+                    console.log(`✅ Deactivated processing overlay: ${processingId}`);
                 }
             } else {
-                console.error(`Processing element not found: ${processingId}`);
+                console.error(`❌ Processing element not found: ${processingId}`);
+                console.log('Available elements with "Processing" in ID:', 
+                    Array.from(document.querySelectorAll('[id*="Processing"]')).map(el => el.id));
             }
         }
 
