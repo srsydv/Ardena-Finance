@@ -9,22 +9,32 @@ const CONFIG = {
     // Network Configuration
     CHAIN_ID: 11155111, // Sepolia testnet
     
-    // Contract addresses (from DEPLOYEDCONTRACT.me - UPDATED with working addresses)
+    // Contract addresses (NEW AAVE VAULT SYSTEM)
     CONTRACTS: {
-        vault: "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0",
-        usdc: "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8",
-        weth: "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762", // NEW WORKING WETH
-        aaveStrategy: "0xCc02bC41a7AF1A35af4935346cABC7335167EdC9",
-        uniStrategy: "0x6B018844b6Edd87f7F6355643fEB5090Da02b209", // NEW WORKING STRATEGY
+        // NEW AAVE VAULT SYSTEM
+        vault: "0x3cd0145707C03316B48f8A254c494600c30ebf8d", // NEW AAVE VAULT
+        asset: "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a", // AAVE TOKEN
+        weth: "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762", // WETH
+        
+        // NEW STRATEGIES
+        aaveStrategy: "0x9362c59c71321c77CaeE86f9Cf02cbBF3b64277D", // NEW AAVEV3STRATEGY
+        uniStrategy: "0x13C38F2045cbdf4071FfCc086877E19018B865B5", // NEW AAVE UNISWAPV3STRATEGY
+        
+        // INFRASTRUCTURE (SAME)
         accessController: "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2",
         feeModule: "0x3873DaFa287f80792208c36AcCfC82370428b3DB",
         oracle: "0x6EE0A849079A5b63562a723367eAae77F3f5EB21",
         exchanger: "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF",
         mathAdapter: "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E",
-        poolAddress: "0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39", // NEW WORKING POOL
+        
+        // POOLS
+        aaveWethPool: "0x6eFCe0a593782545fe1bE3fF0abce18dC8181a3c", // AAVE/WETH POOL
+        aavePool: "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951", // AAVE V3 POOL
+        
+        // OTHER
         indexSwap: "0x34C4E1883Ed95aeb100F79bdEe0291F44C214fA2",
         ethUsdAgg: "0x497369979EfAD100F83c509a30F38dfF90d11585",
-        newSwapRouter: "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E" // NEW WORKING ROUTER
+        newSwapRouter: "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"
     },
     
     // UI Configuration
