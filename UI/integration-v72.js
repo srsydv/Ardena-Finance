@@ -2,7 +2,7 @@
 // This file contains all the Web3 integration logic based on the test patterns
 // UPDATED: Now uses the new working addresses from successful Sepolia deployment
 
-console.log('🚀 LOADING INTEGRATION.JS v=71 - UPDATED WITH WORKING ROUTER!');
+console.log('🚀 LOADING INTEGRATION-V72.JS v=72 - UPDATED WITH WORKING ROUTER!');
 console.log('✅ Using router: 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
 console.log('✅ Using dynamic import for SwapRouter02 artifacts');
 
@@ -1012,19 +1012,12 @@ class VaultIntegration {
             // Use dynamic import for SwapRouter02 artifact (working approach from test)
             let artifact;
             try {
-                // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
-                    const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
-                    artifact = swapRouterModule.default;
-                    console.log('✅ Using dynamic import for SwapRouter02 artifact in invest');
-                } else {
-                    // Browser environment - load from CDN
-                    console.log('Dynamic import not available, loading from CDN for invest...');
-                    const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
-                    if (!response.ok) throw new Error('CDN load failed');
-                    artifact = await response.json();
-                    console.log('✅ Loaded SwapRouter02 artifact from CDN for invest');
-                }
+                // Browser environment - load from CDN (simpler approach)
+                console.log('Loading SwapRouter02 artifact from CDN for invest...');
+                const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
+                if (!response.ok) throw new Error('CDN load failed');
+                artifact = await response.json();
+                console.log('✅ Loaded SwapRouter02 artifact from CDN for invest');
             } catch (error) {
                 console.log('Failed to load artifact for invest, using fallback ABI:', error.message);
                 // Fallback to direct ABI
@@ -1119,19 +1112,12 @@ class VaultIntegration {
             // Use dynamic import for SwapRouter02 artifact (working approach from test)
             let artifact;
             try {
-                // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
-                    const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
-                    artifact = swapRouterModule.default;
-                    console.log('✅ Using dynamic import for SwapRouter02 artifact in harvest');
-                } else {
-                    // Browser environment - load from CDN
-                    console.log('Dynamic import not available, loading from CDN for harvest...');
-                    const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
-                    if (!response.ok) throw new Error('CDN load failed');
-                    artifact = await response.json();
-                    console.log('✅ Loaded SwapRouter02 artifact from CDN for harvest');
-                }
+                // Browser environment - load from CDN (simpler approach)
+                console.log('Loading SwapRouter02 artifact from CDN for harvest...');
+                const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
+                if (!response.ok) throw new Error('CDN load failed');
+                artifact = await response.json();
+                console.log('✅ Loaded SwapRouter02 artifact from CDN for harvest');
             } catch (error) {
                 console.log('Failed to load artifact for harvest, using fallback ABI:', error.message);
                 // Fallback to direct ABI
@@ -1385,19 +1371,12 @@ class VaultIntegration {
             // Use dynamic import for SwapRouter02 artifact (working approach from test)
             let artifact;
             try {
-                // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
-                    const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
-                    artifact = swapRouterModule.default;
-                    console.log('✅ Using dynamic import for SwapRouter02 artifact');
-                } else {
-                    // Browser environment - load from CDN
-                    console.log('Dynamic import not available, loading from CDN...');
-                    const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
-                    if (!response.ok) throw new Error('CDN load failed');
-                    artifact = await response.json();
-                    console.log('✅ Loaded SwapRouter02 artifact from CDN');
-                }
+                // Browser environment - load from CDN (simpler approach)
+                console.log('Loading SwapRouter02 artifact from CDN...');
+                const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
+                if (!response.ok) throw new Error('CDN load failed');
+                artifact = await response.json();
+                console.log('✅ Loaded SwapRouter02 artifact from CDN');
             } catch (error) {
                 console.log('Failed to load artifact, using fallback ABI:', error.message);
                 // Fallback to direct ABI
@@ -1460,3 +1439,5 @@ class VaultIntegration {
 window.VaultIntegration = VaultIntegration;
 console.log('✅ VaultIntegration class exported to window.VaultIntegration');
 console.log('🎯 Ready for wallet connection!');
+console.log('🔍 DEBUG: window.VaultIntegration exists:', typeof window.VaultIntegration);
+console.log('🔍 DEBUG: window.VaultIntegration is function:', typeof window.VaultIntegration === 'function');

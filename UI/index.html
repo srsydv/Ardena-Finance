@@ -1873,9 +1873,9 @@
         }
     </script>
     <!-- Include Configuration -->
-    <script src="config.js"></script>
+    <script src="config.js?v=71&t=1738683000"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js"></script>
+    <script src="integration-v72.js?v=72&t=1738684000"></script>
     
     <script>
         // Global integration instance
@@ -1896,6 +1896,16 @@
             }
             
             console.log('Ethers.js loaded successfully:', typeof ethers);
+            
+            // Check if VaultIntegration class is loaded
+            if (typeof VaultIntegration === 'undefined') {
+                showStatus('VaultIntegration class not loaded. Please refresh the page.', 'error');
+                console.error('VaultIntegration class not found');
+                console.log('Available on window:', Object.keys(window).filter(k => k.includes('Vault')));
+                return;
+            }
+            
+            console.log('VaultIntegration class loaded successfully:', typeof VaultIntegration);
             
             if (typeof window.ethereum !== 'undefined') {
                 vaultIntegration = new VaultIntegration();
@@ -1959,6 +1969,13 @@
                     // Don't return, continue with connection but show warning
                 }
 
+                // Check if VaultIntegration class is available
+                if (typeof VaultIntegration === 'undefined') {
+                    showStatus('VaultIntegration class not loaded. Please refresh the page.', 'error');
+                    console.error('VaultIntegration class not found in connectWallet');
+                    return;
+                }
+                
                 // Initialize integration
                 vaultIntegration = new VaultIntegration();
                 await vaultIntegration.initialize();
