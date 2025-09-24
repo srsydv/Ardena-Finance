@@ -19,24 +19,25 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deployer address:", deployer.address);
     
-    // Contract addresses for NEW AAVE VAULT and AAVE/WETH pool
+    // Contract addresses for NEW AAVE VAULT and NEW AAVE/WETH pool
     const VAULT_ADDRESS = "0x3cd0145707C03316B48f8A254c494600c30ebf8d"; // NEW AAVE VAULT
-    const OLD_STRATEGY_ADDRESS = "0x6B018844b6Edd87f7F6355643fEB5090Da02b209"; // OLD USDC STRATEGY
+    const OLD_STRATEGY_ADDRESS = "0x13C38F2045cbdf4071FfCc086877E19018B865B5"; // OLD AAVE STRATEGY
     const AAVE_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a"; // AAVE TOKEN
-    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762"; // WETH
+    const WETH_ADDRESS = "0x4530fABea7444674a775aBb920924632c669466e"; // NEW WETH TOKEN
     const UNISWAP_POSITION_MANAGER = "0x1238536071E1c677A632429e3655c799b22cDA52";
-    const POOL_ADDRESS = "0x6eFCe0a593782545fe1bE3fF0abce18dC8181a3c"; // AAVE/WETH POOL
+    const POOL_ADDRESS = "0x0E98753e483679703c902a0f574646d3653ad9eA"; // NEW AAVE/WETH POOL
     const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
     const ORACLE_ADDRESS = "0x6EE0A849079A5b63562a723367eAae77F3f5EB21";
     const MATH_ADAPTER_ADDRESS = "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E";
     const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
     
     console.log("\n=== STEP 1: CHECKING CURRENT VAULT STATE ===");
-    console.log("Using NEW AAVE VAULT and AAVE/WETH pool:");
+    console.log("Using NEW AAVE VAULT and NEW AAVE/WETH pool:");
     console.log("- Vault:", VAULT_ADDRESS);
     console.log("- AAVE:", AAVE_ADDRESS);
-    console.log("- WETH:", WETH_ADDRESS);
-    console.log("- Pool:", POOL_ADDRESS);
+    console.log("- NEW WETH:", WETH_ADDRESS);
+    console.log("- NEW Pool:", POOL_ADDRESS);
+    console.log("- Target: 1 WETH = 10 AAVE price");
     
     try {
         const Vault = await ethers.getContractFactory("Vault");

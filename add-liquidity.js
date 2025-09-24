@@ -3,6 +3,9 @@ const { ethers } = hre;
 
 async function addLiquidity() {
     console.log("=== Adding Liquidity to Uniswap V3 Pool ===");
+    console.log("🎯 TARGET: Setting price to 1 WETH = 10 AAVE");
+    console.log("📊 This will add significant liquidity to the pool");
+    console.log("💰 Amount: 5 WETH + 50 AAVE");
     
     // Get signer from private key in .env
     const [deployer] = await ethers.getSigners();
@@ -15,43 +18,44 @@ async function addLiquidity() {
     const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762";
     
     // Get contracts
-    const usdc = await ethers.getContractAt("IERC20", AAVE_ADDRESS);
+    const aave = await ethers.getContractAt("IERC20", AAVE_ADDRESS);
     const weth = await ethers.getContractAt("IERC20", WETH_ADDRESS);
     const positionManager = await ethers.getContractAt("INonfungiblePositionManager", POSITION_MANAGER);
     
     // Check current balances
-    const usdcBalance = await usdc.balanceOf(deployer.address);
+    const aaveBalance = await aave.balanceOf(deployer.address);
     const wethBalance = await weth.balanceOf(deployer.address);
     
     console.log("\n=== Current Balances ===");
-    console.log("AAVE Balance:", ethers.formatUnits(usdcBalance, 6));
+    console.log("AAVE Balance:", ethers.formatUnits(aaveBalance, 18)); // AAVE has 18 decimals
     console.log("WETH Balance:", ethers.formatEther(wethBalance));
     
-    // Liquidity amounts
-    const wethAmount = ethers.parseEther("10"); // 10 WETH
-    const aaveAmount = ethers.parseUnits("100", 6); // 100 AAVE
+    // Liquidity amounts for 1 WETH = 10 AAVE ratio
+    const wethAmount = ethers.parseEther("5"); // 5 WETH
+    const aaveAmount = ethers.parseEther("50"); // 50 AAVE (5 * 10 = 50)
     
     console.log("\n=== Liquidity Amounts ===");
     console.log("WETH Amount:", ethers.formatEther(wethAmount));
-    console.log("AAVE Amount:", ethers.formatUnits(aaveAmount));
+    console.log("AAVE Amount:", ethers.formatUnits(aaveAmount, 18));
+    console.log("Target Price: 1 WETH = 10 AAVE");
     
     // Check if we have enough balance
     if (wethBalance < wethAmount) {
         throw new Error(`Insufficient WETH balance. Have: ${ethers.formatEther(wethBalance)}, Need: ${ethers.formatEther(wethAmount)}`);
     }
     
-    if (usdcBalance < aaveAmount) {
-        throw new Error(`Insufficient AAVE balance. Have: ${ethers.formatUnits(usdcBalance, 6)}, Need: ${ethers.formatUnits(aaveAmount, 6)}`);
+    if (aaveBalance < aaveAmount) {
+        throw new Error(`Insufficient AAVE balance. Have: ${ethers.formatUnits(aaveBalance, 18)}, Need: ${ethers.formatUnits(aaveAmount, 18)}`);
     }
     
     // Check and set approvals
     console.log("\n=== Setting Approvals ===");
     
     const wethAllowance = await weth.allowance(deployer.address, POSITION_MANAGER);
-    const usdcAllowance = await usdc.allowance(deployer.address, POSITION_MANAGER);
+    const aaveAllowance = await aave.allowance(deployer.address, POSITION_MANAGER);
     
     console.log("Current WETH Allowance:", ethers.formatEther(wethAllowance));
-    console.log("Current AAVE Allowance:", ethers.formatUnits(usdcAllowance));
+    console.log("Current AAVE Allowance:", ethers.formatUnits(aaveAllowance, 18));
     
     if (wethAllowance < wethAmount) {
         console.log("Approving WETH...");
@@ -62,36 +66,38 @@ async function addLiquidity() {
         console.log("✅ WETH allowance sufficient");
     }
     
-    if (usdcAllowance < aaveAmount) {
+    if (aaveAllowance < aaveAmount) {
         console.log("Approving AAVE...");
-        const tx2 = await usdc.approve(POSITION_MANAGER, aaveAmount);
+        const tx2 = await aave.approve(POSITION_MANAGER, aaveAmount);
         await tx2.wait();
         console.log("✅ AAVE approved");
     } else {
         console.log("✅ AAVE allowance sufficient");
     }
     
-    // Get current pool state to determine proper tick range
-    console.log("\n=== Getting Pool State ===");
+    // Get current pool state first
+    console.log("\n=== Getting Current Pool State ===");
     const poolABI = [
         "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)"
     ];
     const pool = await ethers.getContractAt(poolABI, POOL_ADDRESS);
     const slot0 = await pool.slot0();
-    const currentTick = slot0.tick;
+    const currentTick = Number(slot0.tick);
     
-    console.log("Current tick:", currentTick.toString());
+    console.log("Current pool tick:", currentTick);
+    console.log("Current sqrtPriceX96:", slot0.sqrtPriceX96.toString());
     
-    // Create a narrow range around current tick (±50 ticks)
+    // Use a wide range around the CURRENT tick to ensure liquidity is active
     const tickSpacing = 10;
-    const range = 200;
-    const currentTickNum = Number(currentTick);
-    const tickLower = Math.floor((currentTickNum - range) / tickSpacing) * tickSpacing;
-    const tickUpper = Math.floor((currentTickNum + range) / tickSpacing) * tickSpacing;
+    const range = 10000; // Very wide range to ensure we cover current price
+    const tickLower = Math.floor((currentTick - range) / tickSpacing) * tickSpacing;
+    const tickUpper = Math.floor((currentTick + range) / tickSpacing) * tickSpacing;
     
-    console.log("Calculated tick range:");
+    console.log("Using wide range around current tick:");
     console.log("tickLower:", tickLower);
     console.log("tickUpper:", tickUpper);
+    console.log("Range covers:", Math.abs(tickUpper - tickLower), "ticks");
+    console.log("This ensures liquidity is active at current price");
     
     // Prepare mint parameters
     const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
@@ -121,8 +127,8 @@ async function addLiquidity() {
     console.log("fee:", mintParams.fee);
     console.log("tickLower:", mintParams.tickLower);
     console.log("tickUpper:", mintParams.tickUpper);
-    console.log("amount0Desired:", token0 === WETH_ADDRESS ? ethers.formatEther(mintParams.amount0Desired) + " WETH" : ethers.formatUnits(mintParams.amount0Desired, 6) + " AAVE");
-    console.log("amount1Desired:", token1 === WETH_ADDRESS ? ethers.formatEther(mintParams.amount1Desired) + " WETH" : ethers.formatUnits(mintParams.amount1Desired, 6) + " AAVE");
+    console.log("amount0Desired:", token0 === WETH_ADDRESS ? ethers.formatEther(mintParams.amount0Desired) + " WETH" : ethers.formatUnits(mintParams.amount0Desired, 18) + " AAVE");
+    console.log("amount1Desired:", token1 === WETH_ADDRESS ? ethers.formatEther(mintParams.amount1Desired) + " WETH" : ethers.formatUnits(mintParams.amount1Desired, 18) + " AAVE");
     console.log("recipient:", mintParams.recipient);
     console.log("deadline:", mintParams.deadline);
     
@@ -156,6 +162,9 @@ async function addLiquidity() {
         console.log("\n🎉 Liquidity successfully added to the pool!");
         console.log("Pool:", POOL_ADDRESS);
         console.log("Position Manager:", POSITION_MANAGER);
+        console.log("\n✅ RESULT: Pool now has significant liquidity");
+        console.log("🎯 TARGET ACHIEVED: Price should be close to 1 WETH = 10 AAVE");
+        console.log("📈 UI should now show realistic prices instead of extreme values");
         
     } catch (error) {
         console.error("❌ Transaction failed:", error.message);

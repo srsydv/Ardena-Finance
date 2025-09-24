@@ -10,32 +10,23 @@ class VaultIntegration {
         this.userAddress = null;
         this.userRole = 'user';
         
-        // Contract addresses (NEW AAVE VAULT SYSTEM)
+        // Contract addresses from DEPLOYEDCONTRACT.me (UPDATED with working addresses)
         this.CONTRACTS = {
-            // NEW AAVE VAULT SYSTEM
-            vault: "0x3cd0145707C03316B48f8A254c494600c30ebf8d", // NEW AAVE VAULT
-            asset: "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a", // AAVE TOKEN
-            weth: "0x4530fABea7444674a775aBb920924632c669466e", // NEW WETH
-            
-            // NEW STRATEGIES
-            aaveStrategy: "0x9362c59c71321c77CaeE86f9Cf02cbBF3b64277D", // NEW AAVEV3STRATEGY
-            uniStrategy: "0x65cDA0b70d3D09139c0a78059082F885714a0Fe7", // NEW AAVE UNISWAPV3STRATEGY
-            
-            // INFRASTRUCTURE (SAME)
+            vault: "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0",
+            usdc: "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8",
+            weth: "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762", // NEW WORKING WETH
+            aaveStrategy: "0xCc02bC41a7AF1A35af4935346cABC7335167EdC9",
+            uniStrategy: "0x6B018844b6Edd87f7F6355643fEB5090Da02b209", // NEW WORKING STRATEGY
             accessController: "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2",
             feeModule: "0x3873DaFa287f80792208c36AcCfC82370428b3DB",
             oracle: "0x6EE0A849079A5b63562a723367eAae77F3f5EB21",
             exchanger: "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF",
             mathAdapter: "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E",
-            
-            // POOLS
-            aaveWethPool: "0x0E98753e483679703c902a0f574646d3653ad9eA", // NEW AAVE/WETH POOL
-            aavePool: "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951", // AAVE V3 POOL
-            
-            // OTHER
+            poolAddress: "0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39", // NEW WORKING POOL
             indexSwap: "0x34C4E1883Ed95aeb100F79bdEe0291F44C214fA2",
             ethUsdAgg: "0x497369979EfAD100F83c509a30F38dfF90d11585",
-            newSwapRouter: "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"
+            // New working addresses
+            newSwapRouter: "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E" // NEW WORKING ROUTER
         };
 
         // Contract ABIs
@@ -131,29 +122,17 @@ class VaultIntegration {
             this.userAddress = await this.signer.getAddress();
             
             console.log('Provider created, user address:', this.userAddress);
-            
-            // Check network
-            const network = await this.provider.getNetwork();
-            console.log('Connected to network:', network.name, 'Chain ID:', network.chainId.toString());
-            
-            if (network.chainId !== 11155111n) {
-                console.warn('⚠️ WARNING: Not connected to Sepolia testnet!');
-                console.warn('Expected Chain ID: 11155111 (Sepolia)');
-                console.warn('Actual Chain ID:', network.chainId.toString());
-                console.warn('Some contracts may not work on this network.');
-            }
-            
             console.log('Using NEW WORKING addresses:');
             console.log('- WETH:', this.CONTRACTS.weth);
             console.log('- UniswapV3Strategy:', this.CONTRACTS.uniStrategy);
-            console.log('- Pool:', this.CONTRACTS.aaveWethPool);
+            console.log('- Pool:', this.CONTRACTS.poolAddress);
             console.log('- SwapRouter:', this.CONTRACTS.newSwapRouter);
             console.log('🔍 VERIFICATION: Router should be 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             console.log('🔍 VERIFICATION: Router matches expected:', this.CONTRACTS.newSwapRouter === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
 
             // Initialize contracts
             this.contracts.vault = new ethers.Contract(this.CONTRACTS.vault, this.ABIS.vault, this.signer);
-            this.contracts.asset = new ethers.Contract(this.CONTRACTS.asset, this.ABIS.erc20, this.signer);
+            this.contracts.usdc = new ethers.Contract(this.CONTRACTS.usdc, this.ABIS.erc20, this.signer);
             this.contracts.weth = new ethers.Contract(this.CONTRACTS.weth, this.ABIS.erc20, this.signer);
             this.contracts.accessController = new ethers.Contract(this.CONTRACTS.accessController, this.ABIS.accessController, this.signer);
             this.contracts.feeModule = new ethers.Contract(this.CONTRACTS.feeModule, this.ABIS.feeModule, this.provider);
@@ -288,7 +267,7 @@ class VaultIntegration {
                 strategies.push({
                     address: strategyAddress,
                     allocation: Number(allocation) / 100,
-                    totalAssets: ethers.formatUnits(totalAssets, 18), // AAVE has 18 decimals
+                    totalAssets: ethers.formatUnits(totalAssets, 6),
                     name: strategyName
                 });
 
@@ -296,8 +275,8 @@ class VaultIntegration {
             }
 
             // Get idle funds from vault contract
-            const vaultBalance = await this.contracts.asset.balanceOf(this.CONTRACTS.vault);
-            const formattedBalance = ethers.formatUnits(vaultBalance, 18);
+            const vaultBalance = await this.contracts.usdc.balanceOf(this.CONTRACTS.vault);
+            const formattedBalance = ethers.formatUnits(vaultBalance, 6);
 
             return {
                 strategies,
@@ -341,63 +320,32 @@ class VaultIntegration {
             }
 
             console.log('=== GETTING TOKEN PRICE ===');
-            console.log('Pool address:', this.CONTRACTS.aaveWethPool);
-            console.log('Provider:', this.provider);
             
-            // Test provider connection
-            try {
-                const network = await this.provider.getNetwork();
-                console.log('✅ Provider connected to network:', network.name, network.chainId);
-            } catch (error) {
-                console.error('❌ Provider connection failed:', error.message);
-                throw new Error(`Provider connection failed: ${error.message}`);
-            }
-            
-            // Get the Uniswap V3 pool to read current balances directly
+            // Get the Uniswap V3 pool to read current price
             const poolABI = [
+                "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
                 "function token0() external view returns (address)",
                 "function token1() external view returns (address)",
                 "function fee() external view returns (uint24)"
             ];
             
-            const pool = new ethers.Contract(this.CONTRACTS.aaveWethPool, poolABI, this.provider);
-            console.log('Pool contract created:', pool.target);
+            const pool = new ethers.Contract(this.CONTRACTS.poolAddress, poolABI, this.provider);
             
-            // Try to get pool info with individual calls and error handling
-            let token0, token1, fee;
+            // Get pool state
+            const [slot0, token0, token1, fee] = await Promise.all([
+                pool.slot0(),
+                pool.token0(),
+                pool.token1(),
+                pool.fee()
+            ]);
             
-            try {
-                console.log('Calling pool.token0()...');
-                token0 = await pool.token0();
-                console.log('✅ token0 result:', token0);
-            } catch (error) {
-                console.error('❌ Failed to get token0:', error.message);
-                throw new Error(`Failed to get token0 from pool: ${error.message}`);
-            }
-            
-            try {
-                console.log('Calling pool.token1()...');
-                token1 = await pool.token1();
-                console.log('✅ token1 result:', token1);
-            } catch (error) {
-                console.error('❌ Failed to get token1:', error.message);
-                throw new Error(`Failed to get token1 from pool: ${error.message}`);
-            }
-            
-            try {
-                console.log('Calling pool.fee()...');
-                fee = await pool.fee();
-                console.log('✅ fee result:', fee.toString());
-            } catch (error) {
-                console.error('❌ Failed to get fee:', error.message);
-                throw new Error(`Failed to get fee from pool: ${error.message}`);
-            }
-            
+            const sqrtPriceX96 = slot0.sqrtPriceX96;
+            console.log('Pool sqrtPriceX96:', sqrtPriceX96.toString());
             console.log('Token0:', token0);
             console.log('Token1:', token1);
             console.log('Pool fee:', fee.toString());
             
-            // Get token contracts and info
+            // Get token decimals
             const token0Contract = new ethers.Contract(token0, this.ABIS.erc20, this.provider);
             const token1Contract = new ethers.Contract(token1, this.ABIS.erc20, this.provider);
             
@@ -408,61 +356,46 @@ class VaultIntegration {
                 token1Contract.symbol()
             ]);
             
-            // Use the actual decimals from the contract (AAVE has 18 decimals)
-            let actualToken0Decimals = token0Decimals;
-            let actualToken1Decimals = token1Decimals;
-            
             console.log('Token0:', token0Symbol, 'decimals:', token0Decimals);
             console.log('Token1:', token1Symbol, 'decimals:', token1Decimals);
             
-            // Get actual pool balances to calculate price directly
-            const poolAddress = this.CONTRACTS.aaveWethPool;
-            const [token0Balance, token1Balance] = await Promise.all([
-                token0Contract.balanceOf(poolAddress),
-                token1Contract.balanceOf(poolAddress)
-            ]);
+            // Calculate price from sqrtPriceX96 using the correct Uniswap V3 formula
+            // This follows the exact pattern from the working test file
+            const Q96 = 1n << 96n;
+            const Q192 = Q96 * Q96;
+            const sp = sqrtPriceX96;
+            const sp2 = sp * sp; // price in Q64.96^2
+            const ONE18 = 10n ** 18n;
             
-            const token0BalanceFormatted = ethers.formatUnits(token0Balance, actualToken0Decimals);
-            const token1BalanceFormatted = ethers.formatUnits(token1Balance, actualToken1Decimals);
+            console.log('sqrtPriceX96:', sp.toString());
+            console.log('sp2 (price in Q64.96^2):', sp2.toString());
+            console.log('Token0 (WETH):', token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase());
+            console.log('Token1 (USDC):', token1.toLowerCase() === this.CONTRACTS.usdc.toLowerCase());
             
-            console.log('Pool balances:');
-            console.log(`${token0Symbol}:`, token0BalanceFormatted, `(using ${actualToken0Decimals} decimals)`);
-            console.log(`${token1Symbol}:`, token1BalanceFormatted, `(using ${actualToken1Decimals} decimals)`);
-            
-            console.log('⚠️  WARNING: Pool balance seems very low!');
-            console.log('This might indicate the pool has very little liquidity or there\'s an issue with the pool address.');
-            console.log('Raw balances:');
-            console.log(`${token0Symbol} raw:`, token0Balance.toString());
-            console.log(`${token1Symbol} raw:`, token1Balance.toString());
-            
-            // Calculate price based on actual balances
-            let aavePerWeth;
-            if (token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase()) {
-                // token0=WETH, token1=AAVE
-                aavePerWeth = parseFloat(token1BalanceFormatted) / parseFloat(token0BalanceFormatted);
-                console.log('Case: token0=WETH, token1=AAVE');
-                console.log(`AAVE balance: ${token1BalanceFormatted}, WETH balance: ${token0BalanceFormatted}`);
-                console.log('Using direct balance calculation: AAVE/WETH =', aavePerWeth);
+            // Calculate USDC per 1 WETH at 1e18 scale (following working test pattern)
+            let usdcPerWeth1e18;
+            if (token0.toLowerCase() === this.CONTRACTS.usdc.toLowerCase()) {
+                // token0=USDC(6), token1=WETH(18) → price(token0/token1)
+                const scale = 10n ** BigInt(Number(token1Decimals) - Number(token0Decimals)); // 10^(18-6)=1e12
+                usdcPerWeth1e18 = (Q192 * scale * ONE18) / sp2;
+                console.log('Case 1: token0=USDC, scale:', scale.toString());
             } else {
-                // token0=AAVE, token1=WETH  
-                aavePerWeth = parseFloat(token0BalanceFormatted) / parseFloat(token1BalanceFormatted);
-                console.log('Case: token0=AAVE, token1=WETH');
-                console.log(`AAVE balance: ${token0BalanceFormatted}, WETH balance: ${token1BalanceFormatted}`);
-                console.log('Using direct balance calculation: AAVE/WETH =', aavePerWeth);
+                // token0=WETH(18), token1=USDC(6) → price(token1/token0)
+                const scale = 10n ** BigInt(Number(token0Decimals) - Number(token1Decimals)); // 10^(18-6)=1e12
+                usdcPerWeth1e18 = (sp2 * scale * ONE18) / Q192;
+                console.log('Case 2: token0=WETH, scale:', scale.toString());
             }
             
-            // Validate the calculation makes sense
-            console.log('=== PRICE VALIDATION ===');
-            console.log('Expected: ~2.16 AAVE per WETH (based on 21.61 AAVE / 9.99 WETH)');
-            console.log('Calculated:', aavePerWeth.toFixed(6), 'AAVE per WETH');
-            console.log('Price looks reasonable:', aavePerWeth > 1 && aavePerWeth < 10 ? 'YES' : 'NO');
+            console.log('usdcPerWeth1e18:', usdcPerWeth1e18.toString());
             
-            console.log('Final calculation: 1 WETH =', aavePerWeth.toFixed(6), 'AAVE');
+            // Convert to readable format (USDC has 6 decimals)
+            const priceInUSDC = Number(usdcPerWeth1e18) / (10 ** 18); // Convert from 1e18 scale to normal scale
+            console.log('Final 1 WETH =', priceInUSDC.toFixed(6), 'USDC');
             
             return {
-                wethToAave: aavePerWeth.toFixed(6),
-                aaveToWeth: (1 / aavePerWeth).toFixed(8),
-                poolAddress: this.CONTRACTS.aaveWethPool,
+                wethToUsdc: priceInUSDC.toFixed(6),
+                usdcToWeth: (1 / priceInUSDC).toFixed(8),
+                poolAddress: this.CONTRACTS.poolAddress,
                 token0: token0,
                 token1: token1,
                 token0Symbol: token0Symbol,
@@ -470,28 +403,10 @@ class VaultIntegration {
                 poolFee: fee.toString()
             };
             
-            } catch (error) {
-                console.error('Error getting token price:', error);
-                
-                // Fallback: Use known values from our pool verification
-                console.log('=== USING FALLBACK VALUES ===');
-                console.log('Pool address:', this.CONTRACTS.aaveWethPool);
-                
-                // From our pool verification: 1 WETH = 11.501862 AAVE
-                const fallbackAavePerWeth = 11.501862;
-                
-                return {
-                    wethToAave: fallbackAavePerWeth.toFixed(6),
-                    aaveToWeth: (1 / fallbackAavePerWeth).toFixed(8),
-                    poolAddress: this.CONTRACTS.aaveWethPool,
-                    token0: "0x4530fABea7444674a775aBb920924632c669466e", // NEW WETH
-                    token1: "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a", // AAVE
-                    token0Symbol: "WETH",
-                    token1Symbol: "AAVE",
-                    poolFee: "500",
-                    isFallback: true
-                };
-            }
+        } catch (error) {
+            console.error('Error getting token price:', error);
+            throw error;
+        }
     }
 
     async getUserFeeEarnings() {
@@ -508,9 +423,9 @@ class VaultIntegration {
             const totalSupply = await this.contracts.vault.totalSupply();
             const totalAssets = await this.contracts.vault.totalAssets();
             
-            console.log('User shares:', ethers.formatUnits(userShares, 18));
-            console.log('Total supply:', ethers.formatUnits(totalSupply, 18));
-            console.log('Total assets:', ethers.formatUnits(totalAssets, 18));
+            console.log('User shares:', ethers.formatUnits(userShares, 6));
+            console.log('Total supply:', ethers.formatUnits(totalSupply, 6));
+            console.log('Total assets:', ethers.formatUnits(totalAssets, 6));
             
             if (totalSupply === 0n) {
                 return {
@@ -535,7 +450,7 @@ class VaultIntegration {
             // Real earnings would require tracking historical data
             
             // 1. Trading fees from Uniswap V3 strategy (both WETH and USDC)
-            let actualTradingFeesAAVEBigInt = 0n;
+            let actualTradingFeesUSDCBigInt = 0n;
             let actualTradingFeesWETHBigInt = 0n;
             try {
                 const strategiesLength = await this.contracts.vault.strategiesLength();
@@ -631,54 +546,54 @@ class VaultIntegration {
                         console.log('Position token0:', token0);
                         console.log('Position token1:', token1);
                         console.log('Contract WETH:', this.CONTRACTS.weth);
-                        console.log('Contract AAVE:', this.CONTRACTS.asset);
+                        console.log('Contract USDC:', this.CONTRACTS.usdc);
                         console.log('Token0 is WETH:', token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase());
                         console.log('Token1 is WETH:', token1.toLowerCase() === this.CONTRACTS.weth.toLowerCase());
-                        console.log('Token0 is AAVE:', token0.toLowerCase() === this.CONTRACTS.asset.toLowerCase());
-                        console.log('Token1 is AAVE:', token1.toLowerCase() === this.CONTRACTS.asset.toLowerCase());
+                        console.log('Token0 is USDC:', token0.toLowerCase() === this.CONTRACTS.usdc.toLowerCase());
+                        console.log('Token1 is USDC:', token1.toLowerCase() === this.CONTRACTS.usdc.toLowerCase());
                         
-                        let wethOwed, aaveOwed;
+                        let wethOwed, usdcOwed;
                         if (token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase()) {
                             wethOwed = tokensOwed0;
-                            aaveOwed = tokensOwed1;
+                            usdcOwed = tokensOwed1;
                             console.log('Token0 is WETH - assigning tokensOwed0 to WETH');
                         } else if (token1.toLowerCase() === this.CONTRACTS.weth.toLowerCase()) {
                             wethOwed = tokensOwed1;
-                            aaveOwed = tokensOwed0;
+                            usdcOwed = tokensOwed0;
                             console.log('Token1 is WETH - assigning tokensOwed1 to WETH');
                         } else {
-                            // Fallback: assume token0 is AAVE, token1 is WETH
+                            // Fallback: assume token0 is USDC, token1 is WETH
                             wethOwed = tokensOwed1;
-                            aaveOwed = tokensOwed0;
-                            console.log('Fallback: assuming token0=AAVE, token1=WETH');
+                            usdcOwed = tokensOwed0;
+                            console.log('Fallback: assuming token0=USDC, token1=WETH');
                         }
                         
                         console.log('Final WETH fees owed:', ethers.formatEther(wethOwed), 'WETH');
-                        console.log('Final AAVE fees owed:', ethers.formatUnits(aaveOwed, 18), 'AAVE');
+                        console.log('Final USDC fees owed:', ethers.formatUnits(usdcOwed, 6), 'USDC');
                         
                         // Calculate user's share of the actual trading fees
                         actualTradingFeesWETHBigInt = (wethOwed * userShares) / totalSupply;
-                        actualTradingFeesAAVEBigInt = (aaveOwed * userShares) / totalSupply;
+                        actualTradingFeesUSDCBigInt = (usdcOwed * userShares) / totalSupply;
                         
                         console.log('User share of WETH trading fees:', ethers.formatEther(actualTradingFeesWETHBigInt), 'WETH');
-                        console.log('User share of AAVE trading fees:', ethers.formatUnits(actualTradingFeesAAVEBigInt, 18), 'AAVE');
+                        console.log('User share of USDC trading fees:', ethers.formatUnits(actualTradingFeesUSDCBigInt, 6), 'USDC');
                         
                         // If fees are very low, apply a small multiplier to account for uncollected fees
-                        if (actualTradingFeesAAVEBigInt < 1000000000000000000n && actualTradingFeesWETHBigInt < 1000000000000000n) {
+                        if (actualTradingFeesUSDCBigInt < 1000n && actualTradingFeesWETHBigInt < 1000000000000000n) {
                             console.log('=== APPLYING SMALL MULTIPLIER FOR UNCOLLECTED FEES ===');
                             
                             // Small multiplier to account for fees that haven't been collected yet
                             const smallMultiplier = 5n; // 5x multiplier (much more reasonable)
                             
-                            const multipliedAAVE = (aaveOwed * smallMultiplier * userShares) / totalSupply;
+                            const multipliedUSDC = (usdcOwed * smallMultiplier * userShares) / totalSupply;
                             const multipliedWETH = (wethOwed * smallMultiplier * userShares) / totalSupply;
                             
                             console.log('Small multiplier:', smallMultiplier.toString());
-                            console.log('Multiplied AAVE fees:', ethers.formatUnits(multipliedAAVE, 18));
+                            console.log('Multiplied USDC fees:', ethers.formatUnits(multipliedUSDC, 6));
                             console.log('Multiplied WETH fees:', ethers.formatEther(multipliedWETH));
                             
                             // Use the multiplied values
-                            actualTradingFeesAAVEBigInt = multipliedAAVE;
+                            actualTradingFeesUSDCBigInt = multipliedUSDC;
                             actualTradingFeesWETHBigInt = multipliedWETH;
                             
                             console.log('Using small multiplier approach');
@@ -697,34 +612,34 @@ class VaultIntegration {
             // Convert fee rate to basis points: feeInfo.managementFee is already a decimal (e.g., 0.02 for 2%)
             const managementFeeBps = BigInt(Math.floor(feeInfo.managementFee * 10000)); // Convert to basis points
             const estimatedManagementFeesBigInt = (totalAssets * managementFeeBps * userShares) / (10000n * totalSupply);
-            console.log('Estimated annual management fees:', ethers.formatUnits(estimatedManagementFeesBigInt, 18), 'AAVE');
+            console.log('Estimated annual management fees:', ethers.formatUnits(estimatedManagementFeesBigInt, 6), 'USDC');
             
             // 3. Performance fees (on profits) - using BigInt arithmetic
             // Assume 5% profit: performanceFees = totalAssets * 0.05 * performanceFeeRate * userSharePercentage
             const profitBps = 500n; // 5% profit in basis points
             const performanceFeeBps = BigInt(Math.floor(feeInfo.performanceFee * 10000)); // Convert to basis points
             const estimatedPerformanceFeesBigInt = (totalAssets * profitBps * performanceFeeBps * userShares) / (10000n * 10000n * totalSupply);
-            console.log('Estimated performance fees:', ethers.formatUnits(estimatedPerformanceFeesBigInt, 18), 'AAVE');
+            console.log('Estimated performance fees:', ethers.formatUnits(estimatedPerformanceFeesBigInt, 6), 'USDC');
             
             // Total estimated fee earnings (USDC equivalent for display)
-            const totalEstimatedEarningsBigInt = actualTradingFeesAAVEBigInt + estimatedManagementFeesBigInt + estimatedPerformanceFeesBigInt;
+            const totalEstimatedEarningsBigInt = actualTradingFeesUSDCBigInt + estimatedManagementFeesBigInt + estimatedPerformanceFeesBigInt;
             
             return {
                 userSharePercentage: userSharePercentage * 100,
-                estimatedFeeEarnings: ethers.formatUnits(totalEstimatedEarningsBigInt, 18),
+                estimatedFeeEarnings: ethers.formatUnits(totalEstimatedEarningsBigInt, 6),
                 
                 // Actual trading fees in both tokens (from Uniswap V3 position)
-                estimatedTradingFeesAAVE: ethers.formatUnits(actualTradingFeesAAVEBigInt, 18),
+                estimatedTradingFeesUSDC: ethers.formatUnits(actualTradingFeesUSDCBigInt, 6),
                 estimatedTradingFeesWETH: ethers.formatEther(actualTradingFeesWETHBigInt),
                 
-                // Management and performance fees (in AAVE)
-                estimatedManagementFees: ethers.formatUnits(estimatedManagementFeesBigInt, 18),
-                estimatedPerformanceFees: ethers.formatUnits(estimatedPerformanceFeesBigInt, 18),
+                // Management and performance fees (in USDC)
+                estimatedManagementFees: ethers.formatUnits(estimatedManagementFeesBigInt, 6),
+                estimatedPerformanceFees: ethers.formatUnits(estimatedPerformanceFeesBigInt, 6),
                 
                 // Vault statistics
-                userShares: ethers.formatUnits(userShares, 18),
-                totalSupply: ethers.formatUnits(totalSupply, 18),
-                totalAssets: ethers.formatUnits(totalAssets, 18)
+                userShares: ethers.formatUnits(userShares, 6),
+                totalSupply: ethers.formatUnits(totalSupply, 6),
+                totalAssets: ethers.formatUnits(totalAssets, 6)
             };
             
         } catch (error) {
@@ -739,14 +654,14 @@ class VaultIntegration {
             console.log('Amount:', amount);
             console.log('User address:', this.userAddress);
             console.log('Vault address:', this.CONTRACTS.vault);
-            console.log('AAVE address:', this.CONTRACTS.asset);
+            console.log('USDC address:', this.CONTRACTS.usdc);
             
-            const amountWei = ethers.parseUnits(amount, 18);
+            const amountWei = ethers.parseUnits(amount, 6);
             console.log('Amount in wei:', amountWei.toString());
 
             // Check allowance
-            console.log('Checking AAVE allowance...');
-            const allowance = await this.contracts.asset.allowance(this.userAddress, this.CONTRACTS.vault);
+            console.log('Checking USDC allowance...');
+            const allowance = await this.contracts.usdc.allowance(this.userAddress, this.CONTRACTS.vault);
             console.log('Current allowance:', allowance.toString());
             console.log('Allowance type:', typeof allowance);
             console.log('AmountWei type:', typeof amountWei);
@@ -759,8 +674,8 @@ class VaultIntegration {
             console.log('AmountWei BigInt:', amountWeiBigInt.toString());
             
             if (allowanceBigInt < amountWeiBigInt) {
-                console.log('Setting AAVE allowance...');
-                const approveTx = await this.contracts.asset.approve(this.CONTRACTS.vault, amountWei);
+                console.log('Setting USDC allowance...');
+                const approveTx = await this.contracts.usdc.approve(this.CONTRACTS.vault, amountWei);
                 console.log('Approval transaction sent:', approveTx.hash);
                 await approveTx.wait();
                 console.log('Approval transaction confirmed');
@@ -802,7 +717,7 @@ class VaultIntegration {
 
     async withdraw(shares) {
         try {
-            const sharesWei = ethers.parseUnits(shares, 18); // AAVE vault uses 18 decimals
+            const sharesWei = ethers.parseUnits(shares, 6);
 
             // Create empty swap data for withdrawal
             const allSwapData = [[], []]; // Empty arrays for both strategies
@@ -845,7 +760,7 @@ class VaultIntegration {
             }
             
             // Get current idle amount
-            const idleAmount = await this.contracts.asset.balanceOf(this.CONTRACTS.vault);
+            const idleAmount = await this.contracts.usdc.balanceOf(this.CONTRACTS.vault);
             console.log('Idle amount in vault:', idleAmount.toString());
             
             if (idleAmount == 0) {
@@ -996,7 +911,7 @@ class VaultIntegration {
             
             // For UniswapV3, swap half to WETH (like in vault.e2e.test.js)
             const amountIn = toUniStrategy / 2n;
-            console.log('Amount to swap (AAVE -> WETH):', amountIn.toString());
+            console.log('Amount to swap (USDC -> WETH):', amountIn.toString());
 
             // Uniswap V3 Router address (SwapRouter02) - NEW WORKING ROUTER
             const UNISWAP_V3_ROUTER = this.CONTRACTS.newSwapRouter; // Use new working router
@@ -1005,17 +920,16 @@ class VaultIntegration {
             console.log('🔍 DEBUG: Router addresses match:', UNISWAP_V3_ROUTER === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             const poolFee = 500; // 0.05% fee tier
 
-            // Use dynamic import for SwapRouter02 artifact (working approach from test)
+            // Browser-compatible require for Uniswap artifact (same as performSwap)
             let artifact;
             try {
-                // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
-                    const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
-                    artifact = swapRouterModule.default;
-                    console.log('✅ Using dynamic import for SwapRouter02 artifact in invest');
+                // Try to use require if available (Node.js environment)
+                if (typeof require !== 'undefined') {
+                    artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+                    console.log('✅ Using require() for SwapRouter02 artifact in invest');
                 } else {
                     // Browser environment - load from CDN
-                    console.log('Dynamic import not available, loading from CDN for invest...');
+                    console.log('require() not available, loading from CDN for invest...');
                     const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
                     if (!response.ok) throw new Error('CDN load failed');
                     artifact = await response.json();
@@ -1039,7 +953,7 @@ class VaultIntegration {
 
             // Create exactInputSingle parameters - exactly like test
             const params = {
-                tokenIn: this.CONTRACTS.asset, // AAVE instead of USDC
+                tokenIn: this.CONTRACTS.usdc,
                 tokenOut: this.CONTRACTS.weth,
                 fee: poolFee,
                 recipient: this.CONTRACTS.uniStrategy, // deliver WETH to the strategy
@@ -1070,7 +984,7 @@ class VaultIntegration {
                 ],
                 [
                     UNISWAP_V3_ROUTER,
-                    this.CONTRACTS.asset, // AAVE instead of USDC
+                    this.CONTRACTS.usdc,
                     this.CONTRACTS.weth,
                     amountIn,
                     0n,
@@ -1112,17 +1026,16 @@ class VaultIntegration {
             console.log('🔍 DEBUG HARVEST: Router addresses match:', UNISWAP_V3_ROUTER === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             const poolFee = 500; // 0.05% fee tier
 
-            // Use dynamic import for SwapRouter02 artifact (working approach from test)
+            // Browser-compatible require for Uniswap artifact (same as performSwap and invest)
             let artifact;
             try {
-                // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
-                    const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
-                    artifact = swapRouterModule.default;
-                    console.log('✅ Using dynamic import for SwapRouter02 artifact in harvest');
+                // Try to use require if available (Node.js environment)
+                if (typeof require !== 'undefined') {
+                    artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+                    console.log('✅ Using require() for SwapRouter02 artifact in harvest');
                 } else {
                     // Browser environment - load from CDN
-                    console.log('Dynamic import not available, loading from CDN for harvest...');
+                    console.log('require() not available, loading from CDN for harvest...');
                     const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
                     if (!response.ok) throw new Error('CDN load failed');
                     artifact = await response.json();
@@ -1143,12 +1056,12 @@ class VaultIntegration {
             // Get deadline (20 minutes from now)
             const deadline = Math.floor(Date.now() / 1000) + 1200;
 
-            // Create exactInputSingle parameters for WETH -> AAVE
+            // Create exactInputSingle parameters for WETH -> USDC
             const params = {
                 tokenIn: this.CONTRACTS.weth,
-                tokenOut: this.CONTRACTS.asset, // AAVE instead of USDC
+                tokenOut: this.CONTRACTS.usdc,
                 fee: poolFee,
-                recipient: this.CONTRACTS.uniStrategy, // deliver AAVE to the strategy
+                recipient: this.CONTRACTS.uniStrategy, // deliver USDC to the strategy
                 deadline: deadline,
                 amountIn: wethBalance,
                 amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
@@ -1177,7 +1090,7 @@ class VaultIntegration {
                 [
                     UNISWAP_V3_ROUTER,
                     this.CONTRACTS.weth,
-                    this.CONTRACTS.asset, // AAVE instead of USDC
+                    this.CONTRACTS.usdc,
                     wethBalance,
                     0, // minOut
                     this.CONTRACTS.uniStrategy,
@@ -1300,7 +1213,7 @@ class VaultIntegration {
             console.log('Amount:', amount);
 
             // Token addresses
-            const AAVE_ADDRESS = this.CONTRACTS.asset;
+            const USDC_ADDRESS = this.CONTRACTS.usdc;
             const WETH_ADDRESS = this.CONTRACTS.weth;
             const SWAP_ROUTER = this.CONTRACTS.newSwapRouter;
             const POOL_FEE = 500; // 0.05% fee tier
@@ -1308,16 +1221,16 @@ class VaultIntegration {
 
             // Determine token addresses
             let tokenIn, tokenOut, tokenInDecimals, tokenOutDecimals;
-            if (fromToken === 'AAVE') {
-                tokenIn = AAVE_ADDRESS;
+            if (fromToken === 'USDC') {
+                tokenIn = USDC_ADDRESS;
                 tokenOut = WETH_ADDRESS;
-                tokenInDecimals = 18; // AAVE has 18 decimals
+                tokenInDecimals = 6;
                 tokenOutDecimals = 18;
             } else {
                 tokenIn = WETH_ADDRESS;
-                tokenOut = AAVE_ADDRESS;
+                tokenOut = USDC_ADDRESS;
                 tokenInDecimals = 18;
-                tokenOutDecimals = 18; // AAVE has 18 decimals
+                tokenOutDecimals = 6;
             }
 
             console.log('Token In:', tokenIn);
@@ -1373,22 +1286,21 @@ class VaultIntegration {
             const wethBalance = await wethContract.balanceOf(this.userAddress);
             console.log('User WETH balance:', ethers.formatEther(wethBalance), 'WETH');
 
-            // Check if user has any AAVE at all (for debugging)
-            const aaveContract = new ethers.Contract(AAVE_ADDRESS, this.ABIS.erc20, this.signer);
-            const aaveBalance = await aaveContract.balanceOf(this.userAddress);
-            console.log('User AAVE balance:', ethers.formatUnits(aaveBalance, 18), 'AAVE');
+            // Check if user has any USDC at all (for debugging)
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, this.ABIS.erc20, this.signer);
+            const usdcBalance = await usdcContract.balanceOf(this.userAddress);
+            console.log('User USDC balance:', ethers.formatUnits(usdcBalance, 6), 'USDC');
 
-            // Use dynamic import for SwapRouter02 artifact (working approach from test)
+            // Browser-compatible require for Uniswap artifact
             let artifact;
             try {
-                // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
-                    const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
-                    artifact = swapRouterModule.default;
-                    console.log('✅ Using dynamic import for SwapRouter02 artifact');
+                // Try to use require if available (Node.js environment)
+                if (typeof require !== 'undefined') {
+                    artifact = require("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json");
+                    console.log('✅ Using require() for SwapRouter02 artifact');
                 } else {
                     // Browser environment - load from CDN
-                    console.log('Dynamic import not available, loading from CDN...');
+                    console.log('require() not available, loading from CDN...');
                     const response = await fetch('https://unpkg.com/@uniswap/swap-router-contracts@latest/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json');
                     if (!response.ok) throw new Error('CDN load failed');
                     artifact = await response.json();

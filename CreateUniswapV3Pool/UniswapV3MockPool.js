@@ -40,7 +40,7 @@ const IUniswapV3FactoryABI = [
 
 const INonfungiblePositionManagerABI = [
   "function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96) returns (address pool)",
-  "function mint((address,address,uint24,int24,int24,uint256,uint256,uint256,uint256,address,uint256)) returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)",
+  "function mint((address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint256 amount0Desired, uint256 amount1Desired, uint256 amount0Min, uint256 amount1Min, address recipient, uint256 deadline)) returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)",
 ];
 
 const IUniswapV3PoolABI = [
@@ -57,6 +57,8 @@ const ERC20_META = [
   "function decimals() view returns (uint8)",
   "function approve(address,uint256) returns (bool)",
   "function balanceOf(address) view returns (uint256)",
+  "function mint(address to, uint256 amount) returns (bool)",
+  "function owner() view returns (address)",
 ];
 
 const WETH9_ABI = [
@@ -100,7 +102,7 @@ function encodeSqrtPriceX96ByAmounts(amount1, amount0) {
 async function main() {
   const [deployer] = await ethers.getSigners();
 
-  const WETH = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762";
+  const WETH = "0x4530fABea7444674a775aBb920924632c669466e"; // NEW WETH address
   const AAVE = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a"
   if (!WETH || !AAVE) {
     throw new Error(
@@ -121,9 +123,9 @@ async function main() {
     );
 
   const FEE = 500; // 500=0.05%, 3000=0.3%, 10000=1%
-  const INIT_AAVE_PER_WETH = 2; // human price
-  const SEED_AAVE = envBigInt("SEED_AAVE", undefined); // in 10^6
-  const SEED_WETH_WEI = envBigInt("SEED_WETH_WEI", undefined); // in wei
+  const INIT_AAVE_PER_WETH = 10; // 1 WETH = 10 AAVE
+  const SEED_AAVE = envBigInt("SEED_AAVE", "50000000000000000000"); // 50 AAVE (18 decimals)
+  const SEED_WETH_WEI = envBigInt("SEED_WETH_WEI", "5000000000000000000"); // 5 WETH (18 decimals)
   const WRAP_ETH_WEI = envBigInt("WRAP_ETH_WEI", "0");
 
   const factory = await ethers.getContractAt(
@@ -152,23 +154,86 @@ async function main() {
   ]);
 
   // initial price amounts in smallest units matching token order
-  const usdcPerWeth = BigInt(INIT_AAVE_PER_WETH);
+  const aavePerWeth = BigInt(INIT_AAVE_PER_WETH);
   let amount0; // for token0
   let amount1; // for token1
   if (t0.toLowerCase() === AAVE.toLowerCase()) {
-    // token0=AAVE(6), token1=WETH(18): 1 WETH = P AAVE → amount0= P AAVE, amount1= 1 WETH
-    amount0 = usdcPerWeth * 10n ** 6n;
+    // token0=AAVE(18), token1=WETH(18): 1 WETH = P AAVE → amount0= P AAVE, amount1= 1 WETH
+    amount0 = aavePerWeth * 10n ** 18n;
     amount1 = 1n * 10n ** 18n;
   } else {
-    // token0=WETH(18), token1=AAVE(6)
+    // token0=WETH(18), token1=AAVE(18): 1 WETH = P AAVE → amount0= 1 WETH, amount1= P AAVE
     amount0 = 1n * 10n ** 18n;
-    amount1 = usdcPerWeth * 10n ** 6n;
+    amount1 = aavePerWeth * 10n ** 18n;
   }
 
   const sqrtPriceX96 = encodeSqrtPriceX96ByAmounts(amount1, amount0);
 
   // create & initialize
-  console.log("Creating and initializing pool...");
+  console.log("\n=== POOL CONFIGURATION ===");
+  console.log("WETH Address:", WETH);
+  console.log("AAVE Address:", AAVE);
+  console.log("Target Price: 1 WETH =", INIT_AAVE_PER_WETH, "AAVE");
+  console.log("Seed Liquidity: 5 WETH + 50 AAVE");
+  console.log("Fee Tier:", FEE, "(0.05%)");
+  
+  // Check and mint tokens if needed
+  console.log("\n=== CHECKING TOKEN BALANCES ===");
+  const [wethContract, aaveContract] = await Promise.all([
+    ethers.getContractAt(ERC20_META, WETH),
+    ethers.getContractAt(ERC20_META, AAVE)
+  ]);
+  
+  const [wethBalance, aaveBalance] = await Promise.all([
+    wethContract.balanceOf(deployer.address),
+    aaveContract.balanceOf(deployer.address)
+  ]);
+  
+  const requiredWETH = ethers.parseUnits("5", 18); // 5 WETH
+  const requiredAAVE = ethers.parseUnits("50", 18); // 50 AAVE
+  
+  console.log("Current WETH Balance:", ethers.formatUnits(wethBalance, 18));
+  console.log("Current AAVE Balance:", ethers.formatUnits(aaveBalance, 18));
+  console.log("Required WETH:", ethers.formatUnits(requiredWETH, 18));
+  console.log("Required AAVE:", ethers.formatUnits(requiredAAVE, 18));
+  
+  // Mint WETH if needed
+  if (wethBalance < requiredWETH) {
+    const mintAmount = requiredWETH + ethers.parseUnits("5", 18); // Mint extra for gas
+    console.log("\n=== MINTING WETH TOKENS ===");
+    console.log("Minting", ethers.formatUnits(mintAmount, 18), "WETH...");
+    
+    try {
+      const mintTx = await wethContract.mint(deployer.address, mintAmount);
+      await mintTx.wait();
+      console.log("✅ WETH tokens minted successfully!");
+    } catch (error) {
+      console.error("❌ Failed to mint WETH:", error.message);
+      throw error;
+    }
+  } else {
+    console.log("✅ Sufficient WETH balance");
+  }
+  
+  // Mint AAVE if needed
+  if (aaveBalance < requiredAAVE) {
+    const mintAmount = requiredAAVE + ethers.parseUnits("10", 18); // Mint extra for gas
+    console.log("\n=== MINTING AAVE TOKENS ===");
+    console.log("Minting", ethers.formatUnits(mintAmount, 18), "AAVE...");
+    
+    try {
+      const mintTx = await aaveContract.mint(deployer.address, mintAmount);
+      await mintTx.wait();
+      console.log("✅ AAVE tokens minted successfully!");
+    } catch (error) {
+      console.error("❌ Failed to mint AAVE:", error.message);
+      throw error;
+    }
+  } else {
+    console.log("✅ Sufficient AAVE balance");
+  }
+  
+  console.log("\nCreating and initializing pool...");
   const tx = await pm.createAndInitializePoolIfNecessary(
     t0,
     t1,
@@ -244,6 +309,9 @@ async function main() {
     console.log("Pool L:", (await pool.liquidity()).toString());
   }
 
+  console.log("\n=== SUCCESS ===");
+  console.log("✅ Pool created with price: 1 WETH =", INIT_AAVE_PER_WETH, "AAVE");
+  console.log("✅ Liquidity added: 5 WETH + 50 AAVE");
   console.log("\nUse this pool address in UniswapV3Strategy constructor:");
   console.log("  positionManager:", NFP_MANAGER);
   console.log("  pool:", poolAddr);

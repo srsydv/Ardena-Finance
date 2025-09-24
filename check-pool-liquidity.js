@@ -4,12 +4,13 @@ import dotenv from "dotenv";
 dotenv.config();
 
 async function checkPoolLiquidity() {
-    console.log("=== CHECKING SEPOLIA AAVE/WETH POOL LIQUIDITY ===");
+    console.log("=== CHECKING NEW AAVE/WETH POOL LIQUIDITY ===");
+    console.log("🎯 Checking the newly created pool with 1 WETH = 10 AAVE price");
     
-    // Contract addresses
-    const POOL_ADDRESS = "0x6eFCe0a593782545fe1bE3fF0abce18dC8181a3c";
+    // Contract addresses - NEW POOL
+    const POOL_ADDRESS = "0x0E98753e483679703c902a0f574646d3653ad9eA"; // NEW POOL
     const AAVE_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a";
-    const WETH_ADDRESS = "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762";
+    const WETH_ADDRESS = "0x4530fABea7444674a775aBb920924632c669466e"; // NEW WETH
     const UNISWAP_V3_ROUTER = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     
     // Setup
@@ -86,13 +87,16 @@ async function checkPoolLiquidity() {
         const aaveBalance = await aave.balanceOf(POOL_ADDRESS);
         const wethBalance = await weth.balanceOf(POOL_ADDRESS);
         
-        console.log("Pool AAVE balance:", ethers.formatUnits(aaveBalance, 6), "AAVE");
+        console.log("Pool AAVE balance:", ethers.formatUnits(aaveBalance, 18), "AAVE"); // FIX: Use 18 decimals
         console.log("Pool WETH balance:", ethers.formatEther(wethBalance), "WETH");
         
-        // Calculate total value in WETH (assuming 1 AAVE = 0.01 WETH based on current price)
-        const aaveInWETH = (aaveBalance * ethers.parseUnits("0.01", 18)) / ethers.parseUnits("1", 6);
-        const totalValueWETH = wethBalance + aaveInWETH;
-        console.log("Estimated total pool value:", ethers.formatEther(totalValueWETH), "WETH");
+        // Calculate price from actual balances
+        const aaveBalanceNum = parseFloat(ethers.formatUnits(aaveBalance, 18));
+        const wethBalanceNum = parseFloat(ethers.formatEther(wethBalance));
+        const currentPrice = aaveBalanceNum / wethBalanceNum;
+        
+        console.log("Current price: 1 WETH =", currentPrice.toFixed(6), "AAVE");
+        console.log("Current price: 1 AAVE =", (1/currentPrice).toFixed(8), "WETH");
         
     } catch (error) {
         console.error("❌ Failed to get pool balances:", error.message);
@@ -104,11 +108,11 @@ async function checkPoolLiquidity() {
     try {
         // Test different swap amounts to see what the pool can handle
         const testAmounts = [
-            ethers.parseUnits("1", 6),    // 1 AAVE
-            ethers.parseUnits("10", 6),   // 10 AAVE
-            ethers.parseUnits("50", 6),   // 50 AAVE
-            ethers.parseUnits("100", 6),  // 100 AAVE
-            ethers.parseUnits("500", 6),  // 500 AAVE
+            ethers.parseUnits("1", 18),    // 1 AAVE (FIX: Use 18 decimals)
+            ethers.parseUnits("10", 18),   // 10 AAVE
+            ethers.parseUnits("50", 18),   // 50 AAVE
+            ethers.parseUnits("100", 18),  // 100 AAVE
+            ethers.parseUnits("500", 18),  // 500 AAVE
         ];
         
         console.log("Testing swap capacity...");
@@ -130,10 +134,10 @@ async function checkPoolLiquidity() {
                 
                 // Try to estimate the swap
                 const gasEstimate = await router.exactInputSingle.estimateGas(params);
-                console.log(`✅ Can swap ${ethers.formatUnits(amountIn, 6)} AAVE (gas: ${gasEstimate.toString()})`);
+                console.log(`✅ Can swap ${ethers.formatUnits(amountIn, 18)} AAVE (gas: ${gasEstimate.toString()})`);
                 
             } catch (error) {
-                console.log(`❌ Cannot swap ${ethers.formatUnits(amountIn, 6)} AAVE: ${error.message}`);
+                console.log(`❌ Cannot swap ${ethers.formatUnits(amountIn, 18)} AAVE: ${error.message}`);
                 break; // Stop testing larger amounts if smaller ones fail
             }
         }
@@ -147,8 +151,8 @@ async function checkPoolLiquidity() {
     
     try {
         // Our investIdle sends AAVE to strategy, strategy swaps AAVE to WETH
-        const requiredSwapAmount = ethers.parseUnits("100", 6); // 100 AAVE
-        console.log("Required swap amount for investIdle:", ethers.formatUnits(requiredSwapAmount, 6), "AAVE");
+        const requiredSwapAmount = ethers.parseUnits("100", 18); // 100 AAVE (FIX: Use 18 decimals)
+        console.log("Required swap amount for investIdle:", ethers.formatUnits(requiredSwapAmount, 18), "AAVE");
         
         const deadline = Math.floor(Date.now() / 1000) + 1200;
         

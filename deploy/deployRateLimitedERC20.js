@@ -12,9 +12,11 @@
   - WAIT_BLOCKS: confirmations to wait before verify (default: 2)
 */
 
-require("dotenv/config");
-const hre = require("hardhat");
+import dotenv from "dotenv";
+import hre from "hardhat";
 const { ethers } = hre;
+
+dotenv.config();
 
 function env(name, def) {
   const v = process.env[name];
