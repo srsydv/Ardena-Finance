@@ -1776,7 +1776,7 @@
                     
                     <div class="address-container">
                         <div class="address-label">Pool Address:</div>
-                        <div class="contract-address">0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39</div>
+                        <div class="contract-address">0x0E98753e483679703c902a0f574646d3653ad9eA</div>
                     </div>
                 </div>
                 
@@ -1875,7 +1875,7 @@
     <!-- Include Configuration -->
     <script src="config.js?v=71&t=1738683000"></script>
     <!-- Include Integration Module -->
-    <script src="integration-v72.js?v=73&t=1738685000"></script>
+    <script src="integration.js?v=74&t=1738685000"></script>
     
     <script>
         // Global integration instance
@@ -2558,32 +2558,59 @@
 
         // Custom swap function with progress tracking
         async function performSwapWithProgress(fromToken, toToken, amount) {
-            // Token addresses
-            const USDC_ADDRESS = vaultIntegration.CONTRACTS.usdc;
+            // Check if vaultIntegration is properly initialized
+            if (!vaultIntegration) {
+                throw new Error('VaultIntegration not initialized. Please connect your wallet first.');
+            }
+            if (!vaultIntegration.signer) {
+                throw new Error('Wallet not connected. Please connect your wallet first.');
+            }
+            if (!vaultIntegration.userAddress) {
+                throw new Error('User address not available. Please reconnect your wallet.');
+            }
+            
+            console.log('=== VAULT INTEGRATION STATUS ===');
+            console.log('vaultIntegration exists:', !!vaultIntegration);
+            console.log('vaultIntegration.signer exists:', !!vaultIntegration.signer);
+            console.log('vaultIntegration.userAddress:', vaultIntegration.userAddress);
+            console.log('vaultIntegration.CONTRACTS exists:', !!vaultIntegration.CONTRACTS);
+            
+            // Token addresses - AAVE/WETH system
+            const AAVE_ADDRESS = vaultIntegration.CONTRACTS.asset;
             const WETH_ADDRESS = vaultIntegration.CONTRACTS.weth;
             const SWAP_ROUTER = vaultIntegration.CONTRACTS.newSwapRouter;
             const POOL_FEE = 500; // 0.05% fee tier
 
             // Determine token addresses
             let tokenIn, tokenOut, tokenInDecimals, tokenOutDecimals;
-            if (fromToken === 'USDC') {
-                tokenIn = USDC_ADDRESS;
+            if (fromToken === 'AAVE') {
+                tokenIn = AAVE_ADDRESS;
                 tokenOut = WETH_ADDRESS;
-                tokenInDecimals = 6;
+                tokenInDecimals = 18; // AAVE has 18 decimals
                 tokenOutDecimals = 18;
             } else {
                 tokenIn = WETH_ADDRESS;
-                tokenOut = USDC_ADDRESS;
+                tokenOut = AAVE_ADDRESS;
                 tokenInDecimals = 18;
-                tokenOutDecimals = 6;
+                tokenOutDecimals = 18; // AAVE has 18 decimals
             }
 
             // Parse amount with correct decimals
             const amountIn = ethers.parseUnits(amount, tokenInDecimals);
 
             // Check balance and get initial balances
-            const tokenInContract = new ethers.Contract(tokenIn, vaultIntegration.ABIS.erc20, vaultIntegration.signer);
-            const tokenOutContract = new ethers.Contract(tokenOut, vaultIntegration.ABIS.erc20, vaultIntegration.signer);
+            console.log('=== SIGNER DEBUG ===');
+            console.log('vaultIntegration.signer:', vaultIntegration.signer);
+            console.log('vaultIntegration.signer type:', typeof vaultIntegration.signer);
+            console.log('vaultIntegration.provider:', vaultIntegration.provider);
+            console.log('vaultIntegration.provider type:', typeof vaultIntegration.provider);
+            
+            // Use provider for read-only operations if signer is not available
+            const contractRunner = vaultIntegration.signer || vaultIntegration.provider;
+            console.log('Using contractRunner:', contractRunner);
+            
+            const tokenInContract = new ethers.Contract(tokenIn, vaultIntegration.ABIS.erc20, contractRunner);
+            const tokenOutContract = new ethers.Contract(tokenOut, vaultIntegration.ABIS.erc20, contractRunner);
             
             const balance = await tokenInContract.balanceOf(vaultIntegration.userAddress);
             const tokenOutBalanceBefore = await tokenOutContract.balanceOf(vaultIntegration.userAddress);
@@ -2597,7 +2624,9 @@
 
             if (allowance < amountIn) {
                 console.log('Setting allowance...');
-                const approveTx = await tokenInContract.approve(SWAP_ROUTER, amountIn);
+                // Create a new contract instance with signer for write operations
+                const tokenInContractWithSigner = new ethers.Contract(tokenIn, vaultIntegration.ABIS.erc20, vaultIntegration.signer);
+                const approveTx = await tokenInContractWithSigner.approve(SWAP_ROUTER, amountIn);
                 await approveTx.wait();
                 console.log('✅ Allowance set');
             }

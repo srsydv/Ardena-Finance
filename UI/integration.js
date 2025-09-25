@@ -419,47 +419,51 @@ class VaultIntegration {
             console.log('Token0:', token0Symbol, 'decimals:', token0Decimals);
             console.log('Token1:', token1Symbol, 'decimals:', token1Decimals);
             
-            // Get actual pool balances to calculate price directly
-            const poolAddress = this.CONTRACTS.aaveWethPool;
-            const [token0Balance, token1Balance] = await Promise.all([
-                token0Contract.balanceOf(poolAddress),
-                token1Contract.balanceOf(poolAddress)
-            ]);
+            // Get pool slot0 data for accurate price calculation using sqrtPriceX96
+            const pricePoolABI = [
+                "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
+                "function token0() external view returns (address)",
+                "function token1() external view returns (address)",
+                "function fee() external view returns (uint24)"
+            ];
             
-            const token0BalanceFormatted = ethers.formatUnits(token0Balance, actualToken0Decimals);
-            const token1BalanceFormatted = ethers.formatUnits(token1Balance, actualToken1Decimals);
+            const poolContract = new ethers.Contract(this.CONTRACTS.aaveWethPool, pricePoolABI, this.provider);
+            const slot0 = await poolContract.slot0();
             
-            console.log('Pool balances:');
-            console.log(`${token0Symbol}:`, token0BalanceFormatted, `(using ${actualToken0Decimals} decimals)`);
-            console.log(`${token1Symbol}:`, token1BalanceFormatted, `(using ${actualToken1Decimals} decimals)`);
+            console.log('Pool slot0 data:');
+            console.log('sqrtPriceX96:', slot0.sqrtPriceX96.toString());
+            console.log('current tick:', slot0.tick.toString());
             
-            console.log('⚠️  WARNING: Pool balance seems very low!');
-            console.log('This might indicate the pool has very little liquidity or there\'s an issue with the pool address.');
-            console.log('Raw balances:');
-            console.log(`${token0Symbol} raw:`, token0Balance.toString());
-            console.log(`${token1Symbol} raw:`, token1Balance.toString());
+            // Calculate price using sqrtPriceX96 (Uniswap V3 official method)
+            const sp = slot0.sqrtPriceX96;
+            const Q96 = 2n ** 96n;
+            const priceX96 = Number(sp) / Number(Q96);
+            const price = priceX96 * priceX96;
             
-            // Calculate price based on actual balances
+            console.log('Price calculation:');
+            console.log('Q96:', Q96.toString());
+            console.log('priceX96:', priceX96.toFixed(6));
+            console.log('price (squared):', price.toFixed(6));
+            
+            // Determine token order and calculate final price
             let aavePerWeth;
             if (token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase()) {
                 // token0=WETH, token1=AAVE
-                aavePerWeth = parseFloat(token1BalanceFormatted) / parseFloat(token0BalanceFormatted);
+                aavePerWeth = price;
                 console.log('Case: token0=WETH, token1=AAVE');
-                console.log(`AAVE balance: ${token1BalanceFormatted}, WETH balance: ${token0BalanceFormatted}`);
-                console.log('Using direct balance calculation: AAVE/WETH =', aavePerWeth);
+                console.log('Formula: (sqrtPriceX96 / Q96)^2 = AAVE/WETH');
             } else {
-                // token0=AAVE, token1=WETH  
-                aavePerWeth = parseFloat(token0BalanceFormatted) / parseFloat(token1BalanceFormatted);
+                // token0=AAVE, token1=WETH
+                aavePerWeth = 1 / price;
                 console.log('Case: token0=AAVE, token1=WETH');
-                console.log(`AAVE balance: ${token0BalanceFormatted}, WETH balance: ${token1BalanceFormatted}`);
-                console.log('Using direct balance calculation: AAVE/WETH =', aavePerWeth);
+                console.log('Formula: 1 / (sqrtPriceX96 / Q96)^2 = AAVE/WETH');
             }
             
             // Validate the calculation makes sense
             console.log('=== PRICE VALIDATION ===');
-            console.log('Expected: ~2.16 AAVE per WETH (based on 21.61 AAVE / 9.99 WETH)');
+            console.log('Expected: ~10.06 AAVE per WETH (based on sqrtPriceX96 calculation)');
             console.log('Calculated:', aavePerWeth.toFixed(6), 'AAVE per WETH');
-            console.log('Price looks reasonable:', aavePerWeth > 1 && aavePerWeth < 10 ? 'YES' : 'NO');
+            console.log('Price looks reasonable:', aavePerWeth > 5 && aavePerWeth < 15 ? 'YES' : 'NO');
             
             console.log('Final calculation: 1 WETH =', aavePerWeth.toFixed(6), 'AAVE');
             
@@ -538,7 +542,7 @@ class VaultIntegration {
             // Note: This is an estimation based on current vault performance
             // Real earnings would require tracking historical data
             
-            // 1. Trading fees from Uniswap V3 strategy (both WETH and USDC)
+            // 1. Trading fees from Uniswap V3 strategy (both WETH and AAVE)
             let actualTradingFeesAAVEBigInt = 0n;
             let actualTradingFeesWETHBigInt = 0n;
             try {
@@ -589,14 +593,14 @@ class VaultIntegration {
                         console.log('Position token1:', token1);
                         
                         // Get current pool state to calculate real-time fees
-                        const poolABI = [
+                        const feePoolABI = [
                             "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
                             "function feeGrowthGlobal0X128() external view returns (uint256)",
                             "function feeGrowthGlobal1X128() external view returns (uint256)",
                             "function liquidity() external view returns (uint128)"
                         ];
                         const poolAddress = await strategyContract.pool();
-                        const pool = new ethers.Contract(poolAddress, poolABI, this.provider);
+                        const pool = new ethers.Contract(poolAddress, feePoolABI, this.provider);
                         
                         const [slot0, feeGrowthGlobal0X128, feeGrowthGlobal1X128, poolLiquidity] = await Promise.all([
                             pool.slot0(),
@@ -630,7 +634,7 @@ class VaultIntegration {
                         console.log('Position liquidity:', liquidity.toString());
                         console.log('Pool liquidity:', poolLiquidity.toString());
                         
-                        // Determine which token is WETH and which is USDC
+                        // Determine which token is WETH and which is AAVE
                         console.log('=== TOKEN IDENTIFICATION ===');
                         console.log('Position token0:', token0);
                         console.log('Position token1:', token1);
@@ -710,7 +714,7 @@ class VaultIntegration {
             const estimatedPerformanceFeesBigInt = (totalAssets * profitBps * performanceFeeBps * userShares) / (10000n * 10000n * totalSupply);
             console.log('Estimated performance fees:', ethers.formatUnits(estimatedPerformanceFeesBigInt, 18), 'AAVE');
             
-            // Total estimated fee earnings (USDC equivalent for display)
+            // Total estimated fee earnings (AAVE equivalent for display)
             const totalEstimatedEarningsBigInt = actualTradingFeesAAVEBigInt + estimatedManagementFeesBigInt + estimatedPerformanceFeesBigInt;
             
             return {
@@ -937,7 +941,7 @@ class VaultIntegration {
         }
 
         try {
-            // Create swap data for harvest (WETH to USDC)
+            // Create swap data for harvest (WETH to AAVE)
             const harvestData = await this.createSwapDataForHarvest();
             const allHarvestData = [[], harvestData]; // Empty for Aave, swap data for Uniswap
 
@@ -1013,7 +1017,7 @@ class VaultIntegration {
             let artifact;
             try {
                 // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
+                if (typeof window === 'undefined' && typeof require !== 'undefined') {
                     const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
                     artifact = swapRouterModule.default;
                     console.log('✅ Using dynamic import for SwapRouter02 artifact in invest');
@@ -1120,7 +1124,7 @@ class VaultIntegration {
             let artifact;
             try {
                 // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
+                if (typeof window === 'undefined' && typeof require !== 'undefined') {
                     const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
                     artifact = swapRouterModule.default;
                     console.log('✅ Using dynamic import for SwapRouter02 artifact in harvest');
@@ -1302,13 +1306,48 @@ class VaultIntegration {
             console.log('From token:', fromToken);
             console.log('To token:', toToken);
             console.log('Amount:', amount);
+            
+            // Check if VaultIntegration is properly initialized
+            console.log('=== VAULT INTEGRATION STATUS ===');
+            console.log('this.CONTRACTS:', this.CONTRACTS);
+            console.log('this.CONTRACTS type:', typeof this.CONTRACTS);
+            console.log('this.signer:', this.signer);
+            console.log('this.userAddress:', this.userAddress);
+            
+            if (!this.CONTRACTS) {
+                throw new Error('VaultIntegration not properly initialized - CONTRACTS is undefined');
+            }
+            if (!this.signer) {
+                throw new Error('VaultIntegration not properly initialized - signer is undefined');
+            }
+            if (!this.userAddress) {
+                throw new Error('VaultIntegration not properly initialized - userAddress is undefined');
+            }
 
             // Token addresses
             const AAVE_ADDRESS = this.CONTRACTS.asset;
             const WETH_ADDRESS = this.CONTRACTS.weth;
             const SWAP_ROUTER = this.CONTRACTS.newSwapRouter;
             const POOL_FEE = 500; // 0.05% fee tier
+            
+            console.log('=== CONTRACT ADDRESS DEBUG ===');
+            console.log('AAVE_ADDRESS:', AAVE_ADDRESS);
+            console.log('WETH_ADDRESS:', WETH_ADDRESS);
             console.log('SWAP_ROUTER:', SWAP_ROUTER);
+            console.log('AAVE_ADDRESS type:', typeof AAVE_ADDRESS);
+            console.log('WETH_ADDRESS type:', typeof WETH_ADDRESS);
+            console.log('SWAP_ROUTER type:', typeof SWAP_ROUTER);
+            
+            // Validate addresses
+            if (!AAVE_ADDRESS || AAVE_ADDRESS === 'undefined' || AAVE_ADDRESS === null) {
+                throw new Error('AAVE_ADDRESS is invalid: ' + AAVE_ADDRESS);
+            }
+            if (!WETH_ADDRESS || WETH_ADDRESS === 'undefined' || WETH_ADDRESS === null) {
+                throw new Error('WETH_ADDRESS is invalid: ' + WETH_ADDRESS);
+            }
+            if (!SWAP_ROUTER || SWAP_ROUTER === 'undefined' || SWAP_ROUTER === null) {
+                throw new Error('SWAP_ROUTER is invalid: ' + SWAP_ROUTER);
+            }
 
             // Determine token addresses
             let tokenIn, tokenOut, tokenInDecimals, tokenOutDecimals;
@@ -1332,7 +1371,20 @@ class VaultIntegration {
             console.log('Amount in wei:', amountIn.toString());
 
             // Check balance
+            console.log('=== CREATING TOKEN CONTRACT ===');
+            console.log('tokenIn:', tokenIn);
+            console.log('tokenIn type:', typeof tokenIn);
+            console.log('this.ABIS.erc20:', this.ABIS.erc20);
+            console.log('this.signer:', this.signer);
+            
+            if (!tokenIn || tokenIn === 'undefined' || tokenIn === null) {
+                throw new Error('tokenIn is invalid: ' + tokenIn);
+            }
+            
             const tokenInContract = new ethers.Contract(tokenIn, this.ABIS.erc20, this.signer);
+            console.log('tokenInContract created:', tokenInContract);
+            console.log('tokenInContract.target:', tokenInContract.target);
+            
             const balance = await tokenInContract.balanceOf(this.userAddress);
             console.log('User balance:', ethers.formatUnits(balance, tokenInDecimals));
             console.log('Amount to swap:', ethers.formatUnits(amountIn, tokenInDecimals));
@@ -1386,7 +1438,7 @@ class VaultIntegration {
             let artifact;
             try {
                 // Try dynamic import first (Node.js environment)
-                if (typeof import !== 'undefined') {
+                if (typeof window === 'undefined' && typeof require !== 'undefined') {
                     const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
                     artifact = swapRouterModule.default;
                     console.log('✅ Using dynamic import for SwapRouter02 artifact');
