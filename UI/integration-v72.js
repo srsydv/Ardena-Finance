@@ -2,7 +2,7 @@
 // This file contains all the Web3 integration logic based on the test patterns
 // UPDATED: Now uses the new working addresses from successful Sepolia deployment
 
-console.log('🚀 LOADING INTEGRATION-V72.JS v=72 - UPDATED WITH WORKING ROUTER!');
+console.log('🚀 LOADING INTEGRATION-V72.JS v=73 - UPDATED WITH CORRECT STRATEGY POSITIONS!');
 console.log('✅ Using router: 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
 console.log('✅ Using dynamic import for SwapRouter02 artifacts');
 
@@ -868,36 +868,31 @@ class VaultIntegration {
             }
             console.log('Strategies:', strategies);
 
-            // Create swap data for Uniswap strategy (following test pattern exactly)
-            const swapData = await this.createSwapDataForInvest(idleAmount);
-            console.log('Created swap data:', swapData);
-            console.log('SwapData type:', typeof swapData);
-            console.log('SwapData is array:', Array.isArray(swapData));
-            console.log('SwapData length:', swapData ? swapData.length : 'undefined');
+            // Create swap data for all strategies (following test pattern exactly)
+            const allSwapData = await this.createSwapDataForInvest(idleAmount);
+            console.log('Created allSwapData:', allSwapData);
+            console.log('AllSwapData type:', typeof allSwapData);
+            console.log('AllSwapData is array:', Array.isArray(allSwapData));
+            console.log('AllSwapData length:', allSwapData ? allSwapData.length : 'undefined');
 
-            // Check if swapData is valid
-            if (!swapData || !Array.isArray(swapData) || swapData.length === 0) {
+            // Check if allSwapData is valid
+            if (!allSwapData || !Array.isArray(allSwapData) || allSwapData.length === 0) {
                 throw new Error('Invalid swap data returned from createSwapDataForInvest');
             }
 
-            // Create allSwapData array with correct structure
-            // If we have 2 strategies, we need [strategy0Data, strategy1Data]
-            // For Aave strategy (index 0): empty array []
-            // For UniswapV3 strategy (index 1): our swap data [payload]
-            const allSwapData = [];
+            // Verify the structure matches the number of strategies
+            if (allSwapData.length !== Number(strategiesLength)) {
+                throw new Error(`Swap data length (${allSwapData.length}) doesn't match strategies length (${strategiesLength})`);
+            }
             
-            // Add empty array for Aave strategy (index 0)
-            allSwapData.push([]);
-            
-            // Add swap data for UniswapV3 strategy (index 1)
-            allSwapData.push(swapData);
-            
-            console.log('Final swap data array:', allSwapData);
-            console.log('AllSwapData structure check - should be array of arrays:', Array.isArray(allSwapData[0]), Array.isArray(allSwapData[1]));
+            console.log('Final allSwapData array:', allSwapData);
+            console.log('AllSwapData structure check - should be array of arrays:', allSwapData.every(item => Array.isArray(item)));
             console.log('AllSwapData length:', allSwapData.length);
-            console.log('AllSwapData[0] length:', allSwapData[0].length);
-            console.log('AllSwapData[1] length:', allSwapData[1].length);
-            console.log('AllSwapData[1][0] (first payload):', allSwapData[1][0]);
+            console.log('Strategy 0 (UniswapV3) swap data length:', allSwapData[0].length);
+            console.log('Strategy 1 (AaveV3) swap data length:', allSwapData[1].length);
+            if (allSwapData[0].length > 0) {
+                console.log('Strategy 0 swap payload:', allSwapData[0][0]);
+            }
 
             // Debug contract and method
             console.log('Vault contract address:', this.contracts.vault.target);
@@ -987,7 +982,11 @@ class VaultIntegration {
         try {
             console.log('Creating swap data for invest with amount:', totalIdleAmount.toString());
             
-            // Get the UniswapV3 strategy allocation from the vault
+            // Get strategy information from vault
+            const strategiesLength = await this.contracts.vault.strategiesLength();
+            console.log('Number of strategies:', strategiesLength.toString());
+            
+            // Get UniswapV3 strategy allocation (it's at index 0)
             const uniStrategyAddress = this.CONTRACTS.uniStrategy;
             const targetBps = await this.contracts.vault.targetBps(uniStrategyAddress);
             console.log('UniswapV3 strategy targetBps:', targetBps.toString());
@@ -998,15 +997,13 @@ class VaultIntegration {
             const toUniStrategy = (idleAmountBigInt * targetBpsBigInt) / 10000n;
             console.log('Amount going to UniswapV3 strategy:', toUniStrategy.toString());
             
-            // For UniswapV3, swap half to WETH (like in vault.e2e.test.js)
+            // For UniswapV3, swap half to WETH (like in test)
             const amountIn = toUniStrategy / 2n;
             console.log('Amount to swap (AAVE -> WETH):', amountIn.toString());
 
             // Uniswap V3 Router address (SwapRouter02) - NEW WORKING ROUTER
-            const UNISWAP_V3_ROUTER = this.CONTRACTS.newSwapRouter; // Use new working router
+            const UNISWAP_V3_ROUTER = this.CONTRACTS.newSwapRouter;
             console.log('🔍 DEBUG: Using router address:', UNISWAP_V3_ROUTER);
-            console.log('🔍 DEBUG: Expected new router:', '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
-            console.log('🔍 DEBUG: Router addresses match:', UNISWAP_V3_ROUTER === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
             const poolFee = 500; // 0.05% fee tier
 
             // Use dynamic import for SwapRouter02 artifact (working approach from test)
@@ -1036,7 +1033,7 @@ class VaultIntegration {
 
             // Create exactInputSingle parameters - exactly like test
             const params = {
-                tokenIn: this.CONTRACTS.asset, // AAVE instead of USDC
+                tokenIn: this.CONTRACTS.asset, // AAVE
                 tokenOut: this.CONTRACTS.weth,
                 fee: poolFee,
                 recipient: this.CONTRACTS.uniStrategy, // deliver WETH to the strategy
@@ -1054,7 +1051,6 @@ class VaultIntegration {
             console.log('Router calldata:', routerCalldata);
 
             // Pack payload for ExchangeHandler.swap(bytes) - EXACTLY like test
-            // abi.encode(address router, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address to, bytes routerCalldata)
             const payload = ethers.AbiCoder.defaultAbiCoder().encode(
                 [
                     "address",
@@ -1067,7 +1063,7 @@ class VaultIntegration {
                 ],
                 [
                     UNISWAP_V3_ROUTER,
-                    this.CONTRACTS.asset, // AAVE instead of USDC
+                    this.CONTRACTS.asset, // AAVE
                     this.CONTRACTS.weth,
                     amountIn,
                     0n,
@@ -1078,14 +1074,28 @@ class VaultIntegration {
 
             console.log('Final payload:', payload);
 
-            // Allow the router in ExchangeHandler - same as test
-            // await this.contracts.exchanger.setRouter(UNISWAP_V3_ROUTER, true);
-            console.log('Router allowed in ExchangeHandler');
+            // Create allSwapData array with correct positions based on strategy indices
+            // Strategy 0: UniswapV3Strategy (needs swap payload)
+            // Strategy 1: AaveV3Strategy (needs empty array)
+            const allSwapData = [];
+            
+            // Initialize all strategies with empty arrays first
+            for (let i = 0; i < strategiesLength; i++) {
+                allSwapData.push([]);
+            }
+            
+            // Add swap payload to UniswapV3Strategy (index 0)
+            allSwapData[0] = [payload];
+            
+            console.log('Created allSwapData with correct positions:');
+            console.log('Strategy 0 (UniswapV3):', allSwapData[0].length, 'swap payloads');
+            console.log('Strategy 1 (AaveV3):', allSwapData[1].length, 'swap payloads');
+            console.log('Total strategies:', allSwapData.length);
 
-            return [payload];
+            return allSwapData;
         } catch (error) {
             console.error('Error creating swap data for invest:', error);
-            return []; // Return empty array if swap data creation fails
+            return [[], []]; // Return empty arrays for both strategies if swap data creation fails
         }
     }
 
