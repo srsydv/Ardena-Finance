@@ -47,17 +47,18 @@ let busy = false;
 let lastHandledBlock = 0;
 
 const CONTRACTS = {
-    vault: "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0",
+    vault: "0x3cd0145707C03316B48f8A254c494600c30ebf8d",
+    asset: "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a", // AAVE TOKEN (like UI)
     usdc: "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8",
-    weth: "0x0Dd242dAafaEdf2F7409DCaec4e66C0D26d72762", // NEW WORKING WETH
-    aaveStrategy: "0xCc02bC41a7AF1A35af4935346cABC7335167EdC9",
-    uniStrategy: "0x6B018844b6Edd87f7F6355643fEB5090Da02b209", // NEW WORKING STRATEGY
+    weth: "0x4530fABea7444674a775aBb920924632c669466e", // NEW AAVE WETH
+    aaveStrategy: "0x9362c59c71321c77CaeE86f9Cf02cbBF3b64277D", // NEW AAVE STRATEGY
+    uniStrategy: "0x65cDA0b70d3D09139c0a78059082F885714a0Fe7", // NEW UNISWAP STRATEGY
     accessController: "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2",
     feeModule: "0x3873DaFa287f80792208c36AcCfC82370428b3DB",
     oracle: "0x6EE0A849079A5b63562a723367eAae77F3f5EB21",
     exchanger: "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF",
     mathAdapter: "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E",
-    poolAddress: "0xd4408d03B59aC9Be0a976e3E2F40d7e506032C39", // NEW WORKING POOL
+    poolAddress: "0x0E98753e483679703c902a0f574646d3653ad9eA", // NEW AAVE POOL
     indexSwap: "0x34C4E1883Ed95aeb100F79bdEe0291F44C214fA2",
     ethUsdAgg: "0x497369979EfAD100F83c509a30F38dfF90d11585",
     // New working addresses
@@ -65,13 +66,13 @@ const CONTRACTS = {
 };
 
 // Create contract instances
-const usdcAbi = [
+const assetAbi = [
     "function balanceOf(address account) external view returns (uint256)",
     "function approve(address spender, uint256 amount) external returns (bool)",
     "function allowance(address owner, address spender) external view returns (uint256)",
     "function transfer(address to, uint256 amount) external returns (bool)"
 ];
-const usdc = new ethers.Contract(CONTRACTS.usdc, usdcAbi, provider);
+const asset = new ethers.Contract(CONTRACTS.asset, assetAbi, provider);
 
 const exchangerAbi = [
     "function setRouter(address router, bool ok) external",
@@ -113,21 +114,24 @@ async function buildAllSwapData(totalIdleAmount) {
 
         // ES Module compatible import for Uniswap artifact
         let artifact;
-        try {
-            // Use dynamic import for ES modules
-            const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
+        // try {
+            // Use dynamic import for ES modules (exactly like test file)
+            const swapRouterModule = await import(
+                "@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json",
+                { with: { type: "json" } }
+            );
             artifact = swapRouterModule.default;
             console.log('✅ Using dynamic import for SwapRouter02 artifact in invest');
-        } catch (error) {
-            console.log('Dynamic import failed, trying fallback ABI:', error.message);
-            // Fallback to direct ABI
-            artifact = {
-                abi: [
-                    "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
-                ]
-            };
-            console.log('✅ Using fallback SwapRouter02 ABI for invest');
-        }
+        // } catch (error) {
+        //     console.log('Dynamic import failed, trying fallback ABI:', error.message);
+        //     // Fallback to direct ABI
+        //     // artifact = {
+        //     //     abi: [
+        //     //         "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
+        //     //     ]
+        //     // };
+        //     console.log('✅ Using fallback SwapRouter02 ABI for invest');
+        // }
   
         const swapRouterInterface = new ethers.Interface(artifact.abi);
 
@@ -136,7 +140,7 @@ async function buildAllSwapData(totalIdleAmount) {
 
         // Create exactInputSingle parameters - exactly like test
         const params = {
-            tokenIn: CONTRACTS.usdc,
+            tokenIn: CONTRACTS.asset, // AAVE instead of USDC
             tokenOut: CONTRACTS.weth,
             fee: poolFee,
             recipient: CONTRACTS.uniStrategy, // deliver WETH to the strategy
@@ -167,7 +171,7 @@ async function buildAllSwapData(totalIdleAmount) {
             ],
             [
                 UNISWAP_V3_ROUTER,
-                CONTRACTS.usdc,
+                CONTRACTS.asset, // AAVE instead of USDC
                 CONTRACTS.weth,
                 amountIn,
                 0n,
@@ -196,17 +200,37 @@ async function buildAllSwapData(totalIdleAmount) {
             console.error("Failed to set router:", err);
           }
 
-        // Create allSwapData array with correct structure
-        // If we have 2 strategies, we need [strategy0Data, strategy1Data]
-        // For Aave strategy (index 0): empty array []
-        // For UniswapV3 strategy (index 1): our swap data [payload]
+        // Create allSwapData array with correct structure (dynamically like test)
+        // Get all strategies from vault to determine correct indices
+        const strategiesLength = await vault.strategiesLength();
+        const strategies = [];
+        let activeStrategyIndex = -1;
+        
+        for (let i = 0; i < strategiesLength; i++) {
+            const strategyAddress = await vault.strategies(i);
+            strategies.push(strategyAddress);
+            if (strategyAddress.toLowerCase() === CONTRACTS.uniStrategy.toLowerCase()) {
+                activeStrategyIndex = i;
+            }
+        }
+        
+        console.log('Strategies found:', strategies);
+        console.log('Active strategy (UniswapV3) index:', activeStrategyIndex);
+        
+        if (activeStrategyIndex === -1) {
+            console.error('UniswapV3 strategy not found in vault strategies!');
+            return []; // Return empty array if strategy not found
+        }
+        
+        // Create allSwapData: empty arrays for all strategies, payload only for active strategy
         const allSwapData = [];
-        
-        // Add empty array for Aave strategy (index 0)
-        allSwapData.push([]);
-        
-        // Add swap data for UniswapV3 strategy (index 1)
-        allSwapData.push([payload]);
+        for (let i = 0; i < strategies.length; i++) {
+            if (i === activeStrategyIndex) {
+                allSwapData.push([payload]); // Active strategy gets the swap payload
+            } else {
+                allSwapData.push([]); // Inactive strategies get empty array
+            }
+        }
         
         console.log('Final allSwapData:', allSwapData);
         console.log('AllSwapData structure check - should be array of arrays:', Array.isArray(allSwapData[0]), Array.isArray(allSwapData[1]));
@@ -263,8 +287,14 @@ async function attemptInvest() {
     //   busy = false;
     //   return;
     // }
-    const idleAmount = await usdc.balanceOf(CONTRACTS.vault);
+    const idleAmount = await asset.balanceOf(CONTRACTS.vault);
     console.log('Idle amount in vault:', idleAmount.toString());
+    
+    if (idleAmount == 0) {
+        console.log('No idle funds to invest, skipping investIdle call');
+        busy = false;
+        return;
+    }
 
     // Build payload (replace with your builder)
     const allSwapData = await buildAllSwapData(idleAmount);
