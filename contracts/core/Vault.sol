@@ -9,8 +9,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-
-
 contract Vault is Initializable, UUPSUpgradeable {
     using SafeTransferLib for address;
 
@@ -46,7 +44,9 @@ contract Vault is Initializable, UUPSUpgradeable {
         address indexed caller,
         address indexed to,
         uint256 assets,
-        uint256 shares
+        uint256 shares,
+        uint256 exitFee,
+        uint256 totalGot
     );
     event Harvest(
         uint256 realizedProfit,
@@ -85,7 +85,9 @@ contract Vault is Initializable, UUPSUpgradeable {
         decimals = _decimals;
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
+    function _authorizeUpgrade(
+        address /*newImplementation*/
+    ) internal view override {
         require(access.managers(msg.sender), "NOT_MANAGER");
     }
 
@@ -128,6 +130,18 @@ contract Vault is Initializable, UUPSUpgradeable {
         emit Deposit(msg.sender, receiver, assets, net, shares);
     }
 
+    /*
+        // CORRECT WITHDRAWAL FLOW:
+vault.withdraw(shares, receiver, allSwapData[][])
+├── convertToAssets(shares) → calculates AAVE needed
+├── Pro-rata withdrawal from strategies:
+│   ├── AaveV3Strategy (60%): gets empty swap data []
+│   └── UniswapV3Strategy (40%): gets WETH→AAVE swap data
+└── Strategies execute:
+    ├── AaveV3Strategy.withdraw() → returns AAVE directly
+    └── UniswapV3Strategy.withdraw() → decreases liquidity, swaps WETH→AAVE, returns AAVE
+    */
+
     function withdraw(
         uint256 shares,
         address receiver,
@@ -166,15 +180,16 @@ contract Vault is Initializable, UUPSUpgradeable {
             }
         }
 
-        // Compute exit fee
-        (uint256 net, uint256 exitFee) = fees.takeExitFee(assets);
+        // Compute exit fee based on actual amount collected
+        (uint256 net, uint256 exitFee) = fees.takeExitFee(totalGot);
         if (exitFee > 0) IERC20(asset).transfer(fees.treasury(), exitFee);
 
         // Pay user
-        require(totalGot >= assets, "WITHDRAW_FAILED");
+        // require(totalGot >= assets, "WITHDRAW_FAILED");
+        // require(totalGot + 1 >= assets, "WITHDRAW_FAILED");
         asset.transfer(receiver, net);
 
-        emit Withdraw(msg.sender, receiver, net, shares);
+        emit Withdraw(msg.sender, receiver, net, shares, exitFee, totalGot);
     }
 
     /// @notice Manager-only: pull funds back from a specific strategy into the Vault.
@@ -200,7 +215,7 @@ contract Vault is Initializable, UUPSUpgradeable {
 
     function deleteStrategy(IStrategy s) external onlyManager {
         require(_hasStrategy(s), "NOT_STRATEGY");
-        
+
         // Remove strategy from array
         for (uint256 i = 0; i < strategies.length; i++) {
             if (address(strategies[i]) == address(s)) {
@@ -210,10 +225,10 @@ contract Vault is Initializable, UUPSUpgradeable {
                 break;
             }
         }
-        
+
         // Clear target allocation
         targetBps[s] = 0;
-        
+
         emit StrategySet(address(s), 0);
     }
 

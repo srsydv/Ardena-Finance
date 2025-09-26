@@ -414,10 +414,28 @@ require(lower < upper, "TLU");
         require(tokenId != 0, "NO_POS");
         if (amountWant == 0) return 0;
 
-        // 1. Calculate how much liquidity to remove for `amountWant`
-        uint128 liqToPull = _calcLiquidityForAmount(amountWant);
+        uint256 strategyBalance = IERC20(wantToken).balanceOf(address(this));
 
-        if (liqToPull == 0) return 0;
+        // If we have enough liquid balance, transfer directly
+        if (strategyBalance >= amountWant) {
+            wantToken.safeTransfer(vault, amountWant);
+            return amountWant;
+        }
+
+        // Calculate the deficit that needs to come from Uniswap position
+        uint256 deficit = amountWant - strategyBalance;
+        
+        // 1. Calculate how much liquidity to remove for the DEFICIT only
+        uint128 liqToPull = _calcLiquidityForDeficit(deficit);
+
+        if (liqToPull == 0) {
+            // If no liquidity to remove, try to withdraw what we have
+            if (strategyBalance > 0) {
+                wantToken.safeTransfer(vault, strategyBalance);
+                return strategyBalance;
+            }
+            return 0;
+        }
 
         // 2. Decrease proportional liquidity
         (uint256 out0, uint256 out1) = pm.decreaseLiquidity(
@@ -440,14 +458,21 @@ require(lower < upper, "TLU");
             })
         );
 
-        // 4. Swap everything to `want` (USDC) using keeper-provided calldata
+        // 4. Swap everything to `want` (AAVE) using keeper-provided calldata
         uint256 before = IERC20(wantToken).balanceOf(address(this));
         _executeSwaps(swapData); // keeper prepared calldata
         uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
 
-        withdrawn = afterBal > before ? afterBal - before : 0;
+        // 5. Calculate how much we actually got from the swap
+        uint256 swapResult = afterBal > before ? afterBal - before : 0;
+        
+        // 6. Total withdrawn = swap result only (capped at amountWant)
+        withdrawn = swapResult;
+        if (withdrawn > amountWant) {
+            withdrawn = amountWant;
+        }
 
-        // 5. Send to Vault
+        // 7. Send to Vault
         if (withdrawn > 0) {
             wantToken.safeTransfer(vault, withdrawn);
         }
@@ -463,6 +488,19 @@ require(lower < upper, "TLU");
         if (totalValue == 0) return 0;
 
         uint256 ratio = (amountWant * 1e18) / totalValue;
+        return uint128((uint256(totalLiq) * ratio) / 1e18);
+    }
+
+    // New function to calculate liquidity for deficit only
+    function _calcLiquidityForDeficit(
+        uint256 deficitAmount
+    ) internal view returns (uint128) {
+        (, , , , , , , uint128 totalLiq, , , , ) = pm.positions(tokenId);
+        uint256 totalValue = totalAssets();
+        if (totalValue == 0) return 0;
+
+        // Calculate ratio based on deficit, not total amountWant
+        uint256 ratio = (deficitAmount * 1e18) / totalValue;
         return uint128((uint256(totalLiq) * ratio) / 1e18);
     }
 

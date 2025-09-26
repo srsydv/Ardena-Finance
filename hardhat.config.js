@@ -29,8 +29,8 @@
 
 import "@nomicfoundation/hardhat-toolbox";
 import dotenv from "dotenv";
-import "hardhat-tracer";
 import "@openzeppelin/hardhat-upgrades";
+import "hardhat-tracer";
 
 dotenv.config();
 
@@ -75,9 +75,11 @@ export default {
       blockGasLimit: 1000000000,
       allowUnlimitedContractSize: true,
       forking: {
-        url: process.env.ALCHEMY_ARBITRUM_URL || "https://arb-mainnet.g.alchemy.com/v2/demo",
-        enabled: !!process.env.ALCHEMY_ARBITRUM_URL,
+        url: process.env.SEPOLIA_RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/rB2CQbcQlNubEmgJCgxDR",
+        enabled: true,
       },
+      loggingEnabled: true,
+      verbose: true,
     },
     sepolia: {
       url: `https://eth-sepolia.g.alchemy.com/v2/rB2CQbcQlNubEmgJCgxDR`,

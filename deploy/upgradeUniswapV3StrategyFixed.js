@@ -8,8 +8,8 @@
     npx hardhat run deploy/upgradeUniswapV3StrategyFixed.js --network sepolia
 */
 
-require("dotenv").config();
-const { ethers, upgrades } = require("hardhat");
+import hre from "hardhat";
+const { ethers, upgrades } = hre;
 
 async function main() {
     console.log("=== UPGRADING UNISWAPV3STRATEGY ON SEPOLIA ===");
@@ -17,9 +17,9 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log("Deployer address:", deployer.address);
     
-    // Contract addresses from DEPLOYEDCONTRACT.me
-    const UNI_STRATEGY_ADDRESS = "0xe7bA69Ffbc10Be7c5dA5776d768d5eF6a34Aa191";
-    const VAULT_ADDRESS = "0xD995048010d777185e70bBe8FD48Ca2d0eF741a0";
+    // Contract addresses - upgrading existing UniswapV3Strategy
+    const UNI_STRATEGY_ADDRESS = "0x65cDA0b70d3D09139c0a78059082F885714a0Fe7"; // EXISTING UNISWAPV3STRATEGY
+    const VAULT_ADDRESS = "0x3cd0145707C03316B48f8A254c494600c30ebf8d"; // AAVE VAULT
     const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
     
     console.log("\n=== STEP 1: CHECKING CURRENT STATE ===");
@@ -53,7 +53,7 @@ async function main() {
         console.log("- Vault:", vault);
         console.log("- Want token:", wantToken);
         console.log("- Token ID:", tokenId.toString());
-        console.log("- Total assets:", ethers.formatUnits(totalAssets, 6), "USDC");
+        console.log("- Total assets:", ethers.formatUnits(totalAssets, 18), "AAVE");
         
     } catch (error) {
         console.error("❌ Failed to check current strategy state:", error.message);
@@ -156,7 +156,7 @@ async function main() {
         console.log("- Vault:", vault);
         console.log("- Want token:", wantToken);
         console.log("- Token ID:", tokenId.toString());
-        console.log("- Total assets:", ethers.formatUnits(totalAssets, 6), "USDC");
+        console.log("- Total assets:", ethers.formatUnits(totalAssets, 18), "AAVE");
         
     } catch (error) {
         console.error("❌ Verification failed:", error.message);
