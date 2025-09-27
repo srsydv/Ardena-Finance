@@ -25,7 +25,7 @@
         function updatePrettyUrl() {
             try {
                 const innerPath = frame.contentWindow.location.pathname;
-                if (innerPath.endsWith('/whitepaper.html')) {
+                if (innerPath.endsWith('/whitepaper.html') || innerPath.endsWith('/whitepaper')) {
                     history.replaceState(null, '', '/whitepaper');
                 } else if (innerPath === '/' || innerPath.endsWith('/index.html')) {
                     history.replaceState(null, '', '/dapp');

@@ -1504,22 +1504,22 @@
         /* Small hanging banner below Connect Wallet */
         .network-banner {
             position: absolute;
-            top: 46px; /* hangs under button */
+            top: 42px;
             left: 50%;
             transform: translate(-50%, 0);
             width: max-content;
-            padding: 6px 14px;
-            border-radius: 8px 12px 12px 8px; /* subtle flag shape */
-            background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
-            border: 1px solid rgba(255,255,255,0.18);
-            color: rgba(255,255,255,0.96);
-            text-shadow: 0 1px 2px rgba(0,0,0,0.25);
-            box-shadow: 0 12px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.25);
+            padding: 2px 8px;
+            border-radius: 6px 8px 8px 6px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03));
+            border: 1px solid rgba(255,255,255,0.16);
+            color: rgba(255,255,255,0.92);
+            text-shadow: 0 1px 1px rgba(0,0,0,0.25);
+            box-shadow: 0 8px 18px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.22);
             font-weight: 800;
-            font-size: 11px;
-            letter-spacing: 0.12em;
+            font-size: 9px;
+            letter-spacing: 0.14em;
             text-transform: uppercase;
-            backdrop-filter: blur(10px) saturate(120%);
+            backdrop-filter: blur(8px) saturate(120%);
             z-index: 3;
             pointer-events: none;
             transform-origin: left center;
@@ -1529,10 +1529,10 @@
             /* pole */
             content: '';
             position: absolute;
-            left: -6px;
-            top: -4px;
-            width: 3px;
-            height: calc(100% + 8px);
+            left: -5px;
+            top: -3px;
+            width: 2px;
+            height: calc(100% + 6px);
             background: linear-gradient(180deg, rgba(220,230,240,0.75), rgba(130,150,170,0.55));
             border-radius: 2px;
             box-shadow: 0 0 6px rgba(0,0,0,0.25);
@@ -1603,6 +1603,7 @@
                     <div class="network-banner">ETHEREUM Sepolia</div>
                 </div>
                 <button class="btn btn-info" id="refreshData" onclick="manualRefresh()" style="margin-top: 0.5rem;" disabled>🔄 Refresh Data</button>
+                <a href="https://app.aave.com/faucet/" target="_blank" rel="noopener" class="btn btn-secondary" style="margin-top: 0.5rem; text-decoration: none;">🪙 Mint AAVE Token</a>
             </div>
         </div>
 
@@ -1696,7 +1697,7 @@
             <div class="card" style="position: relative;">
                 <div class="transaction-processing" id="userActionsProcessing">
                     <div class="processing-spinner"></div>
-                    <div class="processing-text">Processing transaction...</div>
+                    <div class="processing-text">Thanks For Visiting</div>
                     <div class="processing-details">Please wait while your transaction is being processed on the blockchain.</div>
                     
                     <div class="transaction-steps" id="userActionsSteps">
@@ -1737,7 +1738,7 @@
             <div class="card" style="position: relative;">
                 <div class="transaction-processing" id="managerActionsProcessing">
                     <div class="processing-spinner"></div>
-                    <div class="processing-text">Processing transaction...</div>
+                    <div class="processing-text">Thanks For Visiting</div>
                     <div class="processing-details">Please wait while your transaction is being processed on the blockchain.</div>
                     
                     <div class="transaction-steps" id="managerActionsSteps">
@@ -1828,7 +1829,7 @@
         <div class="card" style="position: relative;">
             <div class="transaction-processing" id="swapProcessing">
                 <div class="processing-spinner"></div>
-                <div class="processing-text">Processing transaction...</div>
+                <div class="processing-text">Thanks For Visiting</div>
                 <div class="processing-details">Please wait while your transaction is being processed on the blockchain.</div>
                 
                 <div class="transaction-steps" id="swapSteps">
@@ -1909,28 +1910,33 @@
         <!-- Loading Indicator -->
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Processing transaction...</p>
+            <p>Thanks For Visiting</p>
         </div>
 
-        <!-- Contract Information -->
-        <div class="contract-info">
-            <h4>📋 Contract Addresses (Sepolia Testnet)</h4>
-            <div class="contract-address">
-                <strong>Vault:</strong> 0xD995048010d777185e70bBe8FD48Ca2d0eF741a0
+        <!-- Creative Footer -->
+        <footer style="margin-top:2.5rem;padding:1.25rem;border-radius:14px;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 40px rgba(0,0,0,.22);backdrop-filter:blur(10px)">
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:1rem;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:.6rem;">
+                    <img src="images/ardena-finance-logo.png" alt="Ardena Finance" style="width:36px;height:36px;border-radius:10px;object-fit:cover;box-shadow:0 10px 24px rgba(0,0,0,.25)" />
+                    <div>
+                        <div style="font-weight:900;letter-spacing:.08em;color:#eaf3ff;">Ardena Finance</div>
+                        <div style="font-size:12px;color:rgba(232,232,232,.7)">Secure Yield On Ethereum Sepolia</div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+                    <a href="/whitepaper" class="btn btn-secondary" style="text-decoration:none;">📄 Whitepaper</a>
+                    <a href="https://app.aave.com/faucet/" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none;">🪙 Mint AAVE Token</a>
+                </div>
             </div>
-            <div class="contract-address">
-                <strong>USDC:</strong> 0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8
+            <div style="margin-top:.75rem;display:flex;gap:1rem;flex-wrap:wrap;color:rgba(232,232,232,.75);font-size:12px;">
+                <span>© <script>document.write(new Date().getFullYear())</script> Ardena Finance</span>
+                <span>•</span>
+                <span>Built for Sepolia Testnet</span>
+                <span>•</span>
+                <span>v1.0</span>
             </div>
-            <div class="contract-address">
-                <strong>Aave Strategy:</strong> 0xCc02bC41a7AF1A35af4935346cABC7335167EdC9
-            </div>
-            <div class="contract-address">
-                <strong>Uniswap Strategy:</strong> 0x6B018844b6Edd87f7F6355643fEB5090Da02b209 (NEW WORKING)
-            </div>
-            <div class="contract-address">
-                <strong>Access Controller:</strong> 0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2
-            </div>
-        </div>
+        </footer>
     </div>
 
     <!-- Include Ethers.js v6 -->
