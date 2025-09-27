@@ -4,10 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ardena Finance - Whitepaper</title>
-  <meta http-equiv="refresh" content="0; url=/whitepaper" />
-  <script>window.location.replace('/whitepaper');</script>
-  <style>body{background:#0f3460;color:#e8e8e8;font-family:Inter,system-ui,sans-serif}</style>
+  <style>
+    html, body { height: 100%; margin: 0; background:#0f3460; }
+    .frame { width: 100%; height: 100%; border: 0; }
+  </style>
+  <script>
+    // Keep pretty URL (/whitepaper/) while showing the actual page content
+    window.addEventListener('DOMContentLoaded', () => {
+      history.replaceState(null, '', '/whitepaper/');
+    });
+  </script>
+  <link rel="icon" href="/images/ardena-finance-logo.png" />
+  <meta name="robots" content="noindex" />
+  <meta name="referrer" content="no-referrer" />
 </head>
-<body>Redirecting to whitepaper…</body>
+<body>
+  <iframe class="frame" src="/whitepaper.html" title="Ardena Finance Whitepaper"></iframe>
+</body>
 </html>
 
