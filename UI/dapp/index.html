@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ardena Finance DApp</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: #0f3460;
+        }
+        .frame {
+            border: 0;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <iframe class="frame" id="appFrame" src="/index.html" title="Ardena Finance"></iframe>
+    <script>
+        // Route helper: show clean URLs for key pages
+        const frame = document.getElementById('appFrame');
+        function updatePrettyUrl() {
+            try {
+                const innerPath = frame.contentWindow.location.pathname;
+                if (innerPath.endsWith('/whitepaper.html')) {
+                    history.replaceState(null, '', '/whitepaper');
+                } else if (innerPath === '/' || innerPath.endsWith('/index.html')) {
+                    history.replaceState(null, '', '/dapp');
+                }
+            } catch (e) {
+                // cross-origin not expected in local usage
+            }
+        }
+        frame.addEventListener('load', updatePrettyUrl);
+        setInterval(updatePrettyUrl, 800); // light polling for SPA-like nav
+    </script>
+    
+</body>
+</html>
+

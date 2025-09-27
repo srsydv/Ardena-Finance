@@ -1500,6 +1500,70 @@
         }
 
     </style>
+    <style>
+        /* Small hanging banner below Connect Wallet */
+        .network-banner {
+            position: absolute;
+            top: 46px; /* hangs under button */
+            left: 50%;
+            transform: translate(-50%, 0);
+            width: max-content;
+            padding: 6px 14px;
+            border-radius: 8px 12px 12px 8px; /* subtle flag shape */
+            background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+            border: 1px solid rgba(255,255,255,0.18);
+            color: rgba(255,255,255,0.96);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.25);
+            font-weight: 800;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            backdrop-filter: blur(10px) saturate(120%);
+            z-index: 3;
+            pointer-events: none;
+            transform-origin: left center;
+            animation: flagFloat 5s ease-in-out infinite;
+        }
+        .network-banner::before {
+            /* pole */
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: -4px;
+            width: 3px;
+            height: calc(100% + 8px);
+            background: linear-gradient(180deg, rgba(220,230,240,0.75), rgba(130,150,170,0.55));
+            border-radius: 2px;
+            box-shadow: 0 0 6px rgba(0,0,0,0.25);
+        }
+        .network-banner::after {
+            /* subtle moving sheen */
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0; left: -20%; width: 40%;
+            border-radius: 8px 12px 12px 8px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.18), rgba(255,255,255,0.0));
+            filter: blur(2px);
+            animation: sheen 3.5s ease-in-out infinite;
+            mix-blend-mode: screen;
+        }
+        @keyframes sheen {
+            0%   { transform: translateX(0); opacity: 0.0; }
+            50%  { transform: translateX(220%); opacity: 0.45; }
+            100% { transform: translateX(450%); opacity: 0.0; }
+        }
+        @keyframes flagFloat {
+            0%   { transform: translate(-50%, 0) rotate(-0.8deg) skewY(0.6deg); }
+            25%  { transform: translate(-50%, -3px) rotate(0.8deg)  skewY(-0.9deg); }
+            50%  { transform: translate(-50%, 0) rotate(-0.4deg) skewY(0.4deg); }
+            75%  { transform: translate(-50%, -2px) rotate(0.6deg)  skewY(-0.7deg); }
+            100% { transform: translate(-50%, 0) rotate(-0.8deg) skewY(0.6deg); }
+        }
+        .wallet-section .btn.btn-success {
+            position: relative;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -1514,7 +1578,7 @@
             </div>
             <p class="tagline">DeFi Vault Management Platform</p>
             <div style="margin-top: 1rem;">
-                <a href="whitepaper.html" class="btn btn-secondary" style="text-decoration: none;">📄 Comprehensive Whitepaper</a>
+                <a href="/whitepaper" class="btn btn-secondary" style="text-decoration: none;">📄 Comprehensive Whitepaper</a>
             </div>
             <span class="flying-star">⭐</span>
         </div>
@@ -1534,9 +1598,11 @@
                         <span class="role-badge role-keeper" id="keeperRole" style="display: none;">Keeper</span>
                     </div>
                 </div>
-                <button class="btn btn-success" id="connectWallet">Connect Wallet</button>
+                <div style="position: relative; display: inline-block;">
+                    <button class="btn btn-success" id="connectWallet">Connect Wallet</button>
+                    <div class="network-banner">ETHEREUM Sepolia</div>
+                </div>
                 <button class="btn btn-info" id="refreshData" onclick="manualRefresh()" style="margin-top: 0.5rem;" disabled>🔄 Refresh Data</button>
-                <a href="whitepaper.html" class="btn btn-secondary" style="margin-top: 0.5rem; text-decoration: none;">📄 View Whitepaper</a>
             </div>
         </div>
 
@@ -1620,86 +1686,6 @@
                     <span class="cta-feature">✅ No minimum deposit</span>
                     <span class="cta-feature">✅ Instant withdrawals</span>
                     <span class="cta-feature">✅ Real-time tracking</span>
-                </div>
-                
-                <div class="whitepaper-section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                    <h3 style="color: #4facfe; margin-bottom: 1rem;">📄 Comprehensive Whitepaper</h3>
-                    <p style="margin-bottom: 1.5rem; color: rgba(232,232,232,0.8);">For detailed technical information, architecture overview, and complete feature documentation, read our comprehensive whitepaper.</p>
-                    
-                    <div class="whitepaper-content" style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;">
-                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🏗️ System Architecture</h4>
-                        <ul style="margin-bottom: 1rem; color: rgba(232,232,232,0.8);">
-                            <li><strong>Vault Contract:</strong> 0x3cd0145707C03316B48f8A254c494600c30ebf8d</li>
-                            <li><strong>AAVE Token:</strong> 0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a</li>
-                            <li><strong>Network:</strong> Ethereum Sepolia Testnet</li>
-                        </ul>
-                        
-                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🎯 Investment Strategies</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                            <div style="background: rgba(79,172,254,0.1); padding: 1rem; border-radius: 8px; border: 1px solid rgba(79,172,254,0.2);">
-                                <h5 style="color: #4facfe; margin-bottom: 0.5rem;">🏦 AaveV3Strategy (60%)</h5>
-                                <p style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Conservative yield through AAVE lending pools. Earn interest on deposits with low risk exposure.</p>
-                            </div>
-                            <div style="background: rgba(0,255,150,0.1); padding: 1rem; border-radius: 8px; border: 1px solid rgba(0,255,150,0.2);">
-                                <h5 style="color: #00f2fe; margin-bottom: 0.5rem;">💧 UniswapV3Strategy (40%)</h5>
-                                <p style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">High yield through AAVE/WETH liquidity provision. Earn trading fees with dynamic position management.</p>
-                            </div>
-                        </div>
-                        
-                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">⚙️ Technical Features</h4>
-                        <ul style="color: rgba(232,232,232,0.8); margin-bottom: 1rem;">
-                            <li><strong>Upgradeable Architecture:</strong> UUPS proxy pattern for seamless upgrades</li>
-                            <li><strong>Oracle Integration:</strong> Real-time price feeds for accurate valuations</li>
-                            <li><strong>Dynamic Rebalancing:</strong> Automated strategy allocation optimization</li>
-                            <li><strong>Gas Optimization:</strong> Efficient batch operations and minimal external calls</li>
-                        </ul>
-                        
-                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🛡️ Security & Risk Management</h4>
-                        <ul style="color: rgba(232,232,232,0.8); margin-bottom: 1rem;">
-                            <li><strong>Smart Contract Security:</strong> Comprehensive audits and formal verification</li>
-                            <li><strong>Impermanent Loss Protection:</strong> Dynamic position management</li>
-                            <li><strong>Governance Framework:</strong> Multi-signature requirements and community voting</li>
-                            <li><strong>Operational Security:</strong> Time-locked functions and emergency procedures</li>
-                        </ul>
-                        
-                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">💰 Fee Structure</h4>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
-                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
-                                <span style="color: #4facfe; font-weight: 600;">Management Fee:</span> 2% annually
-                            </div>
-                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
-                                <span style="color: #00f2fe; font-weight: 600;">Performance Fee:</span> 20% of profits
-                            </div>
-                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
-                                <span style="color: #fa709a; font-weight: 600;">Withdrawal Fee:</span> 0.5%
-                            </div>
-                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
-                                <span style="color: #a8edea; font-weight: 600;">Deposit Fee:</span> 0%
-                            </div>
-                        </div>
-                        
-                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🗺️ Development Roadmap</h4>
-                        <div style="margin-bottom: 1rem;">
-                            <div style="background: rgba(0,255,150,0.1); padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 4px solid #00f2fe;">
-                                <strong style="color: #00f2fe;">Phase 1 - Core Platform ✅</strong><br>
-                                <span style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Vault deployment, UI implementation, core functionality testing</span>
-                            </div>
-                            <div style="background: rgba(79,172,254,0.1); padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 4px solid #4facfe;">
-                                <strong style="color: #4facfe;">Phase 2 - Enhancement</strong><br>
-                                <span style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Advanced analytics, mobile app, additional strategies</span>
-                            </div>
-                            <div style="background: rgba(150,0,255,0.1); padding: 0.75rem; border-radius: 6px; border-left: 4px solid #fa709a;">
-                                <strong style="color: #fa709a;">Phase 3 - Expansion</strong><br>
-                                <span style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Cross-chain deployment, institutional features</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
-                        <h4 style="color: #e8e8e8; margin-bottom: 0.5rem;">⚠️ Important Disclaimer</h4>
-                        <p style="color: rgba(232,232,232,0.7); font-size: 0.85rem; margin-bottom: 0.5rem;">This platform is deployed on Ethereum Sepolia testnet for testing purposes. This whitepaper is for informational purposes only and does not constitute financial advice.</p>
-                        <p style="color: rgba(232,232,232,0.6); font-size: 0.8rem;"><strong>Network:</strong> Ethereum Sepolia Testnet | <strong>Last Updated:</strong> January 2025</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -2046,13 +2032,41 @@
                 
                 console.log('Connected to wallet:', userAddress);
 
-                // Check network
+                // Check network and request switch to Sepolia if needed
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
                 console.log('Current chain ID:', chainId);
-                
-                if (chainId !== '0xaa36a7') { // Sepolia chain ID
-                    showStatus('Please switch to Sepolia testnet in MetaMask (Current: Mainnet)', 'error');
-                    // Don't return, continue with connection but show warning
+                if (chainId !== '0xaa36a7') {
+                    try {
+                        // Try to switch to Sepolia
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0xaa36a7' }], // 11155111
+                        });
+                        showStatus('Requesting network change to Sepolia…', 'info');
+                    } catch (switchError) {
+                        // If the chain is not added to MetaMask, add it
+                        if (switchError.code === 4902 || (switchError?.message || '').includes('Unrecognized chain ID')) {
+                            try {
+                                await window.ethereum.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [{
+                                        chainId: '0xaa36a7',
+                                        chainName: 'Sepolia',
+                                        nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+                                        rpcUrls: ['https://sepolia.infura.io/v3/'],
+                                        blockExplorerUrls: ['https://sepolia.etherscan.io/']
+                                    }]
+                                });
+                                showStatus('Sepolia added to MetaMask. Switching…', 'success');
+                            } catch (addErr) {
+                                console.warn('Failed to add Sepolia network', addErr);
+                                showStatus('Please switch to Sepolia in MetaMask', 'error');
+                            }
+                        } else {
+                            console.warn('User rejected or failed to switch network', switchError);
+                            showStatus('Please switch to Sepolia in MetaMask', 'error');
+                        }
+                    }
                 }
 
                 // Check if VaultIntegration class is available

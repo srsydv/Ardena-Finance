@@ -141,10 +141,38 @@ class VaultIntegration {
             console.log('Connected to network:', network.name, 'Chain ID:', network.chainId.toString());
             
             if (network.chainId !== 11155111n) {
-                console.warn('⚠️ WARNING: Not connected to Sepolia testnet!');
-                console.warn('Expected Chain ID: 11155111 (Sepolia)');
-                console.warn('Actual Chain ID:', network.chainId.toString());
-                console.warn('Some contracts may not work on this network.');
+                console.warn('⚠️ Not on Sepolia. Attempting switch...');
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0xaa36a7' }]
+                    });
+                } catch (err) {
+                    if (err.code === 4902 || (err?.message || '').includes('Unrecognized chain ID')) {
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: '0xaa36a7',
+                                    chainName: 'Sepolia',
+                                    nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+                                    rpcUrls: ['https://sepolia.infura.io/v3/'],
+                                    blockExplorerUrls: ['https://sepolia.etherscan.io/']
+                                }]
+                            });
+                        } catch (addErr) {
+                            console.warn('User did not add Sepolia. Aborting initialization to prevent wrong-network usage.');
+                            throw new Error('Please switch to Sepolia network in MetaMask');
+                        }
+                    } else {
+                        console.warn('User rejected switch or other error. Aborting.');
+                        throw new Error('Please switch to Sepolia network in MetaMask');
+                    }
+                }
+
+                // Recreate provider/signer after switch
+                this.provider = new ethers.BrowserProvider(window.ethereum);
+                this.signer = await this.provider.getSigner();
             }
             
             console.log('Using NEW WORKING addresses:');
