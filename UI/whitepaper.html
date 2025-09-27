@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ardena Finance - Comprehensive Whitepaper</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --danger-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            --info-gradient: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            --warning-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            --dark-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --shadow-light: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --shadow-medium: 0 15px 40px rgba(0, 0, 0, 0.15);
+            --shadow-heavy: 0 25px 50px rgba(0, 0, 0, 0.2);
+            --border-radius: 20px;
+            --border-radius-small: 12px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e8e8e8;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(0, 150, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 255, 150, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(150, 0, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+        }
+
+        .logo-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .logo-image {
+            height: 60px;
+            width: auto;
+            border-radius: 8px;
+        }
+
+        .logo-text h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .tagline {
+            font-size: 1.1rem;
+            color: rgba(232, 232, 232, 0.8);
+            font-weight: 500;
+        }
+
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--border-radius-small);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e8e8e8;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .whitepaper-content {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+            padding: 3rem;
+            margin-bottom: 2rem;
+        }
+
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .section h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #4facfe;
+            border-bottom: 2px solid rgba(79, 172, 254, 0.3);
+            padding-bottom: 0.5rem;
+        }
+
+        .section h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem 0;
+            color: #00f2fe;
+        }
+
+        .section h4 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem 0;
+            color: #a8edea;
+        }
+
+        .section p {
+            margin-bottom: 1rem;
+            color: rgba(232, 232, 232, 0.9);
+            font-size: 1rem;
+        }
+
+        .section ul, .section ol {
+            margin: 1rem 0 1rem 2rem;
+            color: rgba(232, 232, 232, 0.9);
+        }
+
+        .section li {
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight-box {
+            background: rgba(79, 172, 254, 0.1);
+            border: 1px solid rgba(79, 172, 254, 0.3);
+            border-radius: var(--border-radius-small);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .highlight-box h4 {
+            color: #4facfe;
+            margin-top: 0;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius-small);
+            padding: 1.5rem;
+            transition: var(--transition);
+        }
+
+        .info-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .info-card h4 {
+            color: #00f2fe;
+            margin-bottom: 1rem;
+        }
+
+        .contract-address {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.5rem;
+            border-radius: 4px;
+            word-break: break-all;
+            font-size: 0.9rem;
+            color: #4facfe;
+        }
+
+        .strategy-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .strategy-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius-small);
+            padding: 2rem;
+            transition: var(--transition);
+        }
+
+        .strategy-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .strategy-card.aave {
+            border-left: 4px solid #4facfe;
+        }
+
+        .strategy-card.uniswap {
+            border-left: 4px solid #00f2fe;
+        }
+
+        .strategy-card h4 {
+            color: #4facfe;
+            margin-bottom: 1rem;
+        }
+
+        .strategy-card.uniswap h4 {
+            color: #00f2fe;
+        }
+
+        .risk-level {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .risk-low {
+            background: rgba(0, 255, 150, 0.2);
+            color: #00f2fe;
+        }
+
+        .risk-medium {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .risk-high {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+        }
+
+        .roadmap-timeline {
+            margin: 2rem 0;
+        }
+
+        .roadmap-phase {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius-small);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #4facfe;
+        }
+
+        .roadmap-phase.completed {
+            border-left-color: #00f2fe;
+        }
+
+        .roadmap-phase.in-progress {
+            border-left-color: #ffc107;
+        }
+
+        .roadmap-phase.planned {
+            border-left-color: #fa709a;
+        }
+
+        .phase-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .phase-header h4 {
+            color: #4facfe;
+            margin: 0;
+        }
+
+        .phase-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .phase-status.completed {
+            background: rgba(0, 255, 150, 0.2);
+            color: #00f2fe;
+        }
+
+        .phase-status.in-progress {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .phase-status.planned {
+            background: rgba(150, 0, 255, 0.2);
+            color: #fa709a;
+        }
+
+        .disclaimer {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: var(--border-radius-small);
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+
+        .disclaimer h4 {
+            color: #ffc107;
+            margin-bottom: 1rem;
+        }
+
+        .disclaimer p {
+            color: rgba(255, 193, 7, 0.9);
+            font-size: 0.9rem;
+        }
+
+        .back-to-vault {
+            position: fixed;
+            top: 2rem;
+            left: 2rem;
+            z-index: 1000;
+        }
+
+        .back-to-vault .btn {
+            background: rgba(0, 0, 0, 0.7);
+            color: #e8e8e8;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-to-vault .btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .logo-container {
+                flex-direction: column;
+                gap: 0.8rem;
+            }
+            
+            .logo-text h1 {
+                font-size: 2rem;
+            }
+            
+            .nav-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .whitepaper-content {
+                padding: 2rem 1.5rem;
+            }
+            
+            .strategy-comparison {
+                grid-template-columns: 1fr;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .back-to-vault {
+                position: static;
+                margin-bottom: 2rem;
+            }
+        }
+
+        .toc {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius-small);
+            padding: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .toc h3 {
+            color: #4facfe;
+            margin-bottom: 1rem;
+        }
+
+        .toc ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .toc li {
+            margin-bottom: 0.5rem;
+        }
+
+        .toc a {
+            color: rgba(232, 232, 232, 0.8);
+            text-decoration: none;
+            transition: var(--transition);
+            display: block;
+            padding: 0.5rem 0;
+        }
+
+        .toc a:hover {
+            color: #4facfe;
+            transform: translateX(5px);
+        }
+    </style>
+</head>
+<body>
+    <div class="back-to-vault">
+        <a href="index.html" class="btn">
+            ← Back to Vault
+        </a>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <div class="logo-container">
+                <img src="images/ardena-finance-logo.png" alt="Ardena Finance Logo" class="logo-image">
+                <div class="logo-text">
+                    <h1>Ardena Finance</h1>
+                    <p class="tagline">Comprehensive Whitepaper - AAVE Yield Vault System</p>
+                </div>
+            </div>
+            
+            <div class="nav-buttons">
+                <a href="index.html" class="btn btn-primary">🚀 Launch Vault</a>
+                <a href="index.html" class="btn btn-secondary">📊 Dashboard</a>
+            </div>
+        </div>
+
+        <div class="whitepaper-content">
+            <!-- Table of Contents -->
+            <div class="toc">
+                <h3>📋 Table of Contents</h3>
+                <ul>
+                    <li><a href="#executive-summary">1. Executive Summary</a></li>
+                    <li><a href="#system-architecture">2. System Architecture</a></li>
+                    <li><a href="#strategy-framework">3. Strategy Framework</a></li>
+                    <li><a href="#technical-implementation">4. Technical Implementation</a></li>
+                    <li><a href="#risk-management">5. Risk Management</a></li>
+                    <li><a href="#governance">6. Governance & Decentralization</a></li>
+                    <li><a href="#roadmap">7. Development Roadmap</a></li>
+                    <li><a href="#disclaimer">8. Disclaimer</a></li>
+                </ul>
+            </div>
+
+            <!-- Executive Summary -->
+            <div class="section" id="executive-summary">
+                <h2>🚀 Executive Summary</h2>
+                <p>Ardena Finance introduces an innovative decentralized yield vault system built on Ethereum's Sepolia testnet, designed to maximize returns for AAVE token holders through sophisticated multi-strategy asset management. Our platform combines the stability of Aave V3 lending with the high-yield potential of Uniswap V3 liquidity provision, creating a comprehensive DeFi yield optimization solution.</p>
+                
+                <div class="highlight-box">
+                    <h4>💡 Key Value Propositions</h4>
+                    <ul>
+                        <li><strong>Dual Strategy Approach:</strong> Combines conservative Aave V3 lending with high-yield Uniswap V3 liquidity provision</li>
+                        <li><strong>Automated Management:</strong> Intelligent rebalancing and optimization without manual intervention</li>
+                        <li><strong>Professional Architecture:</strong> Upgradeable smart contracts with comprehensive security measures</li>
+                        <li><strong>Transparent Operations:</strong> All transactions on-chain with full auditability</li>
+                        <li><strong>Risk-Adjusted Returns:</strong> Balanced allocation between stable and variable yield strategies</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- System Architecture -->
+            <div class="section" id="system-architecture">
+                <h2>🏗️ System Architecture</h2>
+                <p>Our platform is built on a robust, modular architecture that ensures security, scalability, and efficiency. The system consists of several interconnected smart contracts working together to provide seamless yield optimization.</p>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>🏦 Vault Contract</h4>
+                        <p><strong>Address:</strong></p>
+                        <div class="contract-address">0x3cd0145707C03316B48f8A254c494600c30ebf8d</div>
+                        <ul>
+                            <li>Central repository for user deposits</li>
+                            <li>Automated strategy allocation and rebalancing</li>
+                            <li>Fee management and treasury operations</li>
+                            <li>Share-based accounting system (ERC4626 compliant)</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>🎯 Strategy Contracts</h4>
+                        <p><strong>AaveV3Strategy:</strong> 0x9362c59c71321c77CaeE86f9Cf02cbBF3b64277D</p>
+                        <p><strong>UniswapV3Strategy:</strong> 0x65cDA0b70d3D09139c0a78059082F885714a0Fe7</p>
+                        <ul>
+                            <li>Automated yield optimization</li>
+                            <li>Risk-adjusted allocation</li>
+                            <li>Real-time performance monitoring</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>🔄 Supporting Infrastructure</h4>
+                        <p><strong>ExchangeHandler:</strong> Routes swaps through whitelisted DEX routers</p>
+                        <p><strong>OracleModule:</strong> Provides real-time price feeds</p>
+                        <p><strong>AccessController:</strong> Manages permissions and governance</p>
+                    </div>
+                </div>
+
+                <h3>🪙 Token Economics</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>Base Asset: AAVE Token</h4>
+                        <p><strong>Address:</strong></p>
+                        <div class="contract-address">0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a</div>
+                        <p><strong>Decimals:</strong> 18</p>
+                        <p><strong>Purpose:</strong> Native Aave protocol token that governs the ecosystem</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Vault Shares</h4>
+                        <p><strong>Standard:</strong> ERC4626 compliant</p>
+                        <p><strong>Purpose:</strong> Represent proportional ownership of vault assets</p>
+                        <p><strong>Features:</strong> Automatically accrue value through strategy yields</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategy Framework -->
+            <div class="section" id="strategy-framework">
+                <h2>🎯 Investment Strategies</h2>
+                <p>Our dual-strategy approach balances risk and return by combining stable lending yields with dynamic liquidity provision returns.</p>
+
+                <div class="strategy-comparison">
+                    <div class="strategy-card aave">
+                        <h4>🏦 AaveV3Strategy - Conservative Yield</h4>
+                        <p><strong>Allocation:</strong> 60% (Default)</p>
+                        <p><strong>Mechanism:</strong> Deposits AAVE tokens into Aave V3 lending pools</p>
+                        
+                        <div class="risk-level risk-low">Low Risk</div>
+                        
+                        <h4>Yield Sources:</h4>
+                        <ul>
+                            <li>AAVE lending interest rates</li>
+                            <li>Aave protocol rewards (if applicable)</li>
+                            <li>Compound interest on earned rewards</li>
+                        </ul>
+                        
+                        <h4>Risk Profile: Low</h4>
+                        <ul>
+                            <li>Principal protection through Aave's battle-tested infrastructure</li>
+                            <li>No impermanent loss exposure</li>
+                            <li>Stable, predictable returns</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="strategy-card uniswap">
+                        <h4>💧 UniswapV3Strategy - High Yield</h4>
+                        <p><strong>Allocation:</strong> 40% (Default)</p>
+                        <p><strong>Mechanism:</strong> Provides concentrated liquidity to AAVE/WETH pool</p>
+                        
+                        <div class="risk-level risk-medium">Medium Risk</div>
+                        
+                        <h4>Yield Sources:</h4>
+                        <ul>
+                            <li>Trading fees (0.05% per trade)</li>
+                            <li>Liquidity mining rewards (if applicable)</li>
+                            <li>Capital appreciation from token price movements</li>
+                        </ul>
+                        
+                        <h4>Advanced Features:</h4>
+                        <ul>
+                            <li>Dynamic liquidity management</li>
+                            <li>Automated fee collection and compounding</li>
+                            <li>Intelligent position rebalancing</li>
+                        </ul>
+                        
+                        <h4>Risk Profile: Medium</h4>
+                        <ul>
+                            <li>Impermanent loss exposure</li>
+                            <li>Smart contract risks</li>
+                            <li>Market volatility impact</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>⚖️ Multi-Strategy Allocation</h3>
+                <div class="highlight-box">
+                    <h4>Default Allocation Strategy</h4>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>60% - AaveV3Strategy</h4>
+                            <p>Conservative yield through lending pools. Provides stable returns with minimal risk exposure.</p>
+                        </div>
+                        <div class="info-card">
+                            <h4>40% - UniswapV3Strategy</h4>
+                            <p>High yield through liquidity provision. Generates trading fees with dynamic position management.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <h4>Dynamic Rebalancing Features:</h4>
+                <ul>
+                    <li>Automated reallocation based on strategy performance</li>
+                    <li>Manual rebalancing capabilities for optimal yield</li>
+                    <li>Risk-adjusted allocation recommendations</li>
+                </ul>
+            </div>
+
+            <!-- Technical Implementation -->
+            <div class="section" id="technical-implementation">
+                <h2>⚙️ Technical Implementation</h2>
+                
+                <h3>Smart Contract Features</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>🔄 Upgradeable Architecture</h4>
+                        <ul>
+                            <li>UUPS (Universal Upgradeable Proxy Standard) implementation</li>
+                            <li>Gas-efficient upgrade mechanism</li>
+                            <li>Governance-controlled upgrades</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>🔒 Security Measures</h4>
+                        <ul>
+                            <li>Multi-signature requirements for critical operations</li>
+                            <li>Time-locked administrative functions</li>
+                            <li>Comprehensive access control system</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>⚡ Gas Optimization</h4>
+                        <ul>
+                            <li>Batch operations for multiple strategies</li>
+                            <li>Efficient storage patterns</li>
+                            <li>Minimal external calls</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>📊 Oracle Integration</h3>
+                <div class="highlight-box">
+                    <h4>Price Feed System</h4>
+                    <ul>
+                        <li>Real-time AAVE/USD pricing via Chainlink-compatible oracles</li>
+                        <li>ETH/USD pricing for WETH conversions</li>
+                        <li>Composite pricing for accurate valuations</li>
+                    </ul>
+                    
+                    <h4>Oracle Security</h4>
+                    <ul>
+                        <li>Multiple price feed sources</li>
+                        <li>Staleness detection and circuit breakers</li>
+                        <li>Emergency price override capabilities</li>
+                    </ul>
+                </div>
+
+                <h3>💧 Liquidity Management</h3>
+                <div class="highlight-box">
+                    <h4>Uniswap V3 Integration</h4>
+                    <ul>
+                        <li>Concentrated liquidity provision</li>
+                        <li>Dynamic tick range optimization</li>
+                        <li>Automated fee collection</li>
+                    </ul>
+                    
+                    <h4>Position Management</h4>
+                    <ul>
+                        <li>Real-time liquidity monitoring</li>
+                        <li>Automatic position rebalancing</li>
+                        <li>Efficient capital utilization</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Risk Management -->
+            <div class="section" id="risk-management">
+                <h2>🛡️ Risk Management</h2>
+                
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>🔧 Smart Contract Risks</h4>
+                        <div class="risk-level risk-medium">Medium Risk</div>
+                        <h4>Mitigation Strategies:</h4>
+                        <ul>
+                            <li>Comprehensive audit requirements</li>
+                            <li>Formal verification for critical functions</li>
+                            <li>Bug bounty programs</li>
+                            <li>Insurance coverage consideration</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>📈 Market Risks</h4>
+                        <div class="risk-level risk-medium">Medium Risk</div>
+                        <h4>Impermanent Loss Protection:</h4>
+                        <ul>
+                            <li>Dynamic position management</li>
+                            <li>Automated rebalancing mechanisms</li>
+                            <li>Risk-adjusted allocation strategies</li>
+                        </ul>
+                        
+                        <h4>Liquidity Risk Management:</h4>
+                        <ul>
+                            <li>Reserve fund maintenance</li>
+                            <li>Emergency withdrawal procedures</li>
+                            <li>Gradual position unwinding</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>⚙️ Operational Risks</h4>
+                        <div class="risk-level risk-low">Low Risk</div>
+                        <h4>Governance Framework:</h4>
+                        <ul>
+                            <li>Multi-signature wallet requirements</li>
+                            <li>Community governance participation</li>
+                            <li>Transparent decision-making processes</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <h3>🔍 Security and Audits</h3>
+                <div class="highlight-box">
+                    <h4>Security Measures</h4>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <h4>Code Quality</h4>
+                            <ul>
+                                <li>Comprehensive test coverage</li>
+                                <li>Formal verification processes</li>
+                                <li>Continuous security monitoring</li>
+                                <li>Regular security updates</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="info-card">
+                            <h4>Operational Security</h4>
+                            <ul>
+                                <li>Multi-signature requirements</li>
+                                <li>Time-locked administrative functions</li>
+                                <li>Emergency response procedures</li>
+                                <li>Insurance coverage</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <h4>Planned Audits</h4>
+                    <ul>
+                        <li>Smart contract security audit</li>
+                        <li>Economic model review</li>
+                        <li>Operational security assessment</li>
+                        <li>Third-party verification</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Governance -->
+            <div class="section" id="governance">
+                <h2>🗳️ Governance and Decentralization</h2>
+                
+                <h3>Token Holders Rights</h3>
+                <div class="highlight-box">
+                    <h4>Voting Power</h4>
+                    <ul>
+                        <li><strong>Proportional Voting:</strong> Based on vault share ownership</li>
+                        <li><strong>Strategy Allocation:</strong> Decisions on fund allocation percentages</li>
+                        <li><strong>Fee Structure:</strong> Modifications to management and performance fees</li>
+                        <li><strong>Protocol Upgrades:</strong> Approval of smart contract improvements</li>
+                    </ul>
+                </div>
+
+                <h3>Community Governance</h3>
+                <div class="highlight-box">
+                    <h4>Proposal System</h4>
+                    <ul>
+                        <li><strong>Community-Driven Improvements:</strong> User-submitted enhancement proposals</li>
+                        <li><strong>Technical Upgrades:</strong> Smart contract enhancement proposals</li>
+                        <li><strong>Strategic Direction:</strong> Long-term platform development decisions</li>
+                        <li><strong>Partnerships:</strong> Integration and collaboration choices</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Roadmap -->
+            <div class="section" id="roadmap">
+                <h2>🗺️ Development Roadmap</h2>
+                
+                <div class="roadmap-timeline">
+                    <div class="roadmap-phase completed">
+                        <div class="phase-header">
+                            <h4>Phase 1 - Core Platform</h4>
+                            <span class="phase-status completed">Completed</span>
+                        </div>
+                        <ul>
+                            <li>✅ Vault and strategy deployment</li>
+                            <li>✅ Basic UI implementation</li>
+                            <li>✅ Core functionality testing</li>
+                            <li>✅ Multi-strategy integration</li>
+                            <li>✅ Comprehensive whitepaper</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="roadmap-phase in-progress">
+                        <div class="phase-header">
+                            <h4>Phase 2 - Enhancement</h4>
+                            <span class="phase-status in-progress">In Progress</span>
+                        </div>
+                        <ul>
+                            <li>🔄 Advanced analytics dashboard</li>
+                            <li>🔄 Mobile application development</li>
+                            <li>🔄 Additional strategy integrations</li>
+                            <li>🔄 Enhanced risk management tools</li>
+                            <li>🔄 Community governance implementation</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="roadmap-phase planned">
+                        <div class="phase-header">
+                            <h4>Phase 3 - Expansion</h4>
+                            <span class="phase-status planned">Planned</span>
+                        </div>
+                        <ul>
+                            <li>📋 Cross-chain deployment</li>
+                            <li>📋 Institutional features</li>
+                            <li>📋 Advanced risk management tools</li>
+                            <li>📋 Integration with additional DeFi protocols</li>
+                            <li>📋 Automated strategy optimization</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fee Structure -->
+            <div class="section">
+                <h2>💰 Fee Structure</h2>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>Management Fee</h4>
+                        <p><strong>Rate:</strong> 2% annually</p>
+                        <p><strong>Purpose:</strong> Covers operational costs and platform maintenance</p>
+                        <p><strong>Collection:</strong> Deducted from vault assets</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Performance Fee</h4>
+                        <p><strong>Rate:</strong> 20% of profits</p>
+                        <p><strong>Purpose:</strong> Aligns incentives with user returns</p>
+                        <p><strong>Collection:</strong> Applied to profits above benchmark</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Withdrawal Fee</h4>
+                        <p><strong>Rate:</strong> 0.5%</p>
+                        <p><strong>Purpose:</strong> Covers gas costs for strategy unwinding</p>
+                        <p><strong>Collection:</strong> Deducted from withdrawal amount</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Deposit Fee</h4>
+                        <p><strong>Rate:</strong> 0%</p>
+                        <p><strong>Purpose:</strong> Encourages capital inflow</p>
+                        <p><strong>Collection:</strong> No fees for deposits</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="section" id="disclaimer">
+                <h2>⚠️ Disclaimer</h2>
+                <div class="disclaimer">
+                    <h4>Important Legal Notice</h4>
+                    <p><strong>This whitepaper is for informational purposes only and does not constitute financial advice.</strong> Users should conduct their own research and understand the risks associated with DeFi protocols before participating.</p>
+                    
+                    <p><strong>Risk Warning:</strong> DeFi protocols involve significant risks including but not limited to smart contract risks, market volatility, impermanent loss, and regulatory changes. Past performance does not guarantee future results.</p>
+                    
+                    <p><strong>Testnet Deployment:</strong> This platform is currently deployed on Ethereum Sepolia testnet for testing purposes. Testnet tokens have no real value and should not be considered as real investments.</p>
+                    
+                    <p><strong>Network Information:</strong> Ethereum Sepolia Testnet | <strong>Last Updated:</strong> January 2025</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Smooth scrolling for table of contents links
+        document.querySelectorAll('.toc a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                const targetElement = document.getElementById(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add active class to current section in TOC
+        window.addEventListener('scroll', function() {
+            const sections = document.querySelectorAll('.section');
+            const tocLinks = document.querySelectorAll('.toc a');
+            
+            let currentSection = '';
+            sections.forEach(section => {
+                const rect = section.getBoundingClientRect();
+                if (rect.top <= 100 && rect.bottom >= 100) {
+                    currentSection = section.id;
+                }
+            });
+            
+            tocLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + currentSection) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1513,6 +1513,9 @@
                 </div>
             </div>
             <p class="tagline">DeFi Vault Management Platform</p>
+            <div style="margin-top: 1rem;">
+                <a href="whitepaper.html" class="btn btn-secondary" style="text-decoration: none;">📄 Comprehensive Whitepaper</a>
+            </div>
             <span class="flying-star">⭐</span>
         </div>
 
@@ -1526,11 +1529,14 @@
                     </div>
                     <div class="wallet-address" id="walletAddress" style="display: none;"></div>
                     <div class="role-badges">
+                        <span class="role-badge role-user" id="userRole" style="display: none;">User</span>
                         <span class="role-badge role-manager" id="managerRole" style="display: none;">Manager</span>
                         <span class="role-badge role-keeper" id="keeperRole" style="display: none;">Keeper</span>
                     </div>
                 </div>
                 <button class="btn btn-success" id="connectWallet">Connect Wallet</button>
+                <button class="btn btn-info" id="refreshData" onclick="manualRefresh()" style="margin-top: 0.5rem;" disabled>🔄 Refresh Data</button>
+                <a href="whitepaper.html" class="btn btn-secondary" style="margin-top: 0.5rem; text-decoration: none;">📄 View Whitepaper</a>
             </div>
         </div>
 
@@ -1614,6 +1620,86 @@
                     <span class="cta-feature">✅ No minimum deposit</span>
                     <span class="cta-feature">✅ Instant withdrawals</span>
                     <span class="cta-feature">✅ Real-time tracking</span>
+                </div>
+                
+                <div class="whitepaper-section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                    <h3 style="color: #4facfe; margin-bottom: 1rem;">📄 Comprehensive Whitepaper</h3>
+                    <p style="margin-bottom: 1.5rem; color: rgba(232,232,232,0.8);">For detailed technical information, architecture overview, and complete feature documentation, read our comprehensive whitepaper.</p>
+                    
+                    <div class="whitepaper-content" style="background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🏗️ System Architecture</h4>
+                        <ul style="margin-bottom: 1rem; color: rgba(232,232,232,0.8);">
+                            <li><strong>Vault Contract:</strong> 0x3cd0145707C03316B48f8A254c494600c30ebf8d</li>
+                            <li><strong>AAVE Token:</strong> 0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a</li>
+                            <li><strong>Network:</strong> Ethereum Sepolia Testnet</li>
+                        </ul>
+                        
+                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🎯 Investment Strategies</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div style="background: rgba(79,172,254,0.1); padding: 1rem; border-radius: 8px; border: 1px solid rgba(79,172,254,0.2);">
+                                <h5 style="color: #4facfe; margin-bottom: 0.5rem;">🏦 AaveV3Strategy (60%)</h5>
+                                <p style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Conservative yield through AAVE lending pools. Earn interest on deposits with low risk exposure.</p>
+                            </div>
+                            <div style="background: rgba(0,255,150,0.1); padding: 1rem; border-radius: 8px; border: 1px solid rgba(0,255,150,0.2);">
+                                <h5 style="color: #00f2fe; margin-bottom: 0.5rem;">💧 UniswapV3Strategy (40%)</h5>
+                                <p style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">High yield through AAVE/WETH liquidity provision. Earn trading fees with dynamic position management.</p>
+                            </div>
+                        </div>
+                        
+                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">⚙️ Technical Features</h4>
+                        <ul style="color: rgba(232,232,232,0.8); margin-bottom: 1rem;">
+                            <li><strong>Upgradeable Architecture:</strong> UUPS proxy pattern for seamless upgrades</li>
+                            <li><strong>Oracle Integration:</strong> Real-time price feeds for accurate valuations</li>
+                            <li><strong>Dynamic Rebalancing:</strong> Automated strategy allocation optimization</li>
+                            <li><strong>Gas Optimization:</strong> Efficient batch operations and minimal external calls</li>
+                        </ul>
+                        
+                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🛡️ Security & Risk Management</h4>
+                        <ul style="color: rgba(232,232,232,0.8); margin-bottom: 1rem;">
+                            <li><strong>Smart Contract Security:</strong> Comprehensive audits and formal verification</li>
+                            <li><strong>Impermanent Loss Protection:</strong> Dynamic position management</li>
+                            <li><strong>Governance Framework:</strong> Multi-signature requirements and community voting</li>
+                            <li><strong>Operational Security:</strong> Time-locked functions and emergency procedures</li>
+                        </ul>
+                        
+                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">💰 Fee Structure</h4>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
+                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
+                                <span style="color: #4facfe; font-weight: 600;">Management Fee:</span> 2% annually
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
+                                <span style="color: #00f2fe; font-weight: 600;">Performance Fee:</span> 20% of profits
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
+                                <span style="color: #fa709a; font-weight: 600;">Withdrawal Fee:</span> 0.5%
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 6px;">
+                                <span style="color: #a8edea; font-weight: 600;">Deposit Fee:</span> 0%
+                            </div>
+                        </div>
+                        
+                        <h4 style="color: #e8e8e8; margin-bottom: 1rem;">🗺️ Development Roadmap</h4>
+                        <div style="margin-bottom: 1rem;">
+                            <div style="background: rgba(0,255,150,0.1); padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 4px solid #00f2fe;">
+                                <strong style="color: #00f2fe;">Phase 1 - Core Platform ✅</strong><br>
+                                <span style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Vault deployment, UI implementation, core functionality testing</span>
+                            </div>
+                            <div style="background: rgba(79,172,254,0.1); padding: 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 4px solid #4facfe;">
+                                <strong style="color: #4facfe;">Phase 2 - Enhancement</strong><br>
+                                <span style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Advanced analytics, mobile app, additional strategies</span>
+                            </div>
+                            <div style="background: rgba(150,0,255,0.1); padding: 0.75rem; border-radius: 6px; border-left: 4px solid #fa709a;">
+                                <strong style="color: #fa709a;">Phase 3 - Expansion</strong><br>
+                                <span style="color: rgba(232,232,232,0.8); font-size: 0.9rem;">Cross-chain deployment, institutional features</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
+                        <h4 style="color: #e8e8e8; margin-bottom: 0.5rem;">⚠️ Important Disclaimer</h4>
+                        <p style="color: rgba(232,232,232,0.7); font-size: 0.85rem; margin-bottom: 0.5rem;">This platform is deployed on Ethereum Sepolia testnet for testing purposes. This whitepaper is for informational purposes only and does not constitute financial advice.</p>
+                        <p style="color: rgba(232,232,232,0.6); font-size: 0.8rem;"><strong>Network:</strong> Ethereum Sepolia Testnet | <strong>Last Updated:</strong> January 2025</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1875,7 +1961,7 @@
     <!-- Include Configuration -->
     <script src="config.js?v=71&t=1738683000"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=76&t=1738687000"></script>
+    <script src="integration.js?v=77&t=1738687500"></script>
     
     <script>
         // Global integration instance
@@ -2003,6 +2089,7 @@
                 
                 document.getElementById('connectWallet').textContent = 'Connected';
                 document.getElementById('connectWallet').disabled = true;
+                document.getElementById('refreshData').disabled = false;
                 
                 console.log('UI updated - wallet address:', userAddress);
                 console.log('UI updated - button text:', document.getElementById('connectWallet').textContent);
@@ -2010,6 +2097,10 @@
                 // Update role badges
                 updateRoleBadges();
 
+                // Show loading state immediately
+                showStatus('Loading vault data...', 'info');
+                
+                // Load vault info immediately (no delay)
                 await loadVaultInfo();
                 
                 showStatus('Wallet connected successfully!', 'success');
@@ -2020,18 +2111,22 @@
         }
 
         function updateRoleBadges() {
-            // Hide all role badges first
-            document.getElementById('userRole').style.display = 'none';
-            document.getElementById('managerRole').style.display = 'none';
-            document.getElementById('keeperRole').style.display = 'none';
+            // Safely hide all role badges first
+            const userRoleEl = document.getElementById('userRole');
+            const managerRoleEl = document.getElementById('managerRole');
+            const keeperRoleEl = document.getElementById('keeperRole');
+            
+            if (userRoleEl) userRoleEl.style.display = 'none';
+            if (managerRoleEl) managerRoleEl.style.display = 'none';
+            if (keeperRoleEl) keeperRoleEl.style.display = 'none';
 
             // Show appropriate role badge
-            if (userRole === 'manager') {
-                document.getElementById('managerRole').style.display = 'inline-block';
-            } else if (userRole === 'keeper') {
-                document.getElementById('keeperRole').style.display = 'inline-block';
-            } else {
-                document.getElementById('userRole').style.display = 'inline-block';
+            if (userRole === 'manager' && managerRoleEl) {
+                managerRoleEl.style.display = 'inline-block';
+            } else if (userRole === 'keeper' && keeperRoleEl) {
+                keeperRoleEl.style.display = 'inline-block';
+            } else if (userRoleEl) {
+                userRoleEl.style.display = 'inline-block';
             }
         }
 
@@ -2050,12 +2145,17 @@
             try {
                 console.log('Loading vault info at:', new Date().toISOString());
                 
-                // Load vault info using integration
-                const vaultInfo = await vaultIntegration.getVaultInfo();
-                const strategyInfo = await vaultIntegration.getStrategyInfo();
-                const feeInfo = await vaultIntegration.getFeeInfo();
-                const feeEarnings = await vaultIntegration.getUserFeeEarnings();
-                const tokenPrice = await vaultIntegration.getTokenPrice();
+                // Show loading states immediately
+                showLoadingStates();
+                
+                // Load all data in parallel for faster loading
+                const [vaultInfo, strategyInfo, feeInfo, feeEarnings, tokenPrice] = await Promise.all([
+                    vaultIntegration.getVaultInfo(),
+                    vaultIntegration.getStrategyInfo(),
+                    vaultIntegration.getFeeInfo(),
+                    vaultIntegration.getUserFeeEarnings(),
+                    vaultIntegration.getTokenPrice()
+                ]);
 
                 console.log('Vault info loaded:', vaultInfo);
                 console.log('Strategy info loaded:', strategyInfo);
@@ -2113,11 +2213,52 @@
                 }
 
                 console.log('Vault info updated successfully');
+                
+                // Hide loading states
+                hideLoadingStates();
 
             } catch (error) {
                 console.error('Error loading vault info:', error);
                 showStatus('Error loading vault information: ' + error.message, 'error');
+                hideLoadingStates();
             }
+        }
+
+        // Show loading states for all data fields
+        function showLoadingStates() {
+            const loadingElements = [
+                'vaultName', 'vaultSymbol', 'totalAssets', 'userShares', 'userAssets',
+                'idleFunds', 'aaveAllocation', 'uniAllocation', 'wethToAavePrice', 
+                'aaveToWethPrice', 'poolAddress', 'tokenPair', 'poolFee',
+                'userSharePercentage', 'totalFeeEarnings', 'tradingFeesAAVE', 
+                'tradingFeesWETH', 'managementFees', 'performanceFees'
+            ];
+            
+            loadingElements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = 'Loading...';
+                    element.style.opacity = '0.6';
+                }
+            });
+        }
+
+        // Hide loading states and restore normal appearance
+        function hideLoadingStates() {
+            const loadingElements = [
+                'vaultName', 'vaultSymbol', 'totalAssets', 'userShares', 'userAssets',
+                'idleFunds', 'aaveAllocation', 'uniAllocation', 'wethToAavePrice', 
+                'aaveToWethPrice', 'poolAddress', 'tokenPair', 'poolFee',
+                'userSharePercentage', 'totalFeeEarnings', 'tradingFeesAAVE', 
+                'tradingFeesWETH', 'managementFees', 'performanceFees'
+            ];
+            
+            loadingElements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.style.opacity = '1';
+                }
+            });
         }
 
         async function refreshFeeEarnings() {
@@ -2908,8 +3049,80 @@
             document.getElementById('loading').style.display = show ? 'block' : 'none';
         }
 
-        // Refresh vault info every 30 seconds
-        setInterval(loadVaultInfo, 30000);
+        // Refresh vault info every 30 seconds with visual indicator
+        let refreshInterval;
+        let isRefreshing = false;
+        
+        function startAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            refreshInterval = setInterval(async () => {
+                if (vaultIntegration && !isRefreshing) {
+                    isRefreshing = true;
+                    console.log('Auto-refreshing vault data...');
+                    
+                    try {
+                        // Show subtle refresh indicator
+                        const statusElement = document.querySelector('.status');
+                        if (statusElement) {
+                            const originalText = statusElement.textContent;
+                            statusElement.textContent = '🔄 Refreshing data...';
+                            statusElement.style.opacity = '0.7';
+                            
+                            await loadVaultInfo();
+                            
+                            // Restore original status after a short delay
+                            setTimeout(() => {
+                                statusElement.textContent = originalText;
+                                statusElement.style.opacity = '1';
+                            }, 1000);
+                        } else {
+                            await loadVaultInfo();
+                        }
+                    } catch (error) {
+                        console.error('Auto-refresh error:', error);
+                    } finally {
+                        isRefreshing = false;
+                    }
+                }
+            }, 30000);
+        }
+        
+        // Start auto-refresh when wallet is connected
+        function connectWalletWithAutoRefresh() {
+            // Store original connectWallet function
+            const originalConnectWallet = connectWallet;
+            
+            // Override connectWallet to start auto-refresh
+            connectWallet = async function() {
+                await originalConnectWallet();
+                if (vaultIntegration) {
+                    startAutoRefresh();
+                }
+            };
+        }
+        
+        // Manual refresh function
+        async function manualRefresh() {
+            if (!vaultIntegration) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            try {
+                showStatus('🔄 Refreshing data manually...', 'info');
+                await loadVaultInfo();
+                showStatus('✅ Data refreshed successfully!', 'success');
+            } catch (error) {
+                console.error('Manual refresh error:', error);
+                showStatus('❌ Failed to refresh data: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize auto-refresh system
+        connectWalletWithAutoRefresh();
     </script>
 </body>
 </html>
