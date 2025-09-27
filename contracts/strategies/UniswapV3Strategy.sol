@@ -409,7 +409,7 @@ require(lower < upper, "TLU");
 
     function withdraw(
         uint256 amountWant,
-        bytes[] calldata swapData
+        bytes[] calldata /* swapData - not used anymore, we create swap calldata internally */
     ) external override onlyVault returns (uint256 withdrawn) {
         require(tokenId != 0, "NO_POS");
         if (amountWant == 0) return 0;
@@ -458,16 +458,26 @@ require(lower < upper, "TLU");
             })
         );
 
-        // 4. Swap everything to `want` (AAVE) using keeper-provided calldata
+        // 4. Get exact WETH balance after collect() and create swap calldata
+        uint256 wethBalance = IERC20(pool.token0() == wantToken ? pool.token1() : pool.token0()).balanceOf(address(this));
+        
+        if (wethBalance > 0) {
+            // Create swap calldata using exact WETH amount
+            bytes memory swapCalldata = _createSwapCalldata(wethBalance);
+            
+            // Approve exchanger for exact amount
+            IERC20(pool.token0() == wantToken ? pool.token1() : pool.token0()).approve(address(exchanger), 0);
+            IERC20(pool.token0() == wantToken ? pool.token1() : pool.token0()).approve(address(exchanger), wethBalance);
+            
+            // Execute swap with exact amount
+            exchanger.swap(swapCalldata);
+        }
+        
         uint256 before = IERC20(wantToken).balanceOf(address(this));
-        _executeSwaps(swapData); // keeper prepared calldata
         uint256 afterBal = IERC20(wantToken).balanceOf(address(this));
-
-        // 5. Calculate how much we actually got from the swap
-        uint256 swapResult = afterBal > before ? afterBal - before : 0;
         
         // 6. Total withdrawn = swap result only (capped at amountWant)
-        withdrawn = swapResult;
+        withdrawn = afterBal;
         if (withdrawn > amountWant) {
             withdrawn = amountWant;
         }
@@ -688,6 +698,38 @@ require(lower < upper, "TLU");
             uint256 out = exchanger.swap(swapCalldatas[i]);
             totalOut += out;
         }
+    }
+
+    function _createSwapCalldata(
+        uint256 amountIn
+    ) internal view returns (bytes memory) {
+        address tokenIn = pool.token0() == wantToken ? pool.token1() : pool.token0();
+        address tokenOut = wantToken;
+        uint24 fee = pool.fee();
+        
+        // Create the router calldata for exactInputSingle
+        bytes memory routerCalldata = abi.encodeWithSignature(
+            "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))",
+            tokenIn,
+            tokenOut,
+            fee,
+            address(this), // recipient
+            block.timestamp + 1200, // deadline
+            amountIn,
+            0, // amountOutMinimum (no slippage protection for now)
+            0  // sqrtPriceLimitX96 (no price limit)
+        );
+        
+        // Pack for ExchangeHandler.swap(bytes)
+        return abi.encode(
+            address(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E), // SwapRouter02 on Sepolia
+            tokenIn,
+            tokenOut,
+            amountIn,
+            0, // minOut
+            address(this), // recipient
+            routerCalldata
+        );
     }
 
     function _buildSwapData(
