@@ -873,73 +873,20 @@ class VaultIntegration {
             console.log('Total strategy assets:', ethers.formatUnits(totalStrategyAssets, 18));
             console.log('Strategies with assets:', strategiesWithAssets, 'out of', strategiesLength.toString());
             
-            // Check if we have enough assets to withdraw
-            const requiredAssets = (sharesWei * totalAssets) / await this.contracts.vault.totalSupply();
-            console.log('Required assets for withdrawal:', ethers.formatUnits(requiredAssets, 18));
-            console.log('Available strategy assets:', ethers.formatUnits(totalStrategyAssets, 18));
-            
-            // Check vault's idle assets (not in strategies)
-            const vaultIdleAssets = await this.contracts.asset.balanceOf(this.CONTRACTS.vault);
-            console.log('Vault idle assets (not in strategies):', ethers.formatUnits(vaultIdleAssets, 18));
-            
-            const totalAvailableAssets = totalStrategyAssets + vaultIdleAssets;
-            console.log('Total available assets (strategies + idle):', ethers.formatUnits(totalAvailableAssets, 18));
-            
-            if (totalAvailableAssets < requiredAssets) {
-                throw new Error(`Insufficient total assets. Required: ${ethers.formatUnits(requiredAssets, 18)} AAVE, Available: ${ethers.formatUnits(totalAvailableAssets, 18)} AAVE (${ethers.formatUnits(totalStrategyAssets, 18)} in strategies + ${ethers.formatUnits(vaultIdleAssets, 18)} idle)`);
-            }
-            
-            // If strategies don't have enough assets, we need to harvest first
-            if (totalStrategyAssets < requiredAssets && vaultIdleAssets < requiredAssets) {
-                console.log('⚠️ WARNING: Strategies and idle assets combined are insufficient for withdrawal');
-                console.log('This indicates that assets are locked in Uniswap V3 positions and need harvesting');
-                console.log('Attempting to harvest Uniswap V3 position first...');
-                
-                try {
-                    await this.harvestUniswapV3Position();
-                    console.log('✅ Harvest completed successfully');
-                    
-                    // Re-check assets after harvesting
-                    const newVaultIdleAssets = await this.contracts.asset.balanceOf(this.CONTRACTS.vault);
-                    console.log('Vault idle assets after harvest:', ethers.formatUnits(newVaultIdleAssets, 18));
-                    
-                    if (newVaultIdleAssets >= requiredAssets) {
-                        console.log('✅ Sufficient assets available after harvest');
-                    } else {
-                        throw new Error(`Still insufficient assets after harvest. Required: ${ethers.formatUnits(requiredAssets, 18)} AAVE, Available: ${ethers.formatUnits(newVaultIdleAssets, 18)} AAVE`);
-                    }
-                } catch (harvestError) {
-                    console.error('❌ Harvest failed:', harvestError);
-                    throw new Error(`Cannot withdraw: ${harvestError.message}`);
-                }
-            }
+            // Note: Asset sufficiency check removed since UniswapV3Strategy can now
+            // dynamically remove liquidity from positions to meet withdrawal requirements
+            console.log('✅ Asset sufficiency check bypassed - strategies handle liquidity removal internally');
 
-            // Create proper swap data for withdrawal
-            console.log('Creating swap data for withdrawal...');
+            // Create swap data for withdrawal (simplified since UniswapV3Strategy creates it internally)
+            console.log('Preparing swap data for withdrawal...');
             
-            // Check if we need swap data for strategies
-            let allSwapData = [[], []]; // Default empty arrays
+            // Since UniswapV3Strategy now creates swap calldata internally,
+            // we just need to pass empty swap data arrays for all strategies
+            let allSwapData = [];
             
-            // If Strategy 1 has WETH, we need to create swap data to convert WETH → AAVE
-            const strategy1Address = await this.contracts.vault.strategies(1);
-            const wethContract = new ethers.Contract(this.CONTRACTS.weth, this.ABIS.erc20, this.provider);
-            const strategy1WethBalance = await wethContract.balanceOf(strategy1Address);
-            
-            console.log('Strategy 1 WETH balance for swap data:', ethers.formatEther(strategy1WethBalance));
-            
-            if (strategy1WethBalance > 0) {
-                console.log('Strategy 1 has WETH - creating swap data for WETH → AAVE...');
-                try {
-                    // Create swap data to convert WETH to AAVE for withdrawal
-                    const swapData = await this.createSwapDataForWithdraw(strategy1WethBalance);
-                    allSwapData[1] = swapData; // Strategy 1 swap data
-                    console.log('Created swap data for Strategy 1:', swapData);
-                } catch (swapError) {
-                    console.log('Failed to create swap data, using empty data:', swapError.message);
-                    allSwapData = [[], []]; // Fallback to empty
-                }
-            } else {
-                console.log('Strategy 1 has no WETH - using empty swap data');
+            for (let i = 0; i < strategiesLength; i++) {
+                allSwapData.push([]); // Empty swap data for all strategies
+                console.log(`Strategy ${i}: Empty swap data (strategy creates internally)`);
             }
             
             console.log('Final swap data:', allSwapData);
@@ -1031,47 +978,8 @@ class VaultIntegration {
         }
     }
 
-    async createSwapDataForWithdraw(wethAmount) {
-        try {
-            console.log('=== CREATING SWAP DATA FOR WITHDRAWAL ===');
-            console.log('WETH amount to swap:', ethers.formatEther(wethAmount));
-            
-            // For withdrawal, we need to swap WETH → AAVE
-            const tokenIn = this.CONTRACTS.weth; // WETH
-            const tokenOut = this.CONTRACTS.asset; // AAVE
-            const fee = 3000; // 0.3% fee tier for WETH/AAVE pool
-            
-            console.log('Token in (WETH):', tokenIn);
-            console.log('Token out (AAVE):', tokenOut);
-            console.log('Fee tier:', fee);
-            
-            // Get pool address
-            const poolAddress = await this.getPoolAddress(tokenIn, tokenOut, fee);
-            console.log('Pool address:', poolAddress);
-            
-            if (!poolAddress || poolAddress === ethers.ZeroAddress) {
-                throw new Error('Pool not found for WETH/AAVE');
-            }
-            
-            // Create swap data for Uniswap V3
-            const swapData = {
-                tokenIn: tokenIn,
-                tokenOut: tokenOut,
-                fee: fee,
-                recipient: this.CONTRACTS.vault, // Vault receives the AAVE
-                deadline: Math.floor(Date.now() / 1000) + 1800, // 30 minutes
-                amountIn: wethAmount,
-                amountOutMinimum: 0, // No slippage protection for now
-                sqrtPriceLimitX96: 0 // No price limit
-            };
-            
-            console.log('Swap data created:', swapData);
-            return [swapData]; // Return as array for strategy
-        } catch (error) {
-            console.error('Failed to create swap data for withdrawal:', error);
-            throw error;
-        }
-    }
+    // Note: createSwapDataForWithdraw function removed since UniswapV3Strategy 
+    // now creates swap calldata internally after collect()
 
     async investIdle() {
         try {

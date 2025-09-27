@@ -13,6 +13,7 @@ const CONTRACTS = {
 };
 
 describe("Simplified Vault Withdrawal Test on Sepolia Fork", function () {
+    this.timeout(300_000);
     let vault, aave, weth, uniStrategy, aaveStrategy;
     let user, deployer;
     let userShares, totalAssets, assetsExpected;

@@ -9,6 +9,13 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@uniswap/swap-router-contracts/contracts/interfaces/IV3SwapRouter.sol";
+
+// Use the official V3SwapRouter interface directly
+interface ISwapRouter02 is IV3SwapRouter {
+    // IV3SwapRouter already has ExactInputSingleParams and exactInputSingle
+    // We just need to alias it for our use case
+}
 
 interface IExchangeHandler {
     // Implemented in your repo; routes swaps through whitelisted routers
@@ -141,6 +148,8 @@ interface IUniswapV3MathAdapter {
         uint128 liquidity
     ) external pure returns (uint256 amount0, uint256 amount1);
 }
+
+// Using SwapRouter02 interface from Uniswap
 
 /// @notice Strategy assumes `want` is either token0 or token1.
 /// Manager/keeper should prepare amounts (swap via ExchangeHandler) before calling deposit here.
@@ -705,19 +714,23 @@ require(lower < upper, "TLU");
     ) internal view returns (bytes memory) {
         address tokenIn = pool.token0() == wantToken ? pool.token1() : pool.token0();
         address tokenOut = wantToken;
-        uint24 fee = pool.fee();
+        uint24 fee = pool.fee(); // Use the actual pool fee (500 for 0.05%)
         
-        // Create the router calldata for exactInputSingle
-        bytes memory routerCalldata = abi.encodeWithSignature(
-            "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))",
-            tokenIn,
-            tokenOut,
-            fee,
-            address(this), // recipient
-            block.timestamp + 1200, // deadline
-            amountIn,
-            0, // amountOutMinimum (no slippage protection for now)
-            0  // sqrtPriceLimitX96 (no price limit)
+        // Create the ExactInputSingleParams struct using IV3SwapRouter interface
+        IV3SwapRouter.ExactInputSingleParams memory params = IV3SwapRouter.ExactInputSingleParams({
+            tokenIn: tokenIn,
+            tokenOut: tokenOut,
+            fee: fee,
+            recipient: address(this), // recipient
+            amountIn: amountIn,
+            amountOutMinimum: 0, // no slippage protection for now
+            sqrtPriceLimitX96: 0 // no price limit
+        });
+        
+        // Create the router calldata for exactInputSingle using the proper interface
+        bytes memory routerCalldata = abi.encodeWithSelector(
+            IV3SwapRouter.exactInputSingle.selector,
+            params
         );
         
         // Pack for ExchangeHandler.swap(bytes)
