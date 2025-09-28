@@ -1914,6 +1914,7 @@
                 <div class="form-group" style="margin-top:1rem;">
                     <label for="swapAmount">Amount to Swap</label>
                     <input type="number" id="swapAmount" placeholder="Enter amount" step="0.000001">
+                    <div id="swapEstimate" style="margin-top:.5rem;color:rgba(232,232,232,.9);font-size:.95rem;min-height:1.2rem"></div>
                 </div>
 
                 <button class="btn btn-success" id="swapBtn" onclick="performSwap()">Execute Swap</button>
@@ -2031,7 +2032,6 @@
             console.log('VaultIntegration class loaded successfully:', typeof VaultIntegration);
             
             if (typeof window.ethereum !== 'undefined') {
-                vaultIntegration = new VaultIntegration();
                 // Don't load vault info yet - wait for wallet connection
                 
                 // Listen for network changes
@@ -2388,7 +2388,7 @@
                 return;
             }
             
-            if (!vaultIntegration) {
+            if (!vaultIntegration || !vaultIntegration.contracts || !vaultIntegration.contracts.vault || !vaultIntegration.contracts.asset) {
                 showStatus('Please connect your wallet first', 'error');
                 return;
             }
@@ -3191,6 +3191,49 @@
 
         // Initialize auto-refresh system
         connectWalletWithAutoRefresh();
+
+        // --- Swap estimate preview ---
+        async function updateSwapEstimate() {
+            try {
+                const estimateEl = document.getElementById('swapEstimate');
+                if (!estimateEl) return;
+                const from = document.getElementById('swapFromToken').value;
+                const to = document.getElementById('swapToToken').value;
+                const amountStr = document.getElementById('swapAmount').value;
+                if (!amountStr || Number(amountStr) <= 0) { estimateEl.textContent = ''; return; }
+                if (!vaultIntegration) { estimateEl.textContent = 'Connect wallet to preview.'; return; }
+
+                // Get latest pool price
+                const price = await vaultIntegration.getTokenPrice();
+                if (!price) { estimateEl.textContent = ''; return; }
+                const amt = Number(amountStr);
+                let out = 0;
+                if (from === 'AAVE' && to === 'WETH') {
+                    // 1 WETH = X AAVE => 1 AAVE = 1/X WETH
+                    const aavePerWeth = Number(price.wethToAave);
+                    out = amt / aavePerWeth;
+                    estimateEl.textContent = `≈ ${out.toFixed(6)} WETH (est.)`;
+                } else if (from === 'WETH' && to === 'AAVE') {
+                    const aavePerWeth = Number(price.wethToAave);
+                    out = amt * aavePerWeth;
+                    estimateEl.textContent = `≈ ${out.toFixed(6)} AAVE (est.)`;
+                } else {
+                    estimateEl.textContent = '';
+                }
+            } catch (e) {
+                const estimateEl = document.getElementById('swapEstimate');
+                if (estimateEl) estimateEl.textContent = '';
+            }
+        }
+
+        // Wire-up estimate updates
+        ['swapFromToken','swapToToken','swapAmount'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', updateSwapEstimate);
+                el.addEventListener('change', updateSwapEstimate);
+            }
+        });
     </script>
 </body>
 </html>

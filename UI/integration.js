@@ -1048,13 +1048,13 @@ class VaultIntegration {
             const strategiesLength = await this.contracts.vault.strategiesLength();
             console.log('Number of strategies:', strategiesLength.toString());
             
-            // Get individual strategies by index
+            // Get individual strategies by index (actual on-chain order!)
             const strategies = [];
             for (let i = 0; i < strategiesLength; i++) {
                 const strategyAddress = await this.contracts.vault.strategies(i);
                 strategies.push(strategyAddress);
             }
-            console.log('Strategies:', strategies);
+            console.log('Strategies (on-chain order):', strategies);
 
             // Create swap data for Uniswap strategy (following test pattern exactly)
             const swapData = await this.createSwapDataForInvest(idleAmount);
@@ -1068,17 +1068,13 @@ class VaultIntegration {
                 throw new Error('Invalid swap data returned from createSwapDataForInvest');
             }
 
-            // Create allSwapData array with correct structure
-            // If we have 2 strategies, we need [strategy0Data, strategy1Data]
-            // For Aave strategy (index 0): empty array []
-            // For UniswapV3 strategy (index 1): our swap data [payload]
-            const allSwapData = [];
-            
-            // Add empty array for Aave strategy (index 0)
-            allSwapData.push([]);
-            
-            // Add swap data for UniswapV3 strategy (index 1)
-            allSwapData.push(swapData);
+            // Create allSwapData aligned to the actual strategies order
+            const allSwapData = Array.from({ length: Number(strategiesLength) }, () => []);
+            const uniIndex = strategies.findIndex(addr => addr.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase());
+            if (uniIndex === -1) {
+                throw new Error('UniswapV3 strategy not found in Vault strategies list');
+            }
+            allSwapData[uniIndex] = swapData; // place payload exactly at Uniswap strategy index
             
             console.log('Final swap data array:', allSwapData);
             console.log('AllSwapData structure check - should be array of arrays:', Array.isArray(allSwapData[0]), Array.isArray(allSwapData[1]));
@@ -1102,6 +1098,18 @@ class VaultIntegration {
             const isManagerOnVaultAccessController = await vaultAccessControllerContract.managers(this.userAddress);
             console.log('Is manager on Vault\'s AccessController:', isManagerOnVaultAccessController);
             
+            // Ensure router is whitelisted in ExchangeHandler (manager-only)
+            try {
+                const isAllowed = await this.contracts.exchanger.routers(UNISWAP_V3_ROUTER);
+                if (!isAllowed) {
+                    console.log('Router not whitelisted. Whitelisting now...');
+                    await this.contracts.exchanger.setRouter(UNISWAP_V3_ROUTER, true);
+                    console.log('Router whitelisted.');
+                }
+            } catch (e) {
+                console.warn('Could not verify/whitelist router (non-fatal if already set):', e?.message || e);
+            }
+
             // Final check before transaction
             console.log('About to call investIdle with data:', allSwapData);
             console.log('Transaction will be sent from:', this.userAddress);
