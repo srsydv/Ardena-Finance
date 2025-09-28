@@ -1564,6 +1564,33 @@
         .wallet-section .btn.btn-success {
             position: relative;
         }
+        .btn.connected-btn {
+            opacity: 0.95;
+            cursor: default;
+        }
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            .header { padding: 1.25rem; }
+            .header .logo-text h1 { font-size: 1.6rem; }
+            .tagline { font-size: 1rem; margin-top: .25rem; }
+            .wallet-section { padding: 1rem; }
+            .wallet-info { flex-direction: column; gap: .75rem; align-items: flex-start; }
+            .wallet-section .btn { width: 100%; margin-top: .5rem; }
+            .network-banner { top: 38px; font-size: 8px; padding: 2px 6px; }
+            .documentation-section { padding: 1rem; }
+            .doc-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+            .doc-card { padding: 1rem; }
+            .dashboard { padding: 1rem; }
+            .card { padding: 1rem; }
+            .form-group input, .form-group select { width: 100%; }
+            footer { padding: 1rem !important; }
+        }
+        @media (max-width: 420px) {
+            .header .logo-image { width: 42px; height: 42px; }
+            .header .logo-text h1 { font-size: 1.4rem; }
+            .tagline { font-size: .95rem; }
+        }
     </style>
 </head>
 <body>
@@ -2108,7 +2135,10 @@
                 // Add connected class to wallet info
                 document.getElementById('walletInfo').classList.add('connected');
                 
-                document.getElementById('connectWallet').textContent = 'Connected';
+                const connectBtn = document.getElementById('connectWallet');
+                connectBtn.textContent = 'Connected';
+                connectBtn.classList.add('connected-btn');
+                connectBtn.disabled = true;
                 document.getElementById('connectWallet').disabled = true;
                 document.getElementById('refreshData').disabled = false;
                 

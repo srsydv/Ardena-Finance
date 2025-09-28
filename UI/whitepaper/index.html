@@ -13,6 +13,24 @@
     window.addEventListener('DOMContentLoaded', () => {
       history.replaceState(null, '', '/whitepaper/');
     });
+    window.addEventListener('DOMContentLoaded', () => {
+      const frame = document.querySelector('.frame');
+      function syncUrl() {
+        try {
+          const p = frame.contentWindow.location.pathname || '';
+          if (p === '/' || p.endsWith('/index.html')) {
+            // User clicked "Back to Vault" inside iframe → go to pretty /dapp
+            window.location.href = '/dapp';
+            return;
+          }
+          if (p.endsWith('/whitepaper.html')) {
+            history.replaceState(null, '', '/whitepaper/');
+          }
+        } catch (e) { /* same-origin in local dev; ignore otherwise */ }
+      }
+      frame.addEventListener('load', syncUrl);
+      setInterval(syncUrl, 800);
+    });
   </script>
   <link rel="icon" href="/images/ardena-finance-logo.png" />
   <meta name="robots" content="noindex" />
