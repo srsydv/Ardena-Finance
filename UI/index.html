@@ -940,18 +940,25 @@
         }
 
         .dashboard {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
             margin-bottom: 2rem;
+            width: 100%;
+            align-items: stretch; /* keep cards full width */
         }
+        .dashboard .card {
+            width: 100%; /* full screen width within container */
+        }
+        /* Ensure clear separation between consecutive cards */
+        .dashboard .card + .card { margin-top: 2rem; }
 
         .card {
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             border-radius: var(--border-radius);
-            padding: 2rem;
-            margin-bottom: 2rem;
+            padding: 1.5rem; /* slightly compact vertical spacing */
+            margin-bottom: 3rem; /* ensure clear separation between cards */
             border: 1px solid var(--glass-border);
             box-shadow: var(--shadow-light);
             transition: var(--transition);
@@ -1564,6 +1571,9 @@
         .wallet-section .btn.btn-success {
             position: relative;
         }
+        /* Swap form layout helpers */
+        .form-row { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: nowrap; }
+        .form-half { flex: 1 1 0; min-width: 220px; }
         .btn.connected-btn {
             opacity: 0.95;
             cursor: default;
@@ -1591,6 +1601,7 @@
             .header .logo-text h1 { font-size: 1.4rem; }
             .tagline { font-size: .95rem; }
         }
+        /* Keep swap selectors parallel on most widths; they will wrap only on extremely narrow screens */
     </style>
 </head>
 <body>
@@ -1734,27 +1745,29 @@
                 </div>
                 
                 <h3><span class="icon">👤</span> User Actions</h3>
-                <div class="vault-info">
-                    <h4>Vault Information</h4>
-                    <p><strong>Name:</strong> <span id="vaultName">AaveUNI6040</span></p>
-                    <p><strong>Symbol:</strong> <span id="vaultSymbol">AUNI</span></p>
-                    <p><strong>Asset:</strong> <span id="vaultAsset">AAVE</span></p>
-                    <p><strong>Total Assets:</strong> <span id="totalAssets">0</span> AAVE</p>
-                    <p><strong>Your Shares:</strong> <span id="userShares">0</span></p>
-                    <p><strong>Your Assets:</strong> <span id="userAssets">0</span> AAVE</p>
+                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
+                    <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
+                        <h4>Vault Information</h4>
+                        <p><strong>Name:</strong> <span id="vaultName">AaveUNI6040</span></p>
+                        <p><strong>Symbol:</strong> <span id="vaultSymbol">AUNI</span></p>
+                        <p><strong>Asset:</strong> <span id="vaultAsset">AAVE</span></p>
+                        <p><strong>Total Assets:</strong> <span id="totalAssets">0</span> AAVE</p>
+                        <p><strong>Your Shares:</strong> <span id="userShares">0</span></p>
+                        <p><strong>Your Assets:</strong> <span id="userAssets">0</span> AAVE</p>
+                    </div>
+                    <div class="actions-col" style="flex:1 1 360px; min-width:300px;">
+                        <div class="form-group">
+                            <label for="depositAmount">Deposit Amount (AAVE)</label>
+                            <input type="number" id="depositAmount" placeholder="Enter amount to deposit" step="0.000001">
+                        </div>
+                        <button class="btn" id="depositBtn" onclick="deposit()">Deposit</button>
+                        <div class="form-group" style="margin-top:1rem;">
+                            <label for="withdrawAmount">Withdraw Amount (Shares)</label>
+                            <input type="number" id="withdrawAmount" placeholder="Enter shares to withdraw" step="0.000001">
+                        </div>
+                        <button class="btn btn-secondary" id="withdrawBtn" onclick="withdraw()">Withdraw</button>
+                    </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="depositAmount">Deposit Amount (AAVE)</label>
-                    <input type="number" id="depositAmount" placeholder="Enter amount to deposit" step="0.000001">
-                </div>
-                <button class="btn" id="depositBtn" onclick="deposit()">Deposit</button>
-                
-                <div class="form-group">
-                    <label for="withdrawAmount">Withdraw Amount (Shares)</label>
-                    <input type="number" id="withdrawAmount" placeholder="Enter shares to withdraw" step="0.000001">
-                </div>
-                <button class="btn btn-secondary" id="withdrawBtn" onclick="withdraw()">Withdraw</button>
                 
                 <div class="transaction-result" id="userActionsResult">
                     <div class="result-title">Transaction Result</div>
@@ -1775,25 +1788,27 @@
                 </div>
                 
                 <h3><span class="icon">🎯</span> Manager Actions</h3>
-                <div class="vault-info">
-                    <h4>Strategy Allocation</h4>
-                    <p><strong>Aave Strategy:</strong> <span id="aaveAllocation">60%</span></p>
-                    <p><strong>Uniswap Strategy:</strong> <span id="uniAllocation">40%</span></p>
-                    <p><strong>Idle Funds:</strong> <span id="idleFunds">0</span> AAVE</p>
+                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
+                    <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
+                        <h4>Strategy Allocation</h4>
+                        <p><strong>Aave Strategy:</strong> <span id="aaveAllocation">60%</span></p>
+                        <p><strong>Uniswap Strategy:</strong> <span id="uniAllocation">40%</span></p>
+                        <p><strong>Idle Funds:</strong> <span id="idleFunds">0</span> AAVE</p>
+                        <button class="btn btn-success" id="investIdleBtn" onclick="investIdle()">Invest Idle Funds</button>
+                        <div id="investIdleStatus"></div>
+                    </div>
+                    <div class="actions-col" style="flex:1 1 360px; min-width:300px;">
+                        <div class="form-group">
+                            <label for="strategyAddress">Strategy Address</label>
+                            <input type="text" id="strategyAddress" placeholder="0x...">
+                        </div>
+                        <div class="form-group">
+                            <label for="allocationBps">Allocation (Basis Points)</label>
+                            <input type="number" id="allocationBps" placeholder="5000" min="0" max="10000">
+                        </div>
+                        <button class="btn btn-secondary" id="setStrategyBtn" onclick="setStrategy()">Set Strategy</button>
+                    </div>
                 </div>
-                
-                <button class="btn btn-success" id="investIdleBtn" onclick="investIdle()">Invest Idle Funds</button>
-                <div id="investIdleStatus"></div>
-                
-                <div class="form-group">
-                    <label for="strategyAddress">Strategy Address</label>
-                    <input type="text" id="strategyAddress" placeholder="0x...">
-                </div>
-                <div class="form-group">
-                    <label for="allocationBps">Allocation (Basis Points)</label>
-                    <input type="number" id="allocationBps" placeholder="5000" min="0" max="10000">
-                </div>
-                <button class="btn btn-secondary" id="setStrategyBtn" onclick="setStrategy()">Set Strategy</button>
                 
                 <div class="transaction-result" id="managerActionsResult">
                     <div class="result-title">Transaction Result</div>
@@ -1804,52 +1819,49 @@
         <!-- Token Price Display -->
         <div class="card">
             <h3><span class="icon">💰</span> Token Prices</h3>
-                <div class="vault-info">
-                    <h4>Current Exchange Rates</h4>
-                    <div class="price-display">
-                        <p><strong>1 WETH =</strong> <span id="wethToAavePrice">-</span> <strong>AAVE</strong></p>
-                        <p><strong>1 AAVE =</strong> <span id="aaveToWethPrice">-</span> <strong>WETH</strong></p>
+                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
+                    <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
+                        <h4>Current Exchange Rates</h4>
+                        <div class="price-display">
+                            <p><strong>1 WETH =</strong> <span id="wethToAavePrice">-</span> <strong>AAVE</strong></p>
+                            <p><strong>1 AAVE =</strong> <span id="aaveToWethPrice">-</span> <strong>WETH</strong></p>
+                        </div>
                     </div>
-                    
-                    <div class="pool-info">
-                        <h5>Pool Information:</h5>
-                        
+                    <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
+                        <h4>Pool Information</h4>
                         <div class="address-container">
                             <div class="address-label">Pool Address:</div>
                             <div class="contract-address" id="poolAddress">-</div>
                         </div>
-                        
                         <p><strong>Tokens:</strong> <span id="tokenPair">-</span></p>
                         <p><strong>Pool Fee:</strong> <span id="poolFee">-</span>%</p>
+                        <button class="btn btn-info" style="margin-top:1rem;" onclick="refreshTokenPrice()">🔄 Refresh Price</button>
                     </div>
-                    
-                    <button class="btn btn-info" onclick="refreshTokenPrice()">🔄 Refresh Price</button>
                 </div>
             </div>
 
         <!-- User Fee Earnings -->
         <div class="card">
             <h3><span class="icon">💎</span> Your Fee Earnings</h3>
-                <div class="vault-info">
-                    <h4>Estimated Earnings Breakdown</h4>
-                    <p><strong>Your Vault Share:</strong> <span id="userSharePercentage">-</span>%</p>
-                    <p><strong>Total Estimated Earnings:</strong> <span id="totalFeeEarnings">-</span> AAVE</p>
-                    
-                    <div class="earnings-breakdown">
-                        <h5>Earnings Sources:</h5>
-                        <p><strong>Trading Fees (AAVE):</strong> <span id="tradingFeesAAVE">-</span> AAVE</p>
-                        <p><strong>Trading Fees (WETH):</strong> <span id="tradingFeesWETH">-</span> WETH</p>
-                        <p><strong>Management Fees:</strong> <span id="managementFees">-</span> AAVE</p>
-                        <p><strong>Performance Fees:</strong> <span id="performanceFees">-</span> AAVE</p>
+                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
+                    <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
+                        <h4>Estimated Earnings Breakdown</h4>
+                        <p><strong>Your Vault Share:</strong> <span id="userSharePercentage">-</span>%</p>
+                        <p><strong>Total Estimated Earnings:</strong> <span id="totalFeeEarnings">-</span> AAVE</p>
+                        <div class="earnings-breakdown">
+                            <h5>Earnings Sources:</h5>
+                            <p><strong>Trading Fees (AAVE):</strong> <span id="tradingFeesAAVE">-</span> AAVE</p>
+                            <p><strong>Trading Fees (WETH):</strong> <span id="tradingFeesWETH">-</span> WETH</p>
+                            <p><strong>Management Fees:</strong> <span id="managementFees">-</span> AAVE</p>
+                            <p><strong>Performance Fees:</strong> <span id="performanceFees">-</span> AAVE</p>
+                        </div>
                     </div>
-                    
-                    <div class="vault-stats">
-                        <h5>Vault Statistics:</h5>
+                    <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
+                        <h4>Vault Statistics</h4>
                         <p><strong>Your Shares:</strong> <span id="userSharesDisplay">-</span> AAVE</p>
                         <p><strong>Total Vault Assets:</strong> <span id="totalVaultAssets">-</span> AAVE</p>
+                        <button class="btn btn-info" style="margin-top:1rem;" onclick="refreshFeeEarnings()">🔄 Refresh Earnings</button>
                     </div>
-                    
-                    <button class="btn btn-info" onclick="refreshFeeEarnings()">🔄 Refresh Earnings</button>
                 </div>
             </div>
 
@@ -1866,7 +1878,8 @@
             </div>
             
             <h3><span class="icon">🔄</span> Token Swap</h3>
-                <div class="vault-info">
+                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
+                <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
                     <h4>Direct Token Swapping</h4>
                     <p><strong>Swap between WETH and AAVE</strong></p>
                     
@@ -1880,28 +1893,29 @@
                         <div class="contract-address">0x0E98753e483679703c902a0f574646d3653ad9eA</div>
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="swapFromToken">From Token</label>
-                    <select id="swapFromToken">
-                        <option value="AAVE">AAVE</option>
-                        <option value="WETH">WETH</option>
-                    </select>
+                <div class="actions-col" style="flex:1 1 360px; min-width:300px;">
+                <div class="form-row">
+                    <div class="form-group form-half">
+                        <label for="swapFromToken">From Token</label>
+                        <select id="swapFromToken">
+                            <option value="AAVE">AAVE</option>
+                            <option value="WETH">WETH</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-half">
+                        <label for="swapToToken">To Token</label>
+                        <select id="swapToToken">
+                            <option value="WETH">WETH</option>
+                            <option value="AAVE">AAVE</option>
+                        </select>
+                    </div>
                 </div>
-                
-                <div class="form-group">
+
+                <div class="form-group" style="margin-top:1rem;">
                     <label for="swapAmount">Amount to Swap</label>
                     <input type="number" id="swapAmount" placeholder="Enter amount" step="0.000001">
                 </div>
-                
-                <div class="form-group">
-                    <label for="swapToToken">To Token</label>
-                    <select id="swapToToken">
-                        <option value="WETH">WETH</option>
-                        <option value="AAVE">AAVE</option>
-                    </select>
-                </div>
-                
+
                 <button class="btn btn-success" id="swapBtn" onclick="performSwap()">Execute Swap</button>
                 <div id="swapStatus"></div>
                 
@@ -1910,25 +1924,28 @@
                     <div class="result-details" id="swapResultDetails"></div>
                     <div class="tx-hash" id="swapTxHash"></div>
                 </div>
+                </div>
+                </div>
             </div>
 
             <!-- Keeper Actions -->
             <div class="card">
                 <h3><span class="icon">⚡</span> Keeper Actions</h3>
-                <div class="vault-info">
+                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
+                <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
                     <h4>Harvest Information</h4>
                     <p><strong>Last Harvest:</strong> <span id="lastHarvest">Never</span></p>
                     <p><strong>Min Harvest Interval:</strong> <span id="minHarvestInterval">3600</span> seconds</p>
                     <p><strong>Can Harvest:</strong> <span id="canHarvest">Yes</span></p>
                 </div>
-                
+                <div class="actions-col" style="flex:1 1 360px; min-width:300px;">
                 <button class="btn btn-warning" id="harvestBtn" onclick="harvestAll()">Harvest All Strategies</button>
-                
-                <div class="form-group">
+                <div class="form-group" style="margin-top:1rem;">
                     <label for="harvestInterval">Set Harvest Interval (seconds)</label>
                     <input type="number" id="harvestInterval" placeholder="3600" min="60">
                 </div>
                 <button class="btn btn-secondary" id="setHarvestIntervalBtn" onclick="setHarvestInterval()">Set Interval</button>
+                </div>
             </div>
         </div>
 
