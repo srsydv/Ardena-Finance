@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import "../utils/SafeTransferLib.sol";
 import "../interfaces/IStrategy.sol";
-import "../core/AccessController.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -165,7 +164,6 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable
     IUniswapV3MathAdapter public math; // math adapter (0.7.6 Uniswap libs)
 
     uint256 public tokenId; // LP NFT id held by this strategy
-    AccessController public access; // role control
 
     event totalAsset(uint256 WETH, uint256 WANT, uint256 Fee0, uint256 Fee1);
 
@@ -181,11 +179,10 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable
         address _pool,
         address _exchanger,
         address _oracle,
-        address _math,
-        address _access
+        address _math
     ) public initializer {
         __UUPSUpgradeable_init();
-        __Ownable_init(_vault); // Initialize Ownable with vault as owner
+        __Ownable_init(msg.sender); // Initialize Ownable with vault as owner
         require(
             _vault != address(0) &&
                 _want != address(0) &&
@@ -193,8 +190,7 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable
                 _pool != address(0) &&
                 _exchanger != address(0) &&
                 _oracle != address(0) &&
-                _math != address(0) &&
-                _access != address(0),
+                _math != address(0),
             "BAD_ADDR"
         );
         vault = _vault;
@@ -204,7 +200,6 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable
         exchanger = IExchangeHandler(_exchanger);
         oracle = IOracleRouter(_oracle);
         math = IUniswapV3MathAdapter(_math);
-        access = AccessController(_access);
     }
 
     // ---------------- Views ----------------
@@ -768,10 +763,7 @@ require(lower < upper, "TLU");
 
     function _authorizeUpgrade(
         address /*newImplementation*/
-    ) internal view override {
-        // Only managers can authorize upgrades
-        require(access.managers(msg.sender), "NOT_MANAGER");
-    }
+    ) internal view override onlyOwner {}
 
     uint256[49] private __gap;
 }

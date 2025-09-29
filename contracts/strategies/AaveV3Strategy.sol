@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 // Minimal Aave v3 types to read aToken from getReserveData
 library DataTypes {
@@ -52,7 +53,12 @@ interface IAavePool {
     ) external view returns (DataTypes.ReserveData memory);
 }
 
-contract AaveV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
+// Minimal Aave aToken scaled balance reader
+interface IScaledBalanceToken {
+    function scaledBalanceOf(address user) external view returns (uint256);
+}
+
+contract AaveV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable, IStrategy {
     using SafeTransferLib for address;
 
     address public vault;
@@ -67,6 +73,7 @@ contract AaveV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
 
     function initialize(address _vault, address _want, address _aavePool) public initializer {
         __UUPSUpgradeable_init();
+        __Ownable_init(msg.sender); // owner = deployer/manager (not the vault)
         require(_vault != address(0) && _want != address(0) && _aavePool != address(0), "BAD_ADDR");
         vault = _vault;
         wantToken = _want;
@@ -82,12 +89,20 @@ contract AaveV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
     }
 
     function totalAssets() public view override returns (uint256) {
-        // return IERC20(aToken).balanceOf(address(this));
-        uint256 raw = IERC20(address(aToken)).balanceOf(address(this));
+        // aToken balanceOf already includes accrued interest via liquidityIndex.
+        // For explicitness, try computing: scaledBalance * liquidityIndex / 1e27.
+        uint256 raw;
+        try IScaledBalanceToken(address(aToken)).scaledBalanceOf(address(this)) returns (uint256 scaled) {
+            DataTypes.ReserveData memory rd = aave.getReserveData(wantToken);
+            // liquidityIndex uses RAY (1e27) in Aave v3
+            raw = (scaled * uint256(rd.liquidityIndex)) / 1e27;
+        } catch {
+            // Fallback to rebasing aToken balance (already interest-bearing)
+            raw = IERC20(address(aToken)).balanceOf(address(this));
+        }
 
         uint8 aDec = IERC20Metadata(address(aToken)).decimals();
         uint8 wantDec = IERC20Metadata(wantToken).decimals();
-
         return _scaleDecimals(raw, aDec, wantDec);
     }
 
@@ -140,9 +155,7 @@ contract AaveV3Strategy is Initializable, UUPSUpgradeable, IStrategy {
         }
     }
 
-    function _authorizeUpgrade(address /*newImplementation*/) internal view override {
-        require(msg.sender == vault, "NOT_VAULT");
-    }
+    function _authorizeUpgrade(address /*newImplementation*/) internal view override onlyOwner {}
 
     uint256[50] private __gap;
 }
