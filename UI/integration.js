@@ -842,7 +842,17 @@ class VaultIntegration {
             console.log('Shares to withdraw:', shares);
             console.log('User address:', this.userAddress);
             
-            const sharesWei = ethers.parseUnits(shares, 18); // AAVE vault uses 18 decimals
+            // Accept either:
+            // - full-precision integer input (wei-shares), e.g. "30371908772773"
+            // - decimal shares string, e.g. "0.30371908772773"
+            let sharesWei;
+            if (/^\d+$/.test(shares.trim())) {
+                // pure integer → treat as wei-shares directly
+                sharesWei = BigInt(shares.trim());
+            } else {
+                // decimal string → scale by vault decimals (18)
+                sharesWei = ethers.parseUnits(shares.trim(), 18);
+            }
             console.log('Shares in wei:', sharesWei.toString());
 
             // Check user's vault balance first

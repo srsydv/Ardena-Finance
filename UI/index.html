@@ -2515,14 +2515,62 @@
 
             try {
                 showLoading(true);
+
+                // Show processing overlay and steps (reuse User Actions widgets)
+                showTransactionProcessing('userActionsProcessing', true);
+                hideTransactionResult('userActionsResult');
+                const steps = ['Preparing withdrawal...', 'Submitting transaction...', 'Withdrawal complete'];
+                createTransactionSteps('userActionsSteps', steps);
+                updateTransactionText('userActionsProcessing', 'Preparing withdrawal...', 'Validating inputs and balances');
+                updateTransactionStep('userActionsSteps', 0, 'active');
+
+                // small pause for UX
+                await new Promise(r => setTimeout(r, 400));
+
+                updateTransactionText('userActionsProcessing', 'Submitting transaction...', 'Confirm in your wallet');
+                updateTransactionStep('userActionsSteps', 0, 'completed');
+                updateTransactionStep('userActionsSteps', 1, 'active');
+
                 const result = await vaultIntegration.withdraw(shares);
 
-                showStatus(`Successfully withdrew ${shares} shares! Transaction: ${result.txHash}`, 'success');
+                updateTransactionText('userActionsProcessing', 'Withdrawal complete', 'Funds will reflect shortly');
+                updateTransactionStep('userActionsSteps', 1, 'completed');
+                updateTransactionStep('userActionsSteps', 2, 'completed');
+
+                // Show success with clickable hash
+                showTransactionResult('userActionsResult', 'success',
+                    `Successfully withdrew ${shares} shares!`,
+                    `Transaction Hash: ${result.txHash}`);
+                setTimeout(() => {
+                    makeTransactionHashClickable('userActionsResultDetails', result.txHash);
+                }, 100);
+
                 document.getElementById('withdrawAmount').value = '';
                 await loadVaultInfo();
 
+                setTimeout(() => {
+                    showTransactionProcessing('userActionsProcessing', false);
+                }, 1500);
+
             } catch (error) {
-                showStatus('Withdrawal failed: ' + error.message, 'error');
+                // Build a clearer error message and include tx hash if any
+                let errorTitle = 'Withdrawal Failed';
+                let errorDetails = '';
+                const maybeHash = error?.hash || error?.transactionHash || error?.transaction?.hash;
+                if (error?.code === 'CALL_EXCEPTION' || /estimateGas/i.test(error?.message || '')) {
+                    errorDetails = 'Reverted during gas estimation. The transaction was not sent. Please check strategy allocations or try a smaller amount.';
+                } else {
+                    errorDetails = `Error: ${error?.shortMessage || error?.message || 'Unknown error'}`;
+                }
+                if (maybeHash) {
+                    errorDetails += `\nTransaction Hash: ${maybeHash}`;
+                }
+
+                showTransactionResult('userActionsResult', 'error', errorTitle, errorDetails);
+                showStatus(errorTitle + ': ' + (error?.shortMessage || error?.message || 'Unknown error'), 'error');
+                showTransactionProcessing('userActionsProcessing', false);
+                const resEl = document.getElementById('userActionsResult');
+                if (resEl) resEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             } finally {
                 showLoading(false);
             }
