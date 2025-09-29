@@ -27,3 +27,5 @@ echo "✅ All contracts verified!"
 
 
 npx hardhat run check-pool-liquidity.js --network sepolia
+
+python3 -m http.server 8001 --directory UI
