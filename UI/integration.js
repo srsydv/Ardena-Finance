@@ -71,7 +71,7 @@ class VaultIntegration {
                 "function depositCap() external view returns (uint256)",
                 "function decimals() external view returns (uint8)",
                 "event Deposit(address indexed from, address indexed to, uint256 assets, uint256 net, uint256 shares)",
-                "event Withdraw(address indexed caller, address indexed to, uint256 assets, uint256 shares)",
+                "event Withdraw(address indexed caller, address indexed to, uint256 assets, uint256 shares, uint256 exitFee, uint256 totalGot)",
                 "event Harvest(uint256 realizedProfit, uint256 mgmtFee, uint256 perfFee, uint256 tvlAfter)",
                 "event StrategySet(address strategy, uint16 bps)"
             ],
@@ -936,7 +936,25 @@ class VaultIntegration {
             const receipt = await tx.wait();
             console.log('Withdrawal transaction confirmed:', receipt.hash);
 
-            return { success: true, txHash: receipt.hash, assets: receipt.logs[0].args.assets };
+            // Decode Withdraw event safely
+            let assetsOut = null;
+            try {
+                const iface = new ethers.Interface(this.ABIS.vault);
+                for (const log of receipt.logs || []) {
+                    try {
+                        const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+                        if (parsed && parsed.name === 'Withdraw') {
+                            // event Withdraw(address caller, address to, uint256 assets, uint256 shares, uint256 exitFee, uint256 totalGot)
+                            assetsOut = parsed.args.assets?.toString?.() ?? null;
+                            break;
+                        }
+                    } catch (e) { /* not a vault log */ }
+                }
+            } catch (e) {
+                console.warn('Could not parse Withdraw event:', e?.message || e);
+            }
+
+            return { success: true, txHash: receipt.hash, assets: assetsOut };
         } catch (error) {
             console.error('=== WITHDRAWAL FAILED ===');
             console.error('Error type:', typeof error);

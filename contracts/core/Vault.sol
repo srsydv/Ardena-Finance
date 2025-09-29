@@ -174,19 +174,50 @@ vault.withdraw(shares, receiver, allSwapData[][])
                 uint256 stratShare = (shortfall * bps) / 1e4;
 
                 if (stratShare > 0) {
+                    // Cap by strategy's available assets to avoid over-asking
+                    uint256 avail = s.totalAssets();
+                    if (avail == 0) continue;
+                    if (stratShare > avail) stratShare = avail;
+
                     uint256 got = s.withdraw(stratShare, allSwapData[i]);
                     totalGot += got;
                 }
             }
+
+            // If still short, do a second pass pulling from any strategy with remaining funds
+            if (totalGot < assets) {
+                uint256 remaining = assets - totalGot;
+                for (uint256 i2; i2 < strategies.length && remaining > 0; i2++) {
+                    IStrategy s2 = strategies[i2];
+                    uint16 bps2 = targetBps[s2];
+                    if (bps2 == 0) continue;
+                    uint256 avail2 = s2.totalAssets();
+                    if (avail2 == 0) continue;
+
+                    uint256 toPull = avail2 < remaining ? avail2 : remaining;
+                    if (toPull == 0) continue;
+
+                    // Safe to pass empty swap data for second pass; Aave ignores, Uni strategy builds internally
+                    bytes[] memory empty;
+                    uint256 got2 = s2.withdraw(toPull, empty);
+                    totalGot += got2;
+                    if (got2 >= remaining) {
+                        remaining = 0;
+                    } else {
+                        remaining -= got2;
+                    }
+                }
+            }
         }
+
+        // Require we met the user's owed assets after up to two passes
+        require(totalGot >= assets, "WITHDRAW_FAILED");
 
         // Compute exit fee based on actual amount collected
         (uint256 net, uint256 exitFee) = fees.takeExitFee(totalGot);
         if (exitFee > 0) IERC20(asset).transfer(fees.treasury(), exitFee);
 
         // Pay user
-        // require(totalGot >= assets, "WITHDRAW_FAILED");
-        // require(totalGot + 1 >= assets, "WITHDRAW_FAILED");
         asset.transfer(receiver, net);
 
         emit Withdraw(msg.sender, receiver, net, shares, exitFee, totalGot);
