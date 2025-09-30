@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ardena Finance - DeFi Yield Vault</title>
+    <link rel="icon" href="/images/ardena-finance-logo.png" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --danger-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            --info-gradient: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            --warning-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            --dark-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --shadow-light: 0 8px 32px rgba(0, 0, 0, 0.1);
+            --shadow-medium: 0 15px 40px rgba(0, 0, 0, 0.15);
+            --shadow-heavy: 0 25px 50px rgba(0, 0, 0, 0.2);
+            --border-radius: 20px;
+            --border-radius-small: 12px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e8e8e8;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(0, 150, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 255, 150, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(150, 0, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+        }
+
+        .logo-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .logo-image {
+            height: 60px;
+            width: auto;
+            border-radius: 8px;
+        }
+
+        .logo-text h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .tagline {
+            font-size: 1.1rem;
+            color: rgba(232, 232, 232, 0.8);
+            font-weight: 500;
+            margin-bottom: 2rem;
+        }
+
+        .launch-section {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+            padding: 3rem;
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .launch-section h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #4facfe;
+        }
+
+        .launch-section p {
+            font-size: 1.1rem;
+            color: rgba(232, 232, 232, 0.9);
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: var(--border-radius-small);
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+            font-size: 1.2rem;
+            padding: 1.2rem 2.5rem;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-heavy);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e8e8e8;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .whitepaper-content {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-light);
+            padding: 3rem;
+            margin-bottom: 2rem;
+        }
+
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .section h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #4facfe;
+            border-bottom: 2px solid rgba(79, 172, 254, 0.3);
+            padding-bottom: 0.5rem;
+        }
+
+        .section h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 2rem 0 1rem 0;
+            color: #00f2fe;
+        }
+
+        .section h4 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem 0;
+            color: #a8edea;
+        }
+
+        .section p {
+            margin-bottom: 1rem;
+            color: rgba(232, 232, 232, 0.9);
+            font-size: 1rem;
+        }
+
+        .section ul, .section ol {
+            margin: 1rem 0 1rem 2rem;
+            color: rgba(232, 232, 232, 0.9);
+        }
+
+        .section li {
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight-box {
+            background: rgba(79, 172, 254, 0.1);
+            border: 1px solid rgba(79, 172, 254, 0.3);
+            border-radius: var(--border-radius-small);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .highlight-box h4 {
+            color: #4facfe;
+            margin-top: 0;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius-small);
+            padding: 1.5rem;
+            transition: var(--transition);
+        }
+
+        .info-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .info-card h4 {
+            color: #00f2fe;
+            margin-bottom: 1rem;
+        }
+
+        .contract-address {
+            font-family: 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            font-size: 0.88rem;
+            color: #b3d8ff;
+            border: 1px dashed rgba(79,172,254,0.35);
+            max-width: 100%;
+            display: inline-block;
+        }
+
+        .strategy-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .strategy-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius-small);
+            padding: 2rem;
+            transition: var(--transition);
+        }
+
+        .strategy-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .strategy-card.aave {
+            border-left: 4px solid #4facfe;
+        }
+
+        .strategy-card.uniswap {
+            border-left: 4px solid #00f2fe;
+        }
+
+        .strategy-card h4 {
+            color: #4facfe;
+            margin-bottom: 1rem;
+        }
+
+        .strategy-card.uniswap h4 {
+            color: #00f2fe;
+        }
+
+        .risk-level {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .risk-low {
+            background: rgba(0, 255, 150, 0.2);
+            color: #00f2fe;
+        }
+
+        .risk-medium {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
+        .risk-high {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+        }
+
+        .disclaimer {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: var(--border-radius-small);
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+
+        .disclaimer h4 {
+            color: #ffc107;
+            margin-bottom: 1rem;
+        }
+
+        .disclaimer p {
+            color: rgba(255, 193, 7, 0.9);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .logo-container {
+                flex-direction: column;
+                gap: 0.8rem;
+            }
+            
+            .logo-text h1 {
+                font-size: 2rem;
+            }
+            
+            .whitepaper-content {
+                padding: 2rem 1.5rem;
+            }
+            
+            .strategy-comparison {
+                grid-template-columns: 1fr;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo-container">
+                <img src="images/ardena-finance-logo.png" alt="Ardena Finance Logo" class="logo-image">
+                <div class="logo-text">
+                    <h1>Ardena Finance</h1>
+                    <p class="tagline">Advanced DeFi Yield Vault System</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Launch App Section -->
+        <div class="launch-section">
+            <h2>Ready to Start Earning?</h2>
+            <p>Experience the power of automated yield optimization with our dual-strategy vault system. Maximize your AAVE returns through intelligent allocation between conservative lending and high-yield liquidity provision.</p>
+            <a href="dapp.html" class="btn btn-primary">🚀 Launch App</a>
+        </div>
+
+        <div class="whitepaper-content">
+            <!-- Executive Summary -->
+            <div class="section">
+                <h2>🚀 Executive Summary</h2>
+                <p>Ardena Finance introduces an innovative decentralized yield vault system built on Ethereum's Sepolia testnet, designed to maximize returns for AAVE token holders through sophisticated multi-strategy asset management. Our platform combines the stability of Aave V3 lending with the high-yield potential of Uniswap V3 liquidity provision, creating a comprehensive DeFi yield optimization solution.</p>
+                
+                <div class="highlight-box">
+                    <h4>💡 Key Value Propositions</h4>
+                    <ul>
+                        <li><strong>Dual Strategy Approach:</strong> Combines conservative Aave V3 lending with high-yield Uniswap V3 liquidity provision</li>
+                        <li><strong>Automated Management:</strong> Intelligent rebalancing and optimization without manual intervention</li>
+                        <li><strong>Professional Architecture:</strong> Upgradeable smart contracts with comprehensive security measures</li>
+                        <li><strong>Transparent Operations:</strong> All transactions on-chain with full auditability</li>
+                        <li><strong>Risk-Adjusted Returns:</strong> Balanced allocation between stable and variable yield strategies</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- System Architecture -->
+            <div class="section">
+                <h2>🏗️ System Architecture</h2>
+                <p>Our platform is built on a robust, modular architecture that ensures security, scalability, and efficiency. The system consists of several interconnected smart contracts working together to provide seamless yield optimization.</p>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>🏦 Vault Contract</h4>
+                        <p><strong>Address:</strong></p>
+                        <div class="contract-address">0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11</div>
+                        <ul>
+                            <li>Central repository for user deposits</li>
+                            <li>Automated strategy allocation and rebalancing</li>
+                            <li>Fee management and treasury operations</li>
+                            <li>Share-based accounting system (ERC4626 compliant)</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>🎯 Strategy Contracts</h4>
+                        <p><strong>AaveV3Strategy:</strong> 0x6bDE0781354858bA6344aB671B07663E89BFF064</p>
+                        <p><strong>UniswapV3Strategy:</strong> 0xa33A3662d8750a90f14792B4908E95695b11E374</p>
+                        <ul>
+                            <li>Automated yield optimization</li>
+                            <li>Risk-adjusted allocation</li>
+                            <li>Real-time performance monitoring</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>🔄 Supporting Infrastructure</h4>
+                        <p><strong>ExchangeHandler:</strong> Routes swaps through whitelisted DEX routers</p>
+                        <p><strong>OracleModule:</strong> Provides real-time price feeds</p>
+                        <p><strong>AccessController:</strong> Manages permissions and governance</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategy Framework -->
+            <div class="section">
+                <h2>🎯 Investment Strategies</h2>
+                <p>Our dual-strategy approach balances risk and return by combining stable lending yields with dynamic liquidity provision returns.</p>
+
+                <div class="strategy-comparison">
+                    <div class="strategy-card aave">
+                        <h4>🏦 AaveV3Strategy - Conservative Yield</h4>
+                        <p><strong>Allocation:</strong> 60% (Default)</p>
+                        <p><strong>Mechanism:</strong> Deposits AAVE tokens into Aave V3 lending pools</p>
+                        
+                        <div class="risk-level risk-low">Low Risk</div>
+                        
+                        <h4>Yield Sources:</h4>
+                        <ul>
+                            <li>AAVE lending interest rates</li>
+                            <li>Aave protocol rewards (if applicable)</li>
+                            <li>Compound interest on earned rewards</li>
+                        </ul>
+                        
+                        <h4>Risk Profile: Low</h4>
+                        <ul>
+                            <li>Principal protection through Aave's battle-tested infrastructure</li>
+                            <li>No impermanent loss exposure</li>
+                            <li>Stable, predictable returns</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="strategy-card uniswap">
+                        <h4>💧 UniswapV3Strategy - High Yield</h4>
+                        <p><strong>Allocation:</strong> 40% (Default)</p>
+                        <p><strong>Mechanism:</strong> Provides concentrated liquidity to AAVE/WETH pool</p>
+                        
+                        <div class="risk-level risk-medium">Medium Risk</div>
+                        
+                        <h4>Yield Sources:</h4>
+                        <ul>
+                            <li>Trading fees (0.05% per trade)</li>
+                            <li>Liquidity mining rewards (if applicable)</li>
+                            <li>Capital appreciation from token price movements</li>
+                        </ul>
+                        
+                        <h4>Advanced Features:</h4>
+                        <ul>
+                            <li>Dynamic liquidity management</li>
+                            <li>Automated fee collection and compounding</li>
+                            <li>Intelligent position rebalancing</li>
+                        </ul>
+                        
+                        <h4>Risk Profile: Medium</h4>
+                        <ul>
+                            <li>Impermanent loss exposure</li>
+                            <li>Smart contract risks</li>
+                            <li>Market volatility impact</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fee Structure -->
+            <div class="section">
+                <h2>💰 Fee Structure</h2>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>Management Fee</h4>
+                        <p><strong>Rate:</strong> 2% annually</p>
+                        <p><strong>Purpose:</strong> Covers operational costs and platform maintenance</p>
+                        <p><strong>Collection:</strong> Deducted from vault assets</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Performance Fee</h4>
+                        <p><strong>Rate:</strong> 20% of profits</p>
+                        <p><strong>Purpose:</strong> Aligns incentives with user returns</p>
+                        <p><strong>Collection:</strong> Applied to profits above benchmark</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Withdrawal Fee</h4>
+                        <p><strong>Rate:</strong> 0.5%</p>
+                        <p><strong>Purpose:</strong> Covers gas costs for strategy unwinding</p>
+                        <p><strong>Collection:</strong> Deducted from withdrawal amount</p>
+                    </div>
+                    
+                    <div class="info-card">
+                        <h4>Deposit Fee</h4>
+                        <p><strong>Rate:</strong> 0%</p>
+                        <p><strong>Purpose:</strong> Encourages capital inflow</p>
+                        <p><strong>Collection:</strong> No fees for deposits</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="section">
+                <h2>⚠️ Disclaimer</h2>
+                <div class="disclaimer">
+                    <h4>Important Legal Notice</h4>
+                    <p><strong>This whitepaper is for informational purposes only and does not constitute financial advice.</strong> Users should conduct their own research and understand the risks associated with DeFi protocols before participating.</p>
+                    
+                    <p><strong>Risk Warning:</strong> DeFi protocols involve significant risks including but not limited to smart contract risks, market volatility, impermanent loss, and regulatory changes. Past performance does not guarantee future results.</p>
+                    
+                    <p><strong>Testnet Deployment:</strong> This platform is currently deployed on Ethereum Sepolia testnet for testing purposes. Testnet tokens have no real value and should not be considered as real investments.</p>
+                    
+                    <p><strong>Network Information:</strong> Ethereum Sepolia Testnet | <strong>Last Updated:</strong> January 2025</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
