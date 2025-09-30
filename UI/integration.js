@@ -124,20 +124,115 @@ class VaultIntegration {
         this.CHAIN_ID = window.CONFIG?.CHAIN_ID || 11155111; // Sepolia
     }
 
-    async initialize() {
+    async initializeReadOnly() {
         try {
-            console.log('Initializing VaultIntegration...');
+            console.log('=== INITIALIZING READ-ONLY MODE ===');
             
-            if (typeof window.ethereum === 'undefined') {
-                throw new Error('MetaMask not installed');
+            // Try multiple RPC endpoints for better reliability
+            const rpcEndpoints = [
+                'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161', // Infura
+                'https://rpc.sepolia.org',
+                'https://sepolia.gateway.tenderly.co',
+                'https://ethereum-sepolia.publicnode.com'
+            ];
+            
+            let provider = null;
+            let lastError = null;
+            
+            for (const endpoint of rpcEndpoints) {
+                try {
+                    console.log(`Trying RPC endpoint: ${endpoint}`);
+                    provider = new ethers.JsonRpcProvider(endpoint);
+                    const network = await provider.getNetwork();
+                    console.log(`✅ Connected to network: ${network.name} ${network.chainId} via ${endpoint}`);
+                    break;
+                } catch (error) {
+                    console.warn(`❌ Failed to connect to ${endpoint}:`, error.message);
+                    lastError = error;
+                    continue;
+                }
             }
-
-            console.log('MetaMask detected, creating provider...');
-            this.provider = new ethers.BrowserProvider(window.ethereum);
-            this.signer = await this.provider.getSigner();
-            this.userAddress = await this.signer.getAddress();
             
-            console.log('Provider created, user address:', this.userAddress);
+            if (!provider) {
+                throw new Error(`All RPC endpoints failed. Last error: ${lastError?.message || 'Unknown error'}`);
+            }
+            
+            this.provider = provider;
+            
+            // Initialize contracts with read-only provider
+            console.log('Initializing contracts...');
+            await this.initializeContracts();
+            console.log('Contracts initialized successfully');
+            
+            // Load all public data that doesn't require wallet connection
+            console.log('Loading public data...');
+            await this.loadPublicData();
+            
+            console.log('✅ Read-only initialization completed successfully');
+            return true;
+        } catch (error) {
+            console.error('❌ Read-only initialization failed:', error);
+            throw error;
+        }
+    }
+
+    async initializeContracts() {
+        try {
+            console.log('=== INITIALIZING CONTRACTS ===');
+            console.log('Provider available:', !!this.provider);
+            console.log('Signer available:', !!this.signer);
+            
+            // Use signer if available (wallet mode), otherwise use provider (read-only mode)
+            const contractSigner = this.signer || this.provider;
+            console.log('Using contract signer:', contractSigner ? 'available' : 'not available');
+            
+            // Initialize contracts
+            console.log('Creating vault contract at:', this.CONTRACTS.vault);
+            this.contracts.vault = new ethers.Contract(this.CONTRACTS.vault, this.ABIS.vault, contractSigner);
+            
+            console.log('Creating asset contract at:', this.CONTRACTS.asset);
+            this.contracts.asset = new ethers.Contract(this.CONTRACTS.asset, this.ABIS.erc20, contractSigner);
+            
+            this.contracts.weth = new ethers.Contract(this.CONTRACTS.weth, this.ABIS.erc20, contractSigner);
+            this.contracts.accessController = new ethers.Contract(this.CONTRACTS.accessController, this.ABIS.accessController, contractSigner);
+            this.contracts.feeModule = new ethers.Contract(this.CONTRACTS.feeModule, this.ABIS.feeModule, this.provider);
+            this.contracts.exchanger = new ethers.Contract(this.CONTRACTS.exchanger, this.ABIS.exchanger, contractSigner);
+            this.contracts.aaveStrategy = new ethers.Contract(this.CONTRACTS.aaveStrategy, this.ABIS.strategy, contractSigner);
+            this.contracts.uniStrategy = new ethers.Contract(this.CONTRACTS.uniStrategy, this.ABIS.strategy, contractSigner);
+            this.contracts.oracle = new ethers.Contract(this.CONTRACTS.oracle, this.ABIS.oracle, this.provider);
+            
+            console.log('✅ All contracts initialized successfully');
+            console.log('Vault contract ready:', !!this.contracts.vault);
+            console.log('Asset contract ready:', !!this.contracts.asset);
+            return true;
+        } catch (error) {
+            console.error('❌ Failed to initialize contracts:', error);
+            throw error;
+        }
+    }
+
+    async loadPublicData() {
+        try {
+            console.log('Loading public data...');
+            
+            // Load token prices
+            await this.refreshTokenPrice();
+            
+            // Load manager allocations and vault info
+            await this.refreshManagerUI();
+            
+            // Load fee earnings (this will show 0 without wallet connection, but that's okay)
+            await this.refreshFeeEarnings();
+            
+            console.log('Public data loaded successfully');
+        } catch (error) {
+            console.error('Failed to load public data:', error);
+        }
+    }
+
+    async initializeWithWallet() {
+        try {
+            console.log('Initializing with wallet connection...');
             
             // Check network
             const network = await this.provider.getNetwork();
@@ -176,30 +271,42 @@ class VaultIntegration {
                 // Recreate provider/signer after switch
                 this.provider = new ethers.BrowserProvider(window.ethereum);
                 this.signer = await this.provider.getSigner();
+                this.userAddress = await this.signer.getAddress();
             }
-            
-            console.log('Using NEW WORKING addresses:');
-            console.log('- WETH:', this.CONTRACTS.weth);
-            console.log('- UniswapV3Strategy:', this.CONTRACTS.uniStrategy);
-            console.log('- Pool:', this.CONTRACTS.aaveWethPool);
-            console.log('- SwapRouter:', this.CONTRACTS.newSwapRouter);
-            console.log('🔍 VERIFICATION: Router should be 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
-            console.log('🔍 VERIFICATION: Router matches expected:', this.CONTRACTS.newSwapRouter === '0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E');
 
-            // Initialize contracts
-            this.contracts.vault = new ethers.Contract(this.CONTRACTS.vault, this.ABIS.vault, this.signer);
-            this.contracts.asset = new ethers.Contract(this.CONTRACTS.asset, this.ABIS.erc20, this.signer);
-            this.contracts.weth = new ethers.Contract(this.CONTRACTS.weth, this.ABIS.erc20, this.signer);
-            this.contracts.accessController = new ethers.Contract(this.CONTRACTS.accessController, this.ABIS.accessController, this.signer);
-            this.contracts.feeModule = new ethers.Contract(this.CONTRACTS.feeModule, this.ABIS.feeModule, this.provider);
-            this.contracts.exchanger = new ethers.Contract(this.CONTRACTS.exchanger, this.ABIS.exchanger, this.signer);
-            this.contracts.aaveStrategy = new ethers.Contract(this.CONTRACTS.aaveStrategy, this.ABIS.strategy, this.signer);
-            this.contracts.uniStrategy = new ethers.Contract(this.CONTRACTS.uniStrategy, this.ABIS.strategy, this.signer);
-            this.contracts.oracle = new ethers.Contract(this.CONTRACTS.oracle, this.ABIS.oracle, this.provider);
+            // Initialize contracts with wallet provider
+            await this.initializeContracts();
 
             // Check user roles
-            console.log('Checking user roles...');
             await this.checkUserRoles();
+
+            console.log('Wallet initialization completed successfully');
+            return true;
+        } catch (error) {
+            console.error('Wallet initialization failed:', error);
+            throw error;
+        }
+    }
+
+    async initialize() {
+        try {
+            console.log('Initializing VaultIntegration...');
+            
+            // Check if MetaMask is available first
+            if (typeof window.ethereum !== 'undefined') {
+                console.log('MetaMask detected, initializing with wallet...');
+                this.provider = new ethers.BrowserProvider(window.ethereum);
+                this.signer = await this.provider.getSigner();
+                this.userAddress = await this.signer.getAddress();
+                
+                // Continue with wallet-specific initialization
+                await this.initializeWithWallet();
+            } else {
+                console.log('MetaMask not available, trying read-only mode...');
+                // Only try read-only mode if no wallet is available
+                await this.initializeReadOnly();
+                return true; // Continue with read-only mode
+            }
             console.log('User role set to:', this.userRole);
 
             // Populate manager allocations now and keep them refreshed
@@ -219,11 +326,24 @@ class VaultIntegration {
 
     async refreshManagerUI() {
         try {
-            if (!this.contracts?.vault) return;
+            console.log('=== REFRESH MANAGER UI ===');
+            console.log('Contracts available:', !!this.contracts);
+            console.log('Vault contract available:', !!this.contracts?.vault);
+            console.log('Asset contract available:', !!this.contracts?.asset);
+            
+            if (!this.contracts?.vault) {
+                console.error('Vault contract not initialized');
+                return;
+            }
+            
             const listEl = document.getElementById('strategyAllocations');
             const idleEl = document.getElementById('idleFunds');
+            
+            console.log('DOM elements found:', { listEl: !!listEl, idleEl: !!idleEl });
 
             const strategiesLength = await this.contracts.vault.strategiesLength();
+            console.log('Strategies length:', strategiesLength.toString());
+            
             let rows = [];
             for (let i = 0; i < Number(strategiesLength); i++) {
                 const addr = await this.contracts.vault.strategies(i);
@@ -233,15 +353,28 @@ class VaultIntegration {
                               : addr.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase() ? 'Uniswap Strategy'
                               : `Strategy ${i+1}`;
                 rows.push(`<p><strong>${label}:</strong> ${pct}% <small style="opacity:.7">(${addr})</small></p>`);
+                console.log(`Strategy ${i}: ${label} - ${pct}%`);
             }
-            if (listEl) listEl.innerHTML = rows.length ? rows.join('') : '<p>No strategies configured.</p>';
+            
+            if (listEl) {
+                listEl.innerHTML = rows.length ? rows.join('') : '<p>No strategies configured.</p>';
+                console.log('Updated strategy allocations UI');
+            } else {
+                console.error('strategyAllocations element not found');
+            }
 
-            if (idleEl) {
+            if (idleEl && this.contracts.asset) {
                 const idle = await this.contracts.asset.balanceOf(this.CONTRACTS.vault);
                 idleEl.textContent = ethers.formatUnits(idle, 18);
+                console.log('Updated idle funds:', ethers.formatUnits(idle, 18));
+            } else {
+                console.error('idleFunds element or asset contract not found');
             }
+            
+            console.log('Manager UI refresh completed successfully');
         } catch (e) {
-            console.warn('refreshManagerUI failed:', e?.message || e);
+            console.error('refreshManagerUI failed:', e?.message || e);
+            console.error('Full error:', e);
         }
     }
 
@@ -573,6 +706,24 @@ class VaultIntegration {
             }
 
             console.log('=== CALCULATING USER FEE EARNINGS ===');
+            
+            // If no user address (read-only mode), show 0 earnings but still show vault data
+            if (!this.userAddress) {
+                console.log('No user address - showing vault data only (read-only mode)');
+                const totalSupply = await this.contracts.vault.totalSupply();
+                const totalAssets = await this.contracts.vault.totalAssets();
+                
+                return {
+                    userSharePercentage: 0,
+                    estimatedFeeEarnings: 0,
+                    estimatedTradingFeesAAVE: 0,
+                    estimatedTradingFeesWETH: 0,
+                    estimatedManagementFees: 0,
+                    estimatedPerformanceFees: 0,
+                    userShares: 0,
+                    totalAssets: ethers.formatUnits(totalAssets, 18)
+                };
+            }
             
             // Get user's vault shares and total supply
             const userShares = await this.contracts.vault.balanceOf(this.userAddress);

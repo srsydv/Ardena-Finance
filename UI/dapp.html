@@ -2352,6 +2352,12 @@
             if (!vaultIntegration) {
                 console.log('Creating VaultIntegration instance for fee earnings...');
                 vaultIntegration = new VaultIntegration();
+                // Try to initialize in read-only mode first
+                try {
+                    await vaultIntegration.initializeReadOnly();
+                } catch (error) {
+                    console.log('Read-only initialization failed, will try with wallet connection:', error);
+                }
             }
 
             try {
@@ -2389,6 +2395,12 @@
             if (!vaultIntegration) {
                 console.log('Creating VaultIntegration instance...');
                 vaultIntegration = new VaultIntegration();
+                // Try to initialize in read-only mode first
+                try {
+                    await vaultIntegration.initializeReadOnly();
+                } catch (error) {
+                    console.log('Read-only initialization failed, will try with wallet connection:', error);
+                }
             }
 
             try {
@@ -3323,14 +3335,24 @@
             console.log('=== INITIALIZING APP ===');
             vaultIntegration = new VaultIntegration();
             
+            // First, try to load data in read-only mode (no wallet required)
             try {
-                await vaultIntegration.initialize();
-                console.log('✅ VaultIntegration initialized successfully');
+                console.log('🔄 Attempting read-only initialization...');
+                await vaultIntegration.initializeReadOnly();
+                console.log('✅ Read-only initialization successful');
                 
-                // refresh manager allocations and idle funds on load
-                await vaultIntegration.refreshManagerUI();
+                // Load all public data immediately
+                await vaultIntegration.loadPublicData();
                 
-                // populate token prices and other data on load AFTER successful initialization
+            } catch (error) {
+                console.log('❌ Read-only initialization failed:', error);
+                console.log('🔄 Continuing without pre-loaded data...');
+                // Don't fail completely, just continue without the read-only data
+                showStatus('Some features may be limited. Connect wallet for full functionality.', 'warning');
+            }
+            
+            // Additional data loading after successful initialization (either read-only or wallet)
+            try {
                 if (typeof loadVaultInfo === 'function') {
                     try {
                         await loadVaultInfo();
@@ -3354,7 +3376,6 @@
                         console.error('refreshFeeEarnings failed:', error);
                     }
                 }
-                
             } catch (error) {
                 console.error('❌ VaultIntegration initialization failed:', error);
                 console.log('Continuing with limited functionality...');
