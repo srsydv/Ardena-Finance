@@ -842,17 +842,10 @@ class VaultIntegration {
             console.log('Shares to withdraw:', shares);
             console.log('User address:', this.userAddress);
             
-            // Accept either:
-            // - full-precision integer input (wei-shares), e.g. "30371908772773"
-            // - decimal shares string, e.g. "0.30371908772773"
-            let sharesWei;
-            if (/^\d+$/.test(shares.trim())) {
-                // pure integer → treat as wei-shares directly
-                sharesWei = BigInt(shares.trim());
-            } else {
-                // decimal string → scale by vault decimals (18)
-                sharesWei = ethers.parseUnits(shares.trim(), 18);
-            }
+            // Always interpret user input as human-readable shares (not wei)
+            // Scale by vault decimals so "50" means 50 full shares, not 50 wei
+            const vaultDecimals = await this.contracts.vault.decimals();
+            const sharesWei = ethers.parseUnits(shares.trim(), Number(vaultDecimals));
             console.log('Shares in wei:', sharesWei.toString());
 
             // Check user's vault balance first
