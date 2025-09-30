@@ -56,7 +56,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
             position: relative;
@@ -67,11 +67,14 @@
             text-align: center;
             margin-bottom: 3rem;
             padding: 2rem;
-            background: var(--glass-bg);
+            background: rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(20px);
             border-radius: var(--border-radius);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.2),
+                0 2px 8px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .logo-container {
@@ -108,14 +111,26 @@
         }
 
         .launch-section {
-            background: var(--glass-bg);
+            background: rgba(255, 255, 255, 0.08);
             backdrop-filter: blur(20px);
             border-radius: var(--border-radius);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--shadow-light);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.2),
+                0 2px 8px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
             padding: 3rem;
             text-align: center;
             margin-bottom: 3rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .launch-section:hover {
+            transform: translateY(-12px);
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.5),
+                0 12px 24px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
 
         .launch-section h2 {
@@ -246,20 +261,29 @@
         }
 
         .info-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: var(--border-radius-small);
             padding: 1.75rem;
-            transition: var(--transition);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
             min-height: 280px;
             box-sizing: border-box;
+            backdrop-filter: blur(20px);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.2),
+                0 2px 8px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .info-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-medium);
+            transform: translateY(-12px);
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.5),
+                0 12px 24px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
         }
 
         .info-card h4 {
@@ -312,20 +336,29 @@
         }
 
         .strategy-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: var(--border-radius-small);
             padding: 2rem;
-            transition: var(--transition);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
             min-height: 400px;
             box-sizing: border-box;
+            backdrop-filter: blur(20px);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.2),
+                0 2px 8px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
         }
 
         .strategy-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--shadow-medium);
+            transform: translateY(-12px);
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.5),
+                0 12px 24px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
         }
 
         .strategy-card.aave {
@@ -535,9 +568,19 @@
             }
         }
 
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
+                max-width: 100%;
             }
             
             .logo-container {
@@ -583,7 +626,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <div class="header floating">
             <div class="logo-container">
                 <img src="images/ardena-finance-logo.png" alt="Ardena Finance Logo" class="logo-image">
                 <div class="logo-text">
@@ -595,7 +638,7 @@
         </div>
 
         <!-- Launch App Section -->
-        <div class="launch-section">
+        <div class="launch-section floating">
             <h2>Ready to Start Earning?</h2>
             <p>Experience the power of automated yield optimization with our dual-strategy vault system. Maximize your AAVE returns through intelligent allocation between conservative lending and high-yield liquidity provision.</p>
             <a href="dapp.html" class="btn btn-primary">🚀 Launch App</a>
@@ -640,7 +683,7 @@
                 <p>Our platform is built on a robust, modular architecture that ensures security, scalability, and efficiency. The system consists of several interconnected smart contracts working together to provide seamless yield optimization.</p>
 
                 <div class="info-grid">
-                    <div class="info-card">
+                    <div class="info-card floating">
                         <h4>🏦 Vault Contract</h4>
                         <p><strong>Address:</strong></p>
                         <div class="contract-address">0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11</div>
@@ -652,7 +695,7 @@
                         </ul>
                     </div>
                     
-                    <div class="info-card">
+                    <div class="info-card floating">
                         <h4>🎯 Strategy Contracts</h4>
                         <p><strong>AaveV3Strategy:</strong></p>
                         <div class="contract-address">0x6bDE0781354858bA6344aB671B07663E89BFF064</div>
@@ -698,7 +741,7 @@
                 <p>Our dual-strategy approach balances risk and return by combining stable lending yields with dynamic liquidity provision returns.</p>
 
                 <div class="strategy-comparison">
-                    <div class="strategy-card aave">
+                    <div class="strategy-card aave floating">
                         <h4>🏦 AaveV3Strategy - Conservative Yield</h4>
                         <p><strong>Allocation:</strong> 60% (Default)</p>
                         <p><strong>Mechanism:</strong> Deposits AAVE tokens into Aave V3 lending pools</p>
@@ -720,7 +763,7 @@
                         </ul>
                     </div>
                     
-                    <div class="strategy-card uniswap">
+                    <div class="strategy-card uniswap floating">
                         <h4>💧 UniswapV3Strategy - High Yield</h4>
                         <p><strong>Allocation:</strong> 40% (Default)</p>
                         <p><strong>Mechanism:</strong> Provides concentrated liquidity to AAVE/WETH pool</p>
