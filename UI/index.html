@@ -1791,8 +1791,9 @@
                 <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
                     <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
                         <h4>Strategy Allocation</h4>
-                        <p><strong>Aave Strategy:</strong> <span id="aaveAllocation">60%</span></p>
-                        <p><strong>Uniswap Strategy:</strong> <span id="uniAllocation">40%</span></p>
+                        <div id="strategyAllocations">
+                            <p><em>Loading live allocations...</em></p>
+                        </div>
                         <p><strong>Idle Funds:</strong> <span id="idleFunds">0</span> AAVE</p>
                         <button class="btn btn-success" id="investIdleBtn" onclick="investIdle()">Invest Idle Funds</button>
                         <div id="investIdleStatus"></div>
@@ -2171,6 +2172,23 @@
                 // Load vault info immediately (no delay)
                 await loadVaultInfo();
                 
+                // Refresh token prices and fee earnings after wallet connection
+                if (typeof refreshTokenPrice === 'function') {
+                    try {
+                        await refreshTokenPrice();
+                    } catch (error) {
+                        console.error('Failed to refresh token prices after wallet connection:', error);
+                    }
+                }
+                
+                if (typeof refreshFeeEarnings === 'function') {
+                    try {
+                        await refreshFeeEarnings();
+                    } catch (error) {
+                        console.error('Failed to refresh fee earnings after wallet connection:', error);
+                    }
+                }
+                
                 showStatus('Wallet connected successfully!', 'success');
             } catch (error) {
                 console.error('Wallet connection error:', error);
@@ -2330,16 +2348,22 @@
         }
 
         async function refreshFeeEarnings() {
+            console.log('=== REFRESH FEE EARNINGS CALLED ===');
+            console.log('vaultIntegration exists:', !!vaultIntegration);
+            
             if (!vaultIntegration) {
-                showStatus('Please connect your wallet first', 'error');
-                return;
+                console.log('Creating VaultIntegration instance for fee earnings...');
+                vaultIntegration = new VaultIntegration();
             }
 
             try {
                 showStatus('Refreshing fee earnings...', 'info');
+                console.log('Calling vaultIntegration.getUserFeeEarnings()...');
                 const feeEarnings = await vaultIntegration.getUserFeeEarnings();
+                console.log('Fee earnings result:', feeEarnings);
                 
                 if (feeEarnings) {
+                    console.log('Updating UI with fee earnings data...');
                     document.getElementById('userSharePercentage').textContent = feeEarnings.userSharePercentage.toFixed(4);
                     document.getElementById('totalFeeEarnings').textContent = parseFloat(feeEarnings.estimatedFeeEarnings).toFixed(6);
                     document.getElementById('tradingFeesAAVE').textContent = parseFloat(feeEarnings.estimatedTradingFeesAAVE).toFixed(6);
@@ -2350,6 +2374,9 @@
                     document.getElementById('totalVaultAssets').textContent = parseFloat(feeEarnings.totalAssets).toFixed(6);
                     
                     showStatus('Fee earnings refreshed successfully!', 'success');
+                } else {
+                    console.log('Fee earnings result is null/undefined');
+                    showStatus('Failed to get fee earnings data', 'error');
                 }
             } catch (error) {
                 console.error('Error refreshing fee earnings:', error);
@@ -2358,16 +2385,22 @@
         }
 
         async function refreshTokenPrice() {
+            console.log('=== REFRESH TOKEN PRICE CALLED ===');
+            console.log('vaultIntegration exists:', !!vaultIntegration);
+            
             if (!vaultIntegration) {
-                showStatus('Please connect your wallet first', 'error');
-                return;
+                console.log('Creating VaultIntegration instance...');
+                vaultIntegration = new VaultIntegration();
             }
 
             try {
                 showStatus('Refreshing token prices...', 'info');
+                console.log('Calling vaultIntegration.getTokenPrice()...');
                 const tokenPrice = await vaultIntegration.getTokenPrice();
+                console.log('Token price result:', tokenPrice);
                 
                 if (tokenPrice) {
+                    console.log('Updating UI with token price data...');
                     document.getElementById('wethToAavePrice').textContent = tokenPrice.wethToAave;
                     document.getElementById('aaveToWethPrice').textContent = tokenPrice.aaveToWeth;
                     document.getElementById('poolAddress').textContent = tokenPrice.poolAddress;
@@ -2375,6 +2408,9 @@
                     document.getElementById('poolFee').textContent = (parseFloat(tokenPrice.poolFee) / 10000).toFixed(2);
                     
                     showStatus('Token prices refreshed successfully!', 'success');
+                } else {
+                    console.log('Token price result is null/undefined');
+                    showStatus('Failed to get token price data', 'error');
                 }
             } catch (error) {
                 console.error('Error refreshing token prices:', error);
@@ -3282,6 +3318,68 @@
                 el.addEventListener('change', updateSwapEstimate);
             }
         });
+    </script>
+    <script>
+        let vaultIntegration;
+        async function initApp() {
+            console.log('=== INITIALIZING APP ===');
+            vaultIntegration = new VaultIntegration();
+            
+            try {
+                await vaultIntegration.initialize();
+                console.log('✅ VaultIntegration initialized successfully');
+                
+                // refresh manager allocations and idle funds on load
+                await vaultIntegration.refreshManagerUI();
+                
+                // populate token prices and other data on load AFTER successful initialization
+                if (typeof loadVaultInfo === 'function') {
+                    try {
+                        await loadVaultInfo();
+                    } catch (error) {
+                        console.error('loadVaultInfo failed:', error);
+                    }
+                }
+                
+                if (typeof refreshTokenPrice === 'function') {
+                    try {
+                        await refreshTokenPrice();
+                    } catch (error) {
+                        console.error('refreshTokenPrice failed:', error);
+                    }
+                }
+                
+                if (typeof refreshFeeEarnings === 'function') {
+                    try {
+                        await refreshFeeEarnings();
+                    } catch (error) {
+                        console.error('refreshFeeEarnings failed:', error);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('❌ VaultIntegration initialization failed:', error);
+                console.log('Continuing with limited functionality...');
+                
+                // Try to load token prices and fee earnings even without wallet connection
+                if (typeof refreshTokenPrice === 'function') {
+                    try {
+                        await refreshTokenPrice();
+                    } catch (error) {
+                        console.error('refreshTokenPrice failed:', error);
+                    }
+                }
+                
+                if (typeof refreshFeeEarnings === 'function') {
+                    try {
+                        await refreshFeeEarnings();
+                    } catch (error) {
+                        console.error('refreshFeeEarnings failed:', error);
+                    }
+                }
+            }
+        }
+        window.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>

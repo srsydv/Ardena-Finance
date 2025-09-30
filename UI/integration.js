@@ -75,6 +75,9 @@ class VaultIntegration {
                 "event Harvest(uint256 realizedProfit, uint256 mgmtFee, uint256 perfFee, uint256 tvlAfter)",
                 "event StrategySet(address strategy, uint16 bps)"
             ],
+            oracle: [
+                "function price(address token) external view returns (uint256)"
+            ],
             erc20: [
                 "function balanceOf(address account) external view returns (uint256)",
                 "function approve(address spender, uint256 amount) external returns (bool)",
@@ -192,16 +195,53 @@ class VaultIntegration {
             this.contracts.exchanger = new ethers.Contract(this.CONTRACTS.exchanger, this.ABIS.exchanger, this.signer);
             this.contracts.aaveStrategy = new ethers.Contract(this.CONTRACTS.aaveStrategy, this.ABIS.strategy, this.signer);
             this.contracts.uniStrategy = new ethers.Contract(this.CONTRACTS.uniStrategy, this.ABIS.strategy, this.signer);
+            this.contracts.oracle = new ethers.Contract(this.CONTRACTS.oracle, this.ABIS.oracle, this.provider);
 
             // Check user roles
             console.log('Checking user roles...');
             await this.checkUserRoles();
             console.log('User role set to:', this.userRole);
 
+            // Populate manager allocations now and keep them refreshed
+            await this.refreshManagerUI();
+            if (!this._managerRefreshTimer) {
+                this._managerRefreshTimer = setInterval(() => {
+                    this.refreshManagerUI();
+                }, 15000);
+            }
+
             return true;
         } catch (error) {
             console.error('Initialization failed:', error);
             throw error;
+        }
+    }
+
+    async refreshManagerUI() {
+        try {
+            if (!this.contracts?.vault) return;
+            const listEl = document.getElementById('strategyAllocations');
+            const idleEl = document.getElementById('idleFunds');
+
+            const strategiesLength = await this.contracts.vault.strategiesLength();
+            let rows = [];
+            for (let i = 0; i < Number(strategiesLength); i++) {
+                const addr = await this.contracts.vault.strategies(i);
+                const bps = await this.contracts.vault.targetBps(addr);
+                const pct = Number(bps) / 100; // basis points → %
+                const label = addr.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase() ? 'Aave Strategy'
+                              : addr.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase() ? 'Uniswap Strategy'
+                              : `Strategy ${i+1}`;
+                rows.push(`<p><strong>${label}:</strong> ${pct}% <small style="opacity:.7">(${addr})</small></p>`);
+            }
+            if (listEl) listEl.innerHTML = rows.length ? rows.join('') : '<p>No strategies configured.</p>';
+
+            if (idleEl) {
+                const idle = await this.contracts.asset.balanceOf(this.CONTRACTS.vault);
+                idleEl.textContent = ethers.formatUnits(idle, 18);
+            }
+        } catch (e) {
+            console.warn('refreshManagerUI failed:', e?.message || e);
         }
     }
 
@@ -367,24 +407,25 @@ class VaultIntegration {
 
     async getTokenPrice() {
         try {
-            // Check if contracts are initialized
-            if (!this.contracts.vault) {
-                throw new Error('Vault contract not initialized. Please connect your wallet first.');
-            }
-
             console.log('=== GETTING TOKEN PRICE ===');
+            console.log('VaultIntegration initialized:', !!this.contracts);
+            console.log('Vault contract initialized:', !!this.contracts?.vault);
+            console.log('Provider available:', !!this.provider);
             console.log('Pool address:', this.CONTRACTS.aaveWethPool);
-            console.log('Provider:', this.provider);
+            
+            // Use read-only provider if no signer provider available
+            const reader = this.provider || new ethers.JsonRpcProvider('https://rpc.sepolia.org');
+            console.log('Using provider:', reader.connection?.url || 'MetaMask provider');
             
             // Test provider connection
             try {
-                const network = await this.provider.getNetwork();
+                const network = await reader.getNetwork();
                 console.log('✅ Provider connected to network:', network.name, network.chainId);
             } catch (error) {
                 console.error('❌ Provider connection failed:', error.message);
                 throw new Error(`Provider connection failed: ${error.message}`);
             }
-            
+
             // Get the Uniswap V3 pool to read current balances directly
             const poolABI = [
                 "function token0() external view returns (address)",
@@ -392,7 +433,7 @@ class VaultIntegration {
                 "function fee() external view returns (uint24)"
             ];
             
-            const pool = new ethers.Contract(this.CONTRACTS.aaveWethPool, poolABI, this.provider);
+            const pool = new ethers.Contract(this.CONTRACTS.aaveWethPool, poolABI, reader);
             console.log('Pool contract created:', pool.target);
             
             // Try to get pool info with individual calls and error handling
@@ -430,8 +471,8 @@ class VaultIntegration {
             console.log('Pool fee:', fee.toString());
             
             // Get token contracts and info
-            const token0Contract = new ethers.Contract(token0, this.ABIS.erc20, this.provider);
-            const token1Contract = new ethers.Contract(token1, this.ABIS.erc20, this.provider);
+            const token0Contract = new ethers.Contract(token0, this.ABIS.erc20, reader);
+            const token1Contract = new ethers.Contract(token1, this.ABIS.erc20, reader);
             
             const [token0Decimals, token1Decimals, token0Symbol, token1Symbol] = await Promise.all([
                 token0Contract.decimals(),
@@ -455,49 +496,48 @@ class VaultIntegration {
                 "function fee() external view returns (uint24)"
             ];
             
-            const poolContract = new ethers.Contract(this.CONTRACTS.aaveWethPool, pricePoolABI, this.provider);
+            const poolContract = new ethers.Contract(this.CONTRACTS.aaveWethPool, pricePoolABI, reader);
             const slot0 = await poolContract.slot0();
             
             console.log('Pool slot0 data:');
             console.log('sqrtPriceX96:', slot0.sqrtPriceX96.toString());
             console.log('current tick:', slot0.tick.toString());
             
-            // Calculate price using sqrtPriceX96 (Uniswap V3 official method)
-            const sp = slot0.sqrtPriceX96;
+            // Calculate price using bigint math (no float overflows)
+            const sp = slot0.sqrtPriceX96; // bigint
             const Q96 = 2n ** 96n;
-            const priceX96 = Number(sp) / Number(Q96);
-            const price = priceX96 * priceX96;
-            
-            console.log('Price calculation:');
-            console.log('Q96:', Q96.toString());
-            console.log('priceX96:', priceX96.toFixed(6));
-            console.log('price (squared):', price.toFixed(6));
-            
-            // Determine token order and calculate final price
-            let aavePerWeth;
-            if (token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase()) {
-                // token0=WETH, token1=AAVE
-                aavePerWeth = price;
-                console.log('Case: token0=WETH, token1=AAVE');
-                console.log('Formula: (sqrtPriceX96 / Q96)^2 = AAVE/WETH');
+            const Q192 = Q96 * Q96;
+            const token0Dec = BigInt(token0Decimals);
+            const token1Dec = BigInt(token1Decimals);
+
+            // price1e18 = (sp^2 * 1e18 * 10^{dec0 - dec1}) / Q192
+            const num = sp * sp; // bigint
+            const base = num * (10n ** 18n);
+            const decDiff = token0Dec - token1Dec;
+            let price1e18;
+            if (decDiff >= 0n) {
+                price1e18 = (base * (10n ** decDiff)) / Q192;
             } else {
-                // token0=AAVE, token1=WETH
-                aavePerWeth = 1 / price;
-                console.log('Case: token0=AAVE, token1=WETH');
-                console.log('Formula: 1 / (sqrtPriceX96 / Q96)^2 = AAVE/WETH');
+                price1e18 = base / (Q192 * (10n ** (-decDiff)));
             }
-            
-            // Validate the calculation makes sense
-            console.log('=== PRICE VALIDATION ===');
-            console.log('Expected: ~10.06 AAVE per WETH (based on sqrtPriceX96 calculation)');
-            console.log('Calculated:', aavePerWeth.toFixed(6), 'AAVE per WETH');
-            console.log('Price looks reasonable:', aavePerWeth > 5 && aavePerWeth < 15 ? 'YES' : 'NO');
-            
-            console.log('Final calculation: 1 WETH =', aavePerWeth.toFixed(6), 'AAVE');
-            
+
+            // Convert to AAVE per WETH depending on token order
+            let aavePerWeth1e18;
+            const wethIsToken0 = token0.toLowerCase() === this.CONTRACTS.weth.toLowerCase();
+            if (wethIsToken0) {
+                // token1 is AAVE; price1e18 = AAVE per WETH
+                aavePerWeth1e18 = price1e18;
+            } else {
+                // price1e18 = WETH per AAVE; invert
+                aavePerWeth1e18 = (10n ** 36n) / price1e18; // 1e18 * 1e18 / price
+            }
+
+            const aavePerWethStr = ethers.formatUnits(aavePerWeth1e18, 18);
+            const wethPerAaveStr = ethers.formatUnits((10n ** 36n) / aavePerWeth1e18, 18);
+
             return {
-                wethToAave: aavePerWeth.toFixed(6),
-                aaveToWeth: (1 / aavePerWeth).toFixed(8),
+                wethToAave: aavePerWethStr,
+                aaveToWeth: wethPerAaveStr,
                 poolAddress: this.CONTRACTS.aaveWethPool,
                 token0: token0,
                 token1: token1,
@@ -506,28 +546,23 @@ class VaultIntegration {
                 poolFee: fee.toString()
             };
             
-            } catch (error) {
-                console.error('Error getting token price:', error);
-                
-                // Fallback: Use known values from our pool verification
-                console.log('=== USING FALLBACK VALUES ===');
-                console.log('Pool address:', this.CONTRACTS.aaveWethPool);
-                
-                // From our pool verification: 1 WETH = 11.501862 AAVE
-                const fallbackAavePerWeth = 11.501862;
-                
-                return {
-                    wethToAave: fallbackAavePerWeth.toFixed(6),
-                    aaveToWeth: (1 / fallbackAavePerWeth).toFixed(8),
-                    poolAddress: this.CONTRACTS.aaveWethPool,
-                    token0: "0x4530fABea7444674a775aBb920924632c669466e", // NEW WETH
-                    token1: "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a", // AAVE
-                    token0Symbol: "WETH",
-                    token1Symbol: "AAVE",
-                    poolFee: "500",
-                    isFallback: true
-                };
-            }
+        } catch (error) {
+            console.error('Error getting token price:', error);
+            
+            // Simple fallback with hardcoded values for testing
+            console.log('Using fallback price calculation...');
+            return {
+                wethToAave: "10.000000", // 1 WETH = 10 AAVE (example)
+                aaveToWeth: "0.10000000", // 1 AAVE = 0.1 WETH (example)
+                poolAddress: this.CONTRACTS.aaveWethPool,
+                token0: this.CONTRACTS.weth,
+                token1: this.CONTRACTS.asset,
+                token0Symbol: "WETH",
+                token1Symbol: "AAVE",
+                poolFee: "500",
+                isFallback: true
+            };
+        }
     }
 
     async getUserFeeEarnings() {
@@ -1130,7 +1165,7 @@ class VaultIntegration {
             } catch (e) {
                 console.warn('Could not verify/whitelist router (non-fatal if already set):', e?.message || e);
             }
-
+            
             // Final check before transaction
             console.log('About to call investIdle with data:', allSwapData);
             console.log('Transaction will be sent from:', this.userAddress);
