@@ -202,6 +202,13 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable
         math = IUniswapV3MathAdapter(_math);
     }
 
+    /// @notice Update the vault address this strategy is bound to.
+    ///         Allows wiring the strategy to a new Vault without redeploying.
+    function setVault(address _vault) external onlyOwner {
+        require(_vault != address(0), "BAD_VAULT");
+        vault = _vault;
+    }
+
     // ---------------- Views ----------------
 
     function want() external view override returns (address) {

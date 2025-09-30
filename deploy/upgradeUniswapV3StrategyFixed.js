@@ -18,8 +18,8 @@ async function main() {
     console.log("Deployer address:", deployer.address);
     
     // Contract addresses - upgrading existing UniswapV3Strategy
-    const UNI_STRATEGY_ADDRESS = "0x65cDA0b70d3D09139c0a78059082F885714a0Fe7"; // EXISTING UNISWAPV3STRATEGY
-    const VAULT_ADDRESS = "0x3cd0145707C03316B48f8A254c494600c30ebf8d"; // AAVE VAULT
+    const UNI_STRATEGY_ADDRESS = "0xa33A3662d8750a90f14792B4908E95695b11E374"; // NEW UNISWAPV3STRATEGY to upgrade
+    const VAULT_ADDRESS = "0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11"; // NEW VAULT
     const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
     
     console.log("\n=== STEP 1: CHECKING CURRENT STATE ===");
@@ -104,6 +104,18 @@ async function main() {
         const newImpl = await upgrades.erc1967.getImplementationAddress(UNI_STRATEGY_ADDRESS);
         console.log("New UniswapV3Strategy implementation:", newImpl);
         console.log("✅ UniswapV3Strategy upgrade completed!");
+        
+        // Point strategy to the new vault using the newly added setter
+        try {
+            const upgradedStrategy = UniswapV3Strategy.attach(UNI_STRATEGY_ADDRESS);
+            console.log("Setting new vault on strategy:", VAULT_ADDRESS);
+            const sv = await upgradedStrategy.setVault(VAULT_ADDRESS);
+            await sv.wait();
+            const newVaultRead = await upgradedStrategy.vault();
+            console.log("vault() after setVault:", newVaultRead);
+        } catch (e) {
+            console.log("(Info) setVault call failed or not available:", e?.message || e);
+        }
         
     } catch (error) {
         console.error("❌ Upgrade failed:", error.message);

@@ -17,18 +17,18 @@ class VaultIntegration {
         // Contract addresses (NEW AAVE VAULT SYSTEM)
         this.CONTRACTS = {
             // NEW AAVE VAULT SYSTEM
-            vault: "0x3cd0145707C03316B48f8A254c494600c30ebf8d", // NEW AAVE VAULT
+            vault: "0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11", // NEW AAVE VAULT
             asset: "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a", // AAVE TOKEN
             weth: "0x4530fABea7444674a775aBb920924632c669466e", // NEW WETH
             
             // NEW STRATEGIES
-            aaveStrategy: "0x9362c59c71321c77CaeE86f9Cf02cbBF3b64277D", // NEW AAVEV3STRATEGY
-            uniStrategy: "0x65cDA0b70d3D09139c0a78059082F885714a0Fe7", // NEW AAVE UNISWAPV3STRATEGY
+            aaveStrategy: "0x6bDE0781354858bA6344aB671B07663E89BFF064", // NEW AAVEV3STRATEGY
+            uniStrategy: "0xa33A3662d8750a90f14792B4908E95695b11E374", // NEW AAVE UNISWAPV3STRATEGY
             
             // INFRASTRUCTURE (SAME)
             accessController: "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2",
             feeModule: "0x3873DaFa287f80792208c36AcCfC82370428b3DB",
-            oracle: "0x6EE0A849079A5b63562a723367eAae77F3f5EB21",
+            oracle: "0x32D6d6024CE08930b1f3eDd30F5eDd0d1986c9c4",
             exchanger: "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF",
             mathAdapter: "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E",
             

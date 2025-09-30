@@ -20,22 +20,18 @@ async function main() {
     console.log("Deployer address:", deployer.address);
     
     // Contract addresses for NEW AAVE VAULT and NEW AAVE/WETH pool
-    const VAULT_ADDRESS = "0x3cd0145707C03316B48f8A254c494600c30ebf8d"; // NEW AAVE VAULT
-    const OLD_STRATEGY_ADDRESS = "0x13C38F2045cbdf4071FfCc086877E19018B865B5"; // OLD AAVE STRATEGY
-    const AAVE_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a"; // AAVE TOKEN
-    const WETH_ADDRESS = "0x4530fABea7444674a775aBb920924632c669466e"; // NEW WETH TOKEN
+    const VAULT_ADDRESS = "0x3cd0145707C03316B48f8A254c494600c30ebf8d"; // requested vault
+    const AAVE_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a"; // want
     const UNISWAP_POSITION_MANAGER = "0x1238536071E1c677A632429e3655c799b22cDA52";
-    const POOL_ADDRESS = "0x0E98753e483679703c902a0f574646d3653ad9eA"; // NEW AAVE/WETH POOL
+    const POOL_ADDRESS = "0x0E98753e483679703c902a0f574646d3653ad9eA"; // AAVE/WETH pool
     const EXCHANGER_ADDRESS = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF";
-    const ORACLE_ADDRESS = "0x6EE0A849079A5b63562a723367eAae77F3f5EB21";
+    const ORACLE_ADDRESS = "0x32D6d6024CE08930b1f3eDd30F5eDd0d1986c9c4"; // new OracleModule
     const MATH_ADAPTER_ADDRESS = "0x263b2a35787b3D9f8c2aca02ce2372E9f7CD438E";
-    const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
     
     console.log("\n=== STEP 1: CHECKING CURRENT VAULT STATE ===");
     console.log("Using NEW AAVE VAULT and NEW AAVE/WETH pool:");
     console.log("- Vault:", VAULT_ADDRESS);
     console.log("- AAVE:", AAVE_ADDRESS);
-    console.log("- NEW WETH:", WETH_ADDRESS);
     console.log("- NEW Pool:", POOL_ADDRESS);
     console.log("- Target: 1 WETH = 10 AAVE price");
     
@@ -57,7 +53,7 @@ async function main() {
         throw error;
     }
     
-    console.log("\n=== STEP 2: DEPLOYING NEW UNISWAPV3STRATEGY ===");
+    console.log("\n=== STEP 2: DEPLOYING NEW UNISWAPV3STRATEGY (deploy-only) ===");
     
     let newStrategyAddress;
     
@@ -76,7 +72,6 @@ async function main() {
                 EXCHANGER_ADDRESS,
                 ORACLE_ADDRESS,
                 MATH_ADAPTER_ADDRESS,
-                ACCESS_CONTROLLER_ADDRESS,
             ],
             { kind: "uups", initializer: "initialize" }
         );
@@ -101,55 +96,7 @@ async function main() {
         throw error;
     }
     
-    console.log("\n=== STEP 3: UPDATING VAULT ===");
-    
-    try {
-        const Vault = await ethers.getContractFactory("Vault");
-        const vault = Vault.attach(VAULT_ADDRESS);
-        
-        // Check if old strategy exists in vault
-        let oldStrategyExists = false;
-        const strategiesLength = await vault.strategiesLength();
-        for (let i = 0; i < strategiesLength; i++) {
-            const strategyAddress = await vault.strategies(i);
-            if (strategyAddress.toLowerCase() === OLD_STRATEGY_ADDRESS.toLowerCase()) {
-                oldStrategyExists = true;
-                break;
-            }
-        }
-        
-        // Remove old strategy if it exists
-        if (oldStrategyExists) {
-            console.log("Removing old strategy from vault...");
-            const deleteTx = await vault.deleteStrategy(OLD_STRATEGY_ADDRESS);
-            await deleteTx.wait();
-            console.log("✅ Old strategy removed");
-        } else {
-            console.log("ℹ️  Old strategy not found in vault, skipping removal");
-        }
-        
-        // Add new strategy with allocation
-        console.log("Adding new strategy to vault...");
-        const setTx = await vault.setStrategy(newStrategyAddress, 4000); // 40% allocation
-        await setTx.wait();
-        console.log("✅ New strategy added with 40% allocation");
-        
-        // Verify the update
-        const updatedStrategiesLength = await vault.strategiesLength();
-        console.log("Updated number of strategies:", updatedStrategiesLength.toString());
-        
-        for (let i = 0; i < updatedStrategiesLength; i++) {
-            const strategyAddress = await vault.strategies(i);
-            const bps = await vault.targetBps(strategyAddress);
-            console.log(`Strategy ${i}: ${strategyAddress} allocation: ${bps.toString()} bps`);
-        }
-        
-    } catch (error) {
-        console.error("❌ Failed to update vault:", error.message);
-        throw error;
-    }
-    
-    console.log("\n=== STEP 4: TESTING NEW STRATEGY ===");
+    console.log("\n=== STEP 3: BASIC STRATEGY CHECKS (no vault wiring) ===");
     
     try {
         const UniswapV3Strategy = await ethers.getContractFactory("UniswapV3Strategy");
@@ -170,23 +117,12 @@ async function main() {
         throw error;
     }
     
-    console.log("\n🎉 NEW STRATEGY DEPLOYMENT COMPLETED!");
+    console.log("\n🎉 NEW STRATEGY DEPLOYMENT COMPLETED (DEPLOY-ONLY)!");
     console.log("\n📝 SUMMARY:");
-    console.log("- Old strategy removed:", OLD_STRATEGY_ADDRESS);
     console.log("- New strategy deployed:", newStrategyAddress);
-    console.log("- Vault updated with new strategy");
-    console.log("- New strategy has fixed tick calculation");
-    
-    console.log("\n🚀 NEXT STEPS:");
-    console.log("1. Test investIdle functionality with the new AAVE strategy");
-    console.log("2. Verify that the tick calculation bug is fixed");
-    console.log("3. Update your frontend to use the new strategy address if needed");
-    console.log("4. Test AAVE deposits and swaps in the UniswapV3Strategy");
-    
-    console.log("\n📋 UPDATE DEPLOYEDCONTRACT.me:");
-    console.log(`NewAAVEUniswapV3Strategy: ${newStrategyAddress}`);
-    console.log(`Pool: ${POOL_ADDRESS}`);
-    console.log(`Vault: ${VAULT_ADDRESS}`);
+    console.log("- Vault (not wired):", VAULT_ADDRESS);
+    console.log("- Pool:", POOL_ADDRESS);
+    console.log("- Oracle:", ORACLE_ADDRESS);
 }
 
 main().catch((error) => {

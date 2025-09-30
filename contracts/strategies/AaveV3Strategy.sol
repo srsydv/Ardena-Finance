@@ -83,6 +83,13 @@ contract AaveV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable, I
         aToken = IERC20(rd.aTokenAddress);
     }
 
+    /// @notice Update the vault address this strategy is bound to.
+    ///         Allows wiring the strategy to a new Vault without redeploying.
+    function setVault(address _vault) external onlyOwner {
+        require(_vault != address(0), "BAD_VAULT");
+        vault = _vault;
+    }
+
     // --- Views ---
     function want() external view override returns (address) {
         return wantToken;
