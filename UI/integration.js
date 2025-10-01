@@ -185,7 +185,7 @@ class VaultIntegration {
             // Use signer if available (wallet mode), otherwise use provider (read-only mode)
             const contractSigner = this.signer || this.provider;
             console.log('Using contract signer:', contractSigner ? 'available' : 'not available');
-            
+
             // Initialize contracts
             console.log('Creating vault contract at:', this.CONTRACTS.vault);
             this.contracts.vault = new ethers.Contract(this.CONTRACTS.vault, this.ABIS.vault, contractSigner);
@@ -667,7 +667,7 @@ class VaultIntegration {
 
             const aavePerWethStr = ethers.formatUnits(aavePerWeth1e18, 18);
             const wethPerAaveStr = ethers.formatUnits((10n ** 36n) / aavePerWeth1e18, 18);
-
+            
             return {
                 wethToAave: aavePerWethStr,
                 aaveToWeth: wethPerAaveStr,

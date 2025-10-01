@@ -11,3 +11,13 @@ swap function in ExchageSwap contact
 
 Yield protocols
 Uniswap, Aave, Compound, Curve, Balancer, Yearn, Beefy, Lido
+
+
+rebalance
+lets write the rebalance code on hardhat sepolia fork using latest deployed contract addresses
+let me explain how you can do it, first check how many AAVE tokens in both strategies is having using totalAssets()
+lets say total deposited amount is 100AAVE so 60AAVE should be in @AaveV3Strategy.sol and 40 AAVE should be in @UniswapV3Strategy.sol
+if they are balance then send 10 aETHAAVE = 0x6b8558764d3b7572136F17174Cb9aB1DDc7E1259 token from my pk account to @AaveV3Strategy.sol  
+then again check the ratio using totalAssets() it will be inbalance now, means AaveV3Strategy is having more than 60%, 
+so calculate how much AAVE token AaveV3Strategy has to withdraw and deposit via investIdle in uniswapV3Strategy to make it balance like 60% and 40%, 
+and then call rebalance() with correct calldata and you already know now how how my smart contract is doing investIdle withdraw etc for calldata,  is it possible to do this for you?
