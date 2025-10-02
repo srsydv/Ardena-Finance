@@ -30,7 +30,7 @@
 import "@nomicfoundation/hardhat-toolbox";
 import dotenv from "dotenv";
 import "@openzeppelin/hardhat-upgrades";
-import "hardhat-tracer";
+// import "hardhat-tracer"; // Disabled to remove verbose output
 
 dotenv.config();
 
@@ -78,8 +78,6 @@ export default {
         url: process.env.SEPOLIA_RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/rB2CQbcQlNubEmgJCgxDR",
         enabled: true,
       },
-      loggingEnabled: true,
-      verbose: true,
     },
     sepolia: {
       url: `https://eth-sepolia.g.alchemy.com/v2/rB2CQbcQlNubEmgJCgxDR`,

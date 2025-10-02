@@ -15,7 +15,7 @@ import hre from "hardhat";
 const { ethers, upgrades } = hre;
 
 // Target proxy and access controller
-const VAULT_ADDRESS = "0x3cd0145707C03316B48f8A254c494600c30ebf8d";
+const VAULT_ADDRESS = "0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11";
 const ACCESS_CONTROLLER_ADDRESS = "0xF1faF9Cf5c7B3bf88cB844A98D110Cef903a9Df2";
 
 async function main() {

