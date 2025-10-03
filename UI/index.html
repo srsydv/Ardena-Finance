@@ -1260,7 +1260,24 @@
             </div>
 
             <div class="how-to-step">
-                <h4>3️⃣ Deposit AAVE Tokens</h4>
+                <h4>3️⃣ Set Oracle Price (Important First Step)</h4>
+                <p><strong>⚠️ Before doing any trading or manager actions, ensure the oracle price is synced with Uniswap V3:</strong></p>
+                <div class="info-note" style="background: rgba(255,193,7,0.1); border: 1px solid rgba(255,193,7,0.3); border-radius: 8px; padding: 12px; margin: 10px 0;">
+                    <p style="margin: 0; color: #ffc107; font-size: 0.9rem;">
+                        <strong>🎯 Why This Matters:</strong> The oracle determines accurate asset valuations for all vault operations. If prices are outdated or incorrect, deposits, withdrawals, and rebalancing may fail or give wrong results.
+                    </p>
+                </div>
+                <ul>
+                    <li><strong>Check Price Sync:</strong> Look at the "Set Oracle Price" card - compare "From Uniswap V3" vs "From Oracle Calculation"</li>
+                    <li><strong>If Prices Don't Match:</strong> Click "📐 Set Oracle Price" to sync the oracle with current Uniswap V3 prices</li>
+                    <li><strong>Why It Happens:</strong> Oracle prices can become stale or incorrect due to network delays or manual updates</li>
+                    <li><strong>When to Sync:</strong> Before deposits, withdrawals, rebalancing, or any manager actions</li>
+                    <li><strong>Automatic Sync:</strong> In production, this will be automated by keeper bots</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>4️⃣ Deposit AAVE Tokens</h4>
                 <p>In the User Actions section:</p>
                 <ul>
                     <li>Enter the amount of AAVE you want to deposit</li>
@@ -1293,7 +1310,7 @@
             </div>
 
             <div class="how-to-step">
-                <h4>4️⃣ Invest Idle Funds (Managers Only)</h4>
+                <h4>5️⃣ Invest Idle Funds (Managers Only)</h4>
                 <p>If you're a manager, you can optimize fund allocation:</p>
                 <ul>
                     <li>Click "Invest Idle Funds" to deploy funds to strategies</li>
@@ -1303,7 +1320,7 @@
             </div>
 
             <div class="how-to-step">
-                <h4>5️⃣ Monitor Your Investment</h4>
+                <h4>6️⃣ Monitor Your Investment</h4>
                 <p>Track your performance through various metrics:</p>
                 <ul>
                     <li><strong>Your Assets:</strong> Current value of your vault shares</li>
@@ -1314,7 +1331,7 @@
             </div>
 
             <div class="how-to-step">
-                <h4>6️⃣ Withdraw Your Funds</h4>
+                <h4>7️⃣ Withdraw Your Funds</h4>
                 <p>When you want to exit your position:</p>
                 <ul>
                     <li>Enter the number of vault shares to withdraw</li>
