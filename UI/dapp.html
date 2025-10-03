@@ -1883,7 +1883,11 @@
                         <button class="btn" id="depositBtn" onclick="deposit()">Deposit</button>
                         <div class="form-group" style="margin-top:1rem;">
                             <label for="withdrawAmount">Withdraw Amount (Shares)</label>
-                            <input type="number" id="withdrawAmount" placeholder="Enter shares to withdraw" step="0.000001">
+                            <input type="number" id="withdrawAmount" placeholder="Enter shares to withdraw" step="0.000001" oninput="updateSharesToAssetsConversion()">
+                            <div id="sharesToAssetsConversion" style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(0,212,255,0.1); border-radius: 6px; border-left: 3px solid #00d4ff; display: none;">
+                                <div style="font-size: 0.85rem; color: #00d4ff; font-weight: 600;">Estimated AAVE to receive:</div>
+                                <div id="convertedAssets" style="font-size: 1rem; color: #e8e8e8; margin-top: 0.25rem;">0.000000 AAVE</div>
+                            </div>
                         </div>
                         <button class="btn btn-secondary" id="withdrawBtn" onclick="withdraw()">Withdraw</button>
                     </div>
@@ -3697,35 +3701,35 @@
         async function debugContracts() {
             console.log('🔍 DEBUG: Testing contract connectivity...');
             
-            if (!vaultIntegration) {
+            if (!window.vaultIntegration) {
                 console.log('❌ vaultIntegration not available');
                 return;
             }
 
             try {
                 console.log('📋 Testing vault contract...');
-                const vaultName = await vaultIntegration.contracts.vault.name();
+                const vaultName = await window.vaultIntegration.contracts.vault.name();
                 console.log('✅ Vault name:', vaultName);
                 
-                const strategiesLength = await vaultIntegration.contracts.vault.strategiesLength();
+                const strategiesLength = await window.vaultIntegration.contracts.vault.strategiesLength();
                 console.log('✅ Strategies length:', strategiesLength.toString());
                 
                 for (let i = 0; i < strategiesLength; i++) {
-                    const strategyAddress = await vaultIntegration.contracts.vault.strategies(i);
+                    const strategyAddress = await window.vaultIntegration.contracts.vault.strategies(i);
                     console.log(`✅ Strategy ${i}:`, strategyAddress);
                     
-                    const strategyContract = new ethers.Contract(strategyAddress, vaultIntegration.ABIS.strategy, vaultIntegration.signer || vaultIntegration.provider);
+                    const strategyContract = new ethers.Contract(strategyAddress, window.vaultIntegration.ABIS.strategy, window.vaultIntegration.signer || window.vaultIntegration.provider);
                     const assets = await strategyContract.totalAssets();
                     console.log(`✅ Strategy ${i} assets:`, ethers.formatEther(assets), 'AAVE');
                 }
                 
                 // Check user roles
                 console.log('👤 Checking user roles...');
-                console.log('User address:', vaultIntegration.userAddress);
+                console.log('User address:', window.vaultIntegration.userAddress);
                 
-                if (vaultIntegration.userAddress) {
-                    const isManager = await vaultIntegration.contracts.accessController.managers(vaultIntegration.userAddress);
-                    const isKeeper = await vaultIntegration.contracts.accessController.keepers(vaultIntegration.userAddress);
+                if (window.vaultIntegration.userAddress) {
+                    const isManager = await window.vaultIntegration.contracts.accessController.managers(window.vaultIntegration.userAddress);
+                    const isKeeper = await window.vaultIntegration.contracts.accessController.keepers(window.vaultIntegration.userAddress);
                     console.log('🔐 User roles - Manager:', isManager, 'Keeper:', isKeeper);
                     
                     if (isManager) {
@@ -3750,18 +3754,261 @@
         
         // Make refreshStrategyPercentages available globally for integration.js
         window.refreshStrategyPercentages = refreshStrategyPercentages;
+        
+        // Function to force load all public data
+        async function forceLoadPublicData() {
+            console.log('🔄 Force loading public data...');
+            
+            // Use global vaultIntegration
+            const vi = window.vaultIntegration;
+            
+            if (!vi) {
+                console.log('❌ vaultIntegration not available, trying to reinitialize...');
+                try {
+                    window.vaultIntegration = new VaultIntegration();
+                    await window.vaultIntegration.initializeReadOnly();
+                    console.log('✅ VaultIntegration reinitialized successfully');
+                } catch (error) {
+                    console.error('❌ Failed to reinitialize VaultIntegration:', error);
+                    return;
+                }
+            }
+            
+            try {
+                const currentVI = window.vaultIntegration;
+                
+                // Try to load vault info
+                if (typeof loadVaultInfo === 'function') {
+                    console.log('📊 Loading vault info...');
+                    await loadVaultInfo();
+                }
+                
+                // Try to load strategy percentages
+                console.log('📊 Loading strategy percentages...');
+                await refreshStrategyPercentages();
+                
+                // Try to load token prices
+                if (typeof refreshTokenPrice === 'function') {
+                    console.log('📊 Loading token prices...');
+                    await refreshTokenPrice();
+                }
+                
+                console.log('✅ Public data force loaded successfully');
+            } catch (error) {
+                console.error('❌ Failed to force load public data:', error);
+            }
+        }
+        
+        // Make forceLoadPublicData available globally
+        window.forceLoadPublicData = forceLoadPublicData;
+        
+        // Simple fallback function to load strategy data directly
+        async function loadStrategyDataDirectly() {
+            console.log('🔄 Loading strategy data directly...');
+            
+            try {
+                // Use the same contract addresses as in the test file
+                const VAULT_ADDRESS = "0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11";
+                const AAVE_STRATEGY_ADDRESS = "0x6bDE0781354858bA6344aB671B07663E89BFF064";
+                const UNISWAP_STRATEGY_ADDRESS = "0xa33A3662d8750a90f14792B4908E95695b11E374";
+                
+                // Create provider with Alchemy RPC
+                const provider = new ethers.JsonRpcProvider('https://eth-sepolia.g.alchemy.com/v2/jROdUKjJxmz2XYwNpS5Ik');
+                
+                // Create contracts
+                const vaultContract = new ethers.Contract(VAULT_ADDRESS, [
+                    "function totalAssets() external view returns (uint256)",
+                    "function strategiesLength() external view returns (uint256)",
+                    "function strategies(uint256) external view returns (address)"
+                ], provider);
+                
+                const aaveStrategyContract = new ethers.Contract(AAVE_STRATEGY_ADDRESS, [
+                    "function totalAssets() external view returns (uint256)"
+                ], provider);
+                
+                const uniswapStrategyContract = new ethers.Contract(UNISWAP_STRATEGY_ADDRESS, [
+                    "function totalAssets() external view returns (uint256)"
+                ], provider);
+                
+                // Get strategy assets
+                const aaveAssets = await aaveStrategyContract.totalAssets();
+                const uniswapAssets = await uniswapStrategyContract.totalAssets();
+                const totalAssets = aaveAssets + uniswapAssets;
+                
+                const aavePercentage = totalAssets > 0 ? (Number(aaveAssets) / Number(totalAssets)) * 100 : 0;
+                const uniswapPercentage = totalAssets > 0 ? (Number(uniswapAssets) / Number(totalAssets)) * 100 : 0;
+                
+                console.log('📊 Strategy data loaded:', {
+                    aaveAssets: ethers.formatEther(aaveAssets),
+                    uniswapAssets: ethers.formatEther(uniswapAssets),
+                    totalAssets: ethers.formatEther(totalAssets),
+                    aavePercentage: aavePercentage.toFixed(2),
+                    uniswapPercentage: uniswapPercentage.toFixed(2)
+                });
+                
+                // Update the UI directly
+                const strategyPercentagesEl = document.getElementById('strategyPercentages');
+                const strategyAllocationsEl = document.getElementById('strategyAllocations');
+                
+                if (strategyPercentagesEl) {
+                    const html = `
+                        <div style="margin-bottom: 1rem;">
+                            <div style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(0,212,255,0.1); border-radius: 8px; border-left: 3px solid #00d4ff;">
+                                <div style="font-weight: 600; color: #00d4ff; margin-bottom: 0.25rem;">Total Strategy Assets</div>
+                                <div style="font-size: 1.1rem; color: #e8e8e8;">${ethers.formatEther(totalAssets)} AAVE</div>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #e8e8e8; margin-bottom: 0.25rem;">AaveV3 Strategy</div>
+                                    <div style="font-size: 0.75rem; color: rgba(255,255,255,0.5); word-break: break-all;">${AAVE_STRATEGY_ADDRESS}</div>
+                                </div>
+                                <div style="text-align: right; min-width: 120px;">
+                                    <div style="font-size: 1rem; color: #00d4ff; font-weight: 600; margin-bottom: 0.25rem;">${aavePercentage.toFixed(2)}%</div>
+                                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7); margin-bottom: 0.25rem;">${ethers.formatEther(aaveAssets)} AAVE</div>
+                                    <div style="font-size: 0.75rem; color: #ff6b6b;">Target: 60% (+${(aavePercentage - 60).toFixed(1)}%)</div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #e8e8e8; margin-bottom: 0.25rem;">UniswapV3 Strategy</div>
+                                    <div style="font-size: 0.75rem; color: rgba(255,255,255,0.5); word-break: break-all;">${UNISWAP_STRATEGY_ADDRESS}</div>
+                                </div>
+                                <div style="text-align: right; min-width: 120px;">
+                                    <div style="font-size: 1rem; color: #00d4ff; font-weight: 600; margin-bottom: 0.25rem;">${uniswapPercentage.toFixed(2)}%</div>
+                                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7); margin-bottom: 0.25rem;">${ethers.formatEther(uniswapAssets)} AAVE</div>
+                                    <div style="font-size: 0.75rem; color: #ff6b6b;">Target: 40% (${(uniswapPercentage - 40).toFixed(1)}%)</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    strategyPercentagesEl.innerHTML = html;
+                }
+                
+                if (strategyAllocationsEl) {
+                    const html = `
+                        <div style="margin-bottom: 1rem;">
+                            <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                                <div style="font-weight: 600; color: #e8e8e8; margin-bottom: 0.25rem;">AaveV3 Strategy</div>
+                                <div style="font-size: 0.8rem; color: #00d4ff; margin-bottom: 0.25rem;">${aavePercentage.toFixed(2)}% (${ethers.formatEther(aaveAssets)} AAVE)</div>
+                                <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5); word-break: break-all;">${AAVE_STRATEGY_ADDRESS}</div>
+                            </div>
+                            <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                                <div style="font-weight: 600; color: #e8e8e8; margin-bottom: 0.25rem;">UniswapV3 Strategy</div>
+                                <div style="font-size: 0.8rem; color: #00d4ff; margin-bottom: 0.25rem;">${uniswapPercentage.toFixed(2)}% (${ethers.formatEther(uniswapAssets)} AAVE)</div>
+                                <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5); word-break: break-all;">${UNISWAP_STRATEGY_ADDRESS}</div>
+                            </div>
+                        </div>
+                    `;
+                    strategyAllocationsEl.innerHTML = html;
+                }
+                
+                console.log('✅ Strategy data loaded and UI updated successfully');
+                
+            } catch (error) {
+                console.error('❌ Failed to load strategy data directly:', error);
+            }
+        }
+        
+        // Make loadStrategyDataDirectly available globally
+        window.loadStrategyDataDirectly = loadStrategyDataDirectly;
+        
+        // Debounce timer for shares conversion
+        let sharesConversionTimeout = null;
+        
+        // Function to update shares to assets conversion
+        async function updateSharesToAssetsConversion() {
+            // Clear existing timeout
+            if (sharesConversionTimeout) {
+                clearTimeout(sharesConversionTimeout);
+            }
+            
+            // Debounce the conversion call
+            sharesConversionTimeout = setTimeout(async () => {
+                await performSharesToAssetsConversion();
+            }, 300); // 300ms delay
+        }
+        
+        // Actual conversion function
+        async function performSharesToAssetsConversion() {
+            const sharesInput = document.getElementById('withdrawAmount');
+            const conversionDiv = document.getElementById('sharesToAssetsConversion');
+            const convertedAssetsDiv = document.getElementById('convertedAssets');
+            
+            if (!sharesInput || !conversionDiv || !convertedAssetsDiv) {
+                return;
+            }
+            
+            const shares = sharesInput.value;
+            
+            // Hide conversion if no shares entered
+            if (!shares || shares === '' || parseFloat(shares) <= 0) {
+                conversionDiv.style.display = 'none';
+                return;
+            }
+            
+            try {
+                // Show loading state
+                conversionDiv.style.display = 'block';
+                convertedAssetsDiv.textContent = 'Calculating...';
+                
+                // Get the conversion from vault contract
+                if (window.vaultIntegration && window.vaultIntegration.contracts && window.vaultIntegration.contracts.vault) {
+                    const sharesWei = ethers.parseEther(shares);
+                    const assetsWei = await window.vaultIntegration.contracts.vault.convertToAssets(sharesWei);
+                    const assetsFormatted = ethers.formatEther(assetsWei);
+                    
+                    convertedAssetsDiv.textContent = `${parseFloat(assetsFormatted).toFixed(6)} AAVE`;
+                    conversionDiv.style.display = 'block';
+                } else {
+                    // Fallback: use direct contract call
+                    const VAULT_ADDRESS = "0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11";
+                    const provider = new ethers.JsonRpcProvider('https://eth-sepolia.g.alchemy.com/v2/jROdUKjJxmz2XYwNpS5Ik');
+                    
+                    const vaultContract = new ethers.Contract(VAULT_ADDRESS, [
+                        "function convertToAssets(uint256 shares) external view returns (uint256)"
+                    ], provider);
+                    
+                    const sharesWei = ethers.parseEther(shares);
+                    const assetsWei = await vaultContract.convertToAssets(sharesWei);
+                    const assetsFormatted = ethers.formatEther(assetsWei);
+                    
+                    convertedAssetsDiv.textContent = `${parseFloat(assetsFormatted).toFixed(6)} AAVE`;
+                    conversionDiv.style.display = 'block';
+                }
+                
+            } catch (error) {
+                console.error('Failed to convert shares to assets:', error);
+                convertedAssetsDiv.textContent = 'Error calculating';
+                conversionDiv.style.display = 'block';
+            }
+        }
+        
+        // Make updateSharesToAssetsConversion available globally
+        window.updateSharesToAssetsConversion = updateSharesToAssetsConversion;
     </script>
     <script>
-        let vaultIntegration;
+        // vaultIntegration is already declared above, just make it globally available
+        window.vaultIntegration = null;
+        
         async function initApp() {
             console.log('=== INITIALIZING APP ===');
-            vaultIntegration = new VaultIntegration();
             
-            // First, try to load data in read-only mode (no wallet required)
             try {
-                console.log('🔄 Attempting read-only initialization...');
-                await vaultIntegration.initializeReadOnly();
-                console.log('✅ Read-only initialization successful');
+                window.vaultIntegration = new VaultIntegration();
+                console.log('✅ VaultIntegration instance created successfully');
+                console.log('vaultIntegration object:', window.vaultIntegration);
+            } catch (error) {
+                console.error('❌ Failed to create VaultIntegration instance:', error);
+                return;
+            }
+            
+            // Initialize the vault integration (read-only mode first, then wallet if available)
+            try {
+                console.log('🔄 Attempting initialization...');
+                await window.vaultIntegration.initialize();
+                console.log('✅ Initialization successful');
                 
                 // Test contracts immediately after initialization
                 console.log('🧪 Testing contracts after initialization...');
@@ -3769,14 +4016,33 @@
                 
                 // Load all public data immediately
                 console.log('📊 Loading public data...');
-                await vaultIntegration.loadPublicData();
+                await window.vaultIntegration.loadPublicData();
                 console.log('✅ Public data loaded');
                 
+                // Force refresh strategy percentages after a short delay
+                setTimeout(async () => {
+                    console.log('🔄 Force refreshing strategy percentages...');
+                    try {
+                        await refreshStrategyPercentages();
+                        console.log('✅ Strategy percentages refreshed successfully');
+                    } catch (error) {
+                        console.error('❌ Failed to refresh strategy percentages:', error);
+                    }
+                }, 1000);
+                
             } catch (error) {
-                console.log('❌ Read-only initialization failed:', error);
-                console.log('🔄 Continuing without pre-loaded data...');
-                // Don't fail completely, just continue without the read-only data
-                showStatus('Some features may be limited. Connect wallet for full functionality.', 'warning');
+                console.log('❌ Initialization failed:', error);
+                console.log('🔄 Continuing with limited functionality...');
+                
+                // Try direct strategy data loading as fallback
+                try {
+                    console.log('🔄 Attempting direct strategy data loading...');
+                    await loadStrategyDataDirectly();
+                    console.log('✅ Direct strategy data loading successful');
+                } catch (fallbackError) {
+                    console.error('❌ Fallback loading also failed:', fallbackError);
+                    showStatus('Some features may be limited. Connect wallet for full functionality.', 'warning');
+                }
             }
             
             // Additional data loading after successful initialization (either read-only or wallet)
@@ -3841,20 +4107,45 @@
             }
         }
         
-        // Final attempt to refresh strategy percentages after everything is loaded
+        // Final attempt to load all public data after everything is loaded
         setTimeout(async () => {
-            if (typeof refreshStrategyPercentages === 'function') {
-                console.log('🔄 Final attempt to refresh strategy percentages...');
+            console.log('🔄 Final attempt to load all public data...');
+            try {
+                await forceLoadPublicData();
+                console.log('✅ Final public data load completed');
+            } catch (error) {
+                console.error('❌ Final public data load failed:', error);
+                console.log('🔄 Trying direct strategy data loading as fallback...');
                 try {
-                    await refreshStrategyPercentages();
-                    console.log('✅ Final strategy percentages refresh completed');
-                } catch (error) {
-                    console.error('❌ Final strategy percentages refresh failed:', error);
+                    await loadStrategyDataDirectly();
+                    console.log('✅ Direct strategy data loading completed');
+                } catch (fallbackError) {
+                    console.error('❌ Fallback loading also failed:', fallbackError);
                 }
             }
         }, 3000); // Wait 3 seconds after everything is loaded
         
         window.addEventListener('DOMContentLoaded', initApp);
+        
+        // Also try to load data immediately when the page loads
+        window.addEventListener('load', async () => {
+            console.log('🔄 Page fully loaded, attempting immediate data load...');
+            
+            // Try multiple times at different intervals to ensure data loads
+            const loadAttempts = [500, 1500, 3000]; // 0.5s, 1.5s, 3s
+            
+            loadAttempts.forEach((delay, index) => {
+                setTimeout(async () => {
+                    console.log(`🔄 Attempt ${index + 1} to load strategy data...`);
+                    try {
+                        await loadStrategyDataDirectly();
+                        console.log(`✅ Attempt ${index + 1} completed successfully`);
+                    } catch (error) {
+                        console.log(`⚠️ Attempt ${index + 1} failed:`, error.message);
+                    }
+                }, delay);
+            });
+        });
     </script>
 </body>
 </html>

@@ -136,12 +136,13 @@ class VaultIntegration {
             
             // Try multiple RPC endpoints for better reliability
             const rpcEndpoints = [
-                'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161', // Infura
+                'https://eth-sepolia.g.alchemy.com/v2/jROdUKjJxmz2XYwNpS5Ik', // Alchemy (primary)
                 'https://rpc.sepolia.org',
                 'https://sepolia.gateway.tenderly.co',
                 'https://ethereum-sepolia.publicnode.com',
                 'https://sepolia.drpc.org', // Additional fallback
-                'https://sepolia.blockpi.network/v1/rpc/public' // Another fallback
+                'https://sepolia.blockpi.network/v1/rpc/public', // Another fallback
+                'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161' // Infura as last resort
             ];
             
             let provider = null;
@@ -314,35 +315,54 @@ class VaultIntegration {
         try {
             console.log('Initializing VaultIntegration...');
             
-            // Check if MetaMask is available first
-            if (typeof window.ethereum !== 'undefined') {
-                console.log('MetaMask detected, initializing with wallet...');
-                this.provider = new ethers.BrowserProvider(window.ethereum);
-                this.signer = await this.provider.getSigner();
-                this.userAddress = await this.signer.getAddress();
-                
-                // Continue with wallet-specific initialization
-                await this.initializeWithWallet();
-            } else {
-                console.log('MetaMask not available, trying read-only mode...');
-                // Only try read-only mode if no wallet is available
+            // Always try read-only mode first for public data
+            console.log('Starting with read-only mode for public data...');
+            try {
                 await this.initializeReadOnly();
-                return true; // Continue with read-only mode
+                console.log('✅ Read-only initialization successful');
+            } catch (readOnlyError) {
+                console.log('⚠️ Read-only initialization failed:', readOnlyError.message);
             }
+            
+            // Then try wallet initialization if MetaMask is available
+            if (typeof window.ethereum !== 'undefined') {
+                console.log('MetaMask detected, attempting wallet initialization...');
+                try {
+                    this.provider = new ethers.BrowserProvider(window.ethereum);
+                    this.signer = await this.provider.getSigner();
+                    this.userAddress = await this.signer.getAddress();
+                    
+                    // Continue with wallet-specific initialization
+                    await this.initializeWithWallet();
+                    console.log('✅ Wallet initialization successful');
+                } catch (walletError) {
+                    console.log('⚠️ Wallet initialization failed, continuing with read-only mode:', walletError.message);
+                    // Don't throw error, just continue with read-only mode
+                }
+            } else {
+                console.log('MetaMask not available, continuing with read-only mode...');
+            }
+            
             console.log('User role set to:', this.userRole);
 
             // Populate manager allocations now and keep them refreshed
-            await this.refreshManagerUI();
-            if (!this._managerRefreshTimer) {
-                this._managerRefreshTimer = setInterval(() => {
-                    this.refreshManagerUI();
-                }, 15000);
+            try {
+                await this.refreshManagerUI();
+                if (!this._managerRefreshTimer) {
+                    this._managerRefreshTimer = setInterval(() => {
+                        this.refreshManagerUI();
+                    }, 15000);
+                }
+            } catch (refreshError) {
+                console.log('⚠️ Manager UI refresh failed:', refreshError.message);
             }
 
             return true;
         } catch (error) {
             console.error('Initialization failed:', error);
-            throw error;
+            // Don't throw error, just continue with limited functionality
+            console.log('Continuing with limited functionality...');
+            return true;
         }
     }
 
