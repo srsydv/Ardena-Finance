@@ -298,6 +298,128 @@
             border-color: rgba(0, 212, 255, 0.4);
         }
 
+        /* Manager Actions Grid Layout */
+        .manager-actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            align-items: stretch;
+            margin-bottom: 2rem;
+        }
+
+        /* Manager Section Styles */
+        .manager-section {
+            background: linear-gradient(135deg, 
+                rgba(255, 255, 255, 0.1) 0%, 
+                rgba(255, 255, 255, 0.05) 50%, 
+                rgba(0, 0, 0, 0.1) 100%);
+            border-radius: 20px;
+            padding: 1.5rem;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            min-height: 400px;
+        }
+
+        .manager-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 
+                0 12px 40px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+
+        .manager-section h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #e8e8e8;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            flex: 1;
+            justify-content: space-between;
+        }
+
+        .section-content p {
+            margin: 0;
+            color: rgba(232, 232, 232, 0.9);
+            font-size: 0.95rem;
+        }
+
+        /* Small Form Group Styles */
+        .form-group-small {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group-small label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: rgba(232, 232, 232, 0.8);
+            margin-bottom: 0.25rem;
+        }
+
+        .form-group-small input {
+            padding: 0.6rem 0.8rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e8e8e8;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group-small input:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .form-group-small input::placeholder {
+            color: rgba(232, 232, 232, 0.4);
+        }
+
+        /* Responsive Design for Manager Actions */
+        @media (max-width: 1200px) {
+            .manager-actions-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .manager-section {
+                min-height: auto;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .manager-actions-grid {
+                gap: 0.75rem;
+            }
+            
+            .manager-section {
+                padding: 1rem;
+                min-height: auto;
+            }
+            
+            .manager-section h4 {
+                font-size: 1rem;
+            }
+        }
+
         @keyframes gradientShift {
             0%, 100% {
                 background-position: 0% 50%;
@@ -1786,26 +1908,47 @@
                 </div>
                 
                 <h3><span class="icon">🎯</span> Manager Actions</h3>
-                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
-                    <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
-                        <h4>Strategy Allocation</h4>
-                        <div id="strategyAllocations">
-                            <p><em>Loading live allocations...</em></p>
+                <div class="manager-actions-grid">
+                    
+                    <!-- Section 1: Invest Idle Funds -->
+                    <div class="manager-section">
+                        <h4>💰 Invest Idle Funds</h4>
+                        <div class="section-content">
+                            <p><strong>Idle Funds:</strong> <span id="idleFunds">0</span> AAVE</p>
+                            <div id="strategyAllocations">
+                                <p><em>Loading strategy allocations...</em></p>
+                            </div>
+                            <button class="btn btn-success" id="investIdleBtn" onclick="investIdle()">Invest Idle Funds</button>
+                            <div id="investIdleStatus"></div>
                         </div>
-                        <p><strong>Idle Funds:</strong> <span id="idleFunds">0</span> AAVE</p>
-                        <button class="btn btn-success" id="investIdleBtn" onclick="investIdle()">Invest Idle Funds</button>
-                        <div id="investIdleStatus"></div>
                     </div>
-                    <div class="actions-col" style="flex:1 1 360px; min-width:300px;">
-                        <div class="form-group">
-                            <label for="strategyAddress">Strategy Address</label>
-                            <input type="text" id="strategyAddress" placeholder="0x...">
+
+                    <!-- Section 2: Rebalance Strategies -->
+                    <div class="manager-section">
+                        <h4>⚖️ Rebalance Strategies</h4>
+                        <div class="section-content">
+                            <div id="strategyPercentages">
+                                <p><em>Loading strategy percentages...</em></p>
+                            </div>
+                            <button class="btn btn-primary" id="rebalanceBtn" onclick="rebalanceStrategies()">Rebalance</button>
+                            <div id="rebalanceStatus"></div>
                         </div>
-                        <div class="form-group">
-                            <label for="allocationBps">Allocation (Basis Points)</label>
-                            <input type="number" id="allocationBps" placeholder="5000" min="0" max="10000">
+                    </div>
+
+                    <!-- Section 3: Set Strategy -->
+                    <div class="manager-section">
+                        <h4>⚙️ Set Strategy</h4>
+                        <div class="section-content">
+                            <div class="form-group-small">
+                                <label for="strategyAddress">Strategy Address</label>
+                                <input type="text" id="strategyAddress" placeholder="0x..." style="font-size: 0.85rem;">
+                            </div>
+                            <div class="form-group-small">
+                                <label for="allocationBps">Allocation (Basis Points)</label>
+                                <input type="number" id="allocationBps" placeholder="5000" min="0" max="10000" style="font-size: 0.85rem;">
+                            </div>
+                            <button class="btn btn-secondary" id="setStrategyBtn" onclick="setStrategy()">Set Strategy</button>
                         </div>
-                        <button class="btn btn-secondary" id="setStrategyBtn" onclick="setStrategy()">Set Strategy</button>
                     </div>
                 </div>
                 
@@ -2694,6 +2837,121 @@
             }
         }
 
+        async function rebalanceStrategies() {
+            console.log('🔄 rebalanceStrategies function called');
+            
+            if (!vaultIntegration) {
+                console.log('❌ vaultIntegration not available');
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+
+            console.log('👤 User role:', vaultIntegration.userRole);
+            
+            // Check if user has manager or keeper role
+            let hasPermission = false;
+            try {
+                const isManager = await vaultIntegration.contracts.accessController.managers(vaultIntegration.userAddress);
+                const isKeeper = await vaultIntegration.contracts.accessController.keepers(vaultIntegration.userAddress);
+                console.log('🔍 Role check - Manager:', isManager, 'Keeper:', isKeeper);
+                
+                // IndexSwap rebalance requires manager role specifically
+                if (isManager) {
+                    hasPermission = true;
+                    console.log('✅ User has manager role for rebalancing');
+                } else if (isKeeper) {
+                    console.log('❌ User has keeper role but rebalance requires manager role');
+                    showStatus('Rebalancing requires manager role. You have keeper role.', 'error');
+                    return;
+                } else {
+                    console.log('❌ User has no special roles');
+                    showStatus('Only managers can rebalance strategies', 'error');
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Failed to check user roles:', error);
+                showStatus('Failed to verify user permissions', 'error');
+                return;
+            }
+            
+            if (!hasPermission) {
+                console.log('❌ User does not have permission to rebalance');
+                showStatus('Only managers can rebalance strategies', 'error');
+                return;
+            }
+
+            try {
+                // Show processing overlay for Manager Actions card
+                showTransactionProcessing('managerActionsProcessing', true);
+                hideTransactionResult('managerActionsResult');
+                
+                // Create transaction steps
+                const steps = ['Analyzing allocations...', 'Calculating rebalance...', 'Executing rebalance...', 'Rebalance complete'];
+                createTransactionSteps('managerActionsSteps', steps);
+                
+                // Step 1: Analyzing current allocations
+                updateTransactionText('managerActionsProcessing', 'Analyzing current allocations...', 'Checking strategy balances and target allocations');
+                updateTransactionStep('managerActionsSteps', 0, 'active');
+                
+                // Small delay to show the step
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Step 2: Calculating rebalance requirements
+                updateTransactionText('managerActionsProcessing', 'Calculating rebalance...', 'Determining optimal allocation adjustments');
+                updateTransactionStep('managerActionsSteps', 0, 'completed');
+                updateTransactionStep('managerActionsSteps', 1, 'active');
+                
+                // Small delay to show the calculating step
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Step 3: Executing rebalance
+                updateTransactionText('managerActionsProcessing', 'Executing rebalance...', 'Please confirm in your wallet');
+                updateTransactionStep('managerActionsSteps', 1, 'completed');
+                updateTransactionStep('managerActionsSteps', 2, 'active');
+                
+                const result = await vaultIntegration.rebalanceStrategies();
+                
+                // Step 4: Complete
+                if (result.success) {
+                    updateTransactionText('managerActionsProcessing', 'Rebalance completed!', 'Strategies have been rebalanced successfully');
+                    updateTransactionStep('managerActionsSteps', 2, 'completed');
+                    updateTransactionStep('managerActionsSteps', 3, 'completed');
+
+                    // Show success result
+                    showTransactionResult('managerActionsResult', 'success', 
+                        `Rebalance Successful!`, 
+                        `Transaction Hash: ${result.txHash}`);
+                    
+                    // Make transaction hash clickable for copying
+                    setTimeout(() => {
+                        makeTransactionHashClickable('managerActionsResultDetails', result.txHash);
+                    }, 100);
+                    
+                    // Refresh UI data
+                    await loadVaultInfo();
+                    
+                    // Hide processing after a delay
+                    setTimeout(() => {
+                        showTransactionProcessing('managerActionsProcessing', false);
+                    }, 2000);
+                } else {
+                    showStatus(result.message || 'Rebalance completed', 'success');
+                    showTransactionProcessing('managerActionsProcessing', false);
+                }
+                
+            } catch (error) {
+                console.error('Rebalance error:', error);
+                
+                // Show error result
+                showTransactionResult('managerActionsResult', 'error', 
+                    'Rebalance Failed', 
+                    `Error: ${error.message}`);
+                
+                // Hide processing overlay
+                showTransactionProcessing('managerActionsProcessing', false);
+            }
+        }
+
         async function harvestAll() {
             if (!vaultIntegration) {
                 showStatus('Please connect your wallet first', 'error');
@@ -3328,6 +3586,170 @@
                 el.addEventListener('change', updateSwapEstimate);
             }
         });
+
+        // Function to refresh strategy percentages
+        async function refreshStrategyPercentages() {
+            console.log('🔄 refreshStrategyPercentages called');
+            
+            if (!vaultIntegration) {
+                console.log('❌ VaultIntegration not initialized, skipping strategy percentages refresh');
+                return;
+            }
+
+            try {
+                console.log('📞 Calling vaultIntegration.getStrategyAllocations()...');
+                const allocations = await vaultIntegration.getStrategyAllocations();
+                console.log('📊 Allocations received:', allocations);
+                
+                const strategyPercentagesEl = document.getElementById('strategyPercentages');
+                const strategyAllocationsEl = document.getElementById('strategyAllocations');
+                
+                // Update Rebalance Strategies section
+                if (strategyPercentagesEl && allocations.strategies.length > 0) {
+                    let html = '<div style="margin-bottom: 1rem;">';
+                    
+                    // Add total assets summary
+                    html += `<div style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(0,212,255,0.1); border-radius: 8px; border-left: 3px solid #00d4ff;">
+                        <div style="font-weight: 600; color: #00d4ff; margin-bottom: 0.25rem;">Total Strategy Assets</div>
+                        <div style="font-size: 1.1rem; color: #e8e8e8;">${allocations.totalAssets} AAVE</div>
+                    </div>`;
+                    
+                    allocations.strategies.forEach((strategy, index) => {
+                        const strategyName = strategy.address.toLowerCase().includes('6bde0781354858ba6344ab671b07663e89bff064') 
+                            ? 'AaveV3 Strategy' 
+                            : strategy.address.toLowerCase().includes('a33a3662d8750a90f14792b4908e95695b11e374')
+                            ? 'UniswapV3 Strategy'
+                            : `Strategy ${index + 1}`;
+                        
+                        // Calculate if strategy is over/under allocated
+                        const diff = strategy.percentage - strategy.targetPercentage;
+                        const diffColor = diff > 0 ? '#ff6b6b' : diff < 0 ? '#ffa726' : '#4caf50';
+                        const diffText = diff > 0 ? `+${diff.toFixed(1)}%` : diff < 0 ? `${diff.toFixed(1)}%` : 'Balanced';
+                        
+                        html += `
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; padding: 0.75rem; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: #e8e8e8; margin-bottom: 0.25rem;">${strategyName}</div>
+                                    <div style="font-size: 0.75rem; color: rgba(255,255,255,0.5); word-break: break-all;">${strategy.address}</div>
+                                </div>
+                                <div style="text-align: right; min-width: 120px;">
+                                    <div style="font-size: 1rem; color: #00d4ff; font-weight: 600; margin-bottom: 0.25rem;">${strategy.percentage.toFixed(2)}%</div>
+                                    <div style="font-size: 0.85rem; color: rgba(255,255,255,0.7); margin-bottom: 0.25rem;">${strategy.assets} AAVE</div>
+                                    <div style="font-size: 0.75rem; color: ${diffColor};">Target: ${strategy.targetPercentage}% (${diffText})</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    strategyPercentagesEl.innerHTML = html;
+                } else if (strategyPercentagesEl) {
+                    strategyPercentagesEl.innerHTML = '<p style="color: rgba(255,255,255,0.6); text-align: center; padding: 1rem;"><em>No strategies configured</em></p>';
+                }
+
+                // Update Invest Idle Funds section
+                if (strategyAllocationsEl && allocations.strategies.length > 0) {
+                    let html = '<div style="margin-bottom: 1rem;">';
+                    
+                    allocations.strategies.forEach((strategy, index) => {
+                        const strategyName = strategy.address.toLowerCase().includes('6bde0781354858ba6344ab671b07663e89bff064') 
+                            ? 'AaveV3 Strategy' 
+                            : strategy.address.toLowerCase().includes('a33a3662d8750a90f14792b4908e95695b11e374')
+                            ? 'UniswapV3 Strategy'
+                            : `Strategy ${index + 1}`;
+                        
+                        html += `
+                            <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 6px;">
+                                <div style="font-weight: 600; color: #e8e8e8; margin-bottom: 0.25rem;">${strategyName}</div>
+                                <div style="font-size: 0.8rem; color: #00d4ff; margin-bottom: 0.25rem;">${strategy.percentage.toFixed(2)}% (${strategy.assets} AAVE)</div>
+                                <div style="font-size: 0.7rem; color: rgba(255,255,255,0.5); word-break: break-all;">${strategy.address}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    strategyAllocationsEl.innerHTML = html;
+                } else if (strategyAllocationsEl) {
+                    strategyAllocationsEl.innerHTML = '<p style="color: rgba(255,255,255,0.6); font-size: 0.85rem;"><em>No strategies configured</em></p>';
+                }
+                
+            } catch (error) {
+                console.error('Failed to refresh strategy percentages:', error);
+                const strategyPercentagesEl = document.getElementById('strategyPercentages');
+                const strategyAllocationsEl = document.getElementById('strategyAllocations');
+                
+                if (strategyPercentagesEl) {
+                    strategyPercentagesEl.innerHTML = '<p style="color: #ff6b6b; text-align: center; padding: 1rem;"><em>Failed to load strategy data</em></p>';
+                }
+                if (strategyAllocationsEl) {
+                    strategyAllocationsEl.innerHTML = '<p style="color: #ff6b6b; font-size: 0.85rem;"><em>Failed to load strategy data</em></p>';
+                }
+            }
+        }
+
+        // Function to refresh all manager UI data
+        async function refreshManagerUI() {
+            await loadVaultInfo();
+            await refreshStrategyPercentages();
+        }
+
+        // Debug function to test contract connectivity
+        async function debugContracts() {
+            console.log('🔍 DEBUG: Testing contract connectivity...');
+            
+            if (!vaultIntegration) {
+                console.log('❌ vaultIntegration not available');
+                return;
+            }
+
+            try {
+                console.log('📋 Testing vault contract...');
+                const vaultName = await vaultIntegration.contracts.vault.name();
+                console.log('✅ Vault name:', vaultName);
+                
+                const strategiesLength = await vaultIntegration.contracts.vault.strategiesLength();
+                console.log('✅ Strategies length:', strategiesLength.toString());
+                
+                for (let i = 0; i < strategiesLength; i++) {
+                    const strategyAddress = await vaultIntegration.contracts.vault.strategies(i);
+                    console.log(`✅ Strategy ${i}:`, strategyAddress);
+                    
+                    const strategyContract = new ethers.Contract(strategyAddress, vaultIntegration.ABIS.strategy, vaultIntegration.signer || vaultIntegration.provider);
+                    const assets = await strategyContract.totalAssets();
+                    console.log(`✅ Strategy ${i} assets:`, ethers.formatEther(assets), 'AAVE');
+                }
+                
+                // Check user roles
+                console.log('👤 Checking user roles...');
+                console.log('User address:', vaultIntegration.userAddress);
+                
+                if (vaultIntegration.userAddress) {
+                    const isManager = await vaultIntegration.contracts.accessController.managers(vaultIntegration.userAddress);
+                    const isKeeper = await vaultIntegration.contracts.accessController.keepers(vaultIntegration.userAddress);
+                    console.log('🔐 User roles - Manager:', isManager, 'Keeper:', isKeeper);
+                    
+                    if (isManager) {
+                        console.log('✅ User can rebalance (has manager role)');
+                    } else if (isKeeper) {
+                        console.log('⚠️ User has keeper role but rebalance requires manager role');
+                    } else {
+                        console.log('❌ User has no special roles');
+                    }
+                } else {
+                    console.log('❌ No user address available');
+                }
+                
+                console.log('✅ All contract tests passed');
+            } catch (error) {
+                console.error('❌ Contract test failed:', error);
+            }
+        }
+
+        // Make debug function available globally for testing
+        window.debugContracts = debugContracts;
+        
+        // Make refreshStrategyPercentages available globally for integration.js
+        window.refreshStrategyPercentages = refreshStrategyPercentages;
     </script>
     <script>
         let vaultIntegration;
@@ -3341,8 +3763,14 @@
                 await vaultIntegration.initializeReadOnly();
                 console.log('✅ Read-only initialization successful');
                 
+                // Test contracts immediately after initialization
+                console.log('🧪 Testing contracts after initialization...');
+                await debugContracts();
+                
                 // Load all public data immediately
+                console.log('📊 Loading public data...');
                 await vaultIntegration.loadPublicData();
+                console.log('✅ Public data loaded');
                 
             } catch (error) {
                 console.log('❌ Read-only initialization failed:', error);
@@ -3376,6 +3804,20 @@
                         console.error('refreshFeeEarnings failed:', error);
                     }
                 }
+                
+                if (typeof refreshStrategyPercentages === 'function') {
+                    try {
+                        console.log('🔄 Calling refreshStrategyPercentages from initApp...');
+                        // Add a small delay to ensure DOM is ready
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        await refreshStrategyPercentages();
+                        console.log('✅ refreshStrategyPercentages completed successfully');
+                    } catch (error) {
+                        console.error('❌ refreshStrategyPercentages failed:', error);
+                    }
+                } else {
+                    console.log('❌ refreshStrategyPercentages function not found');
+                }
             } catch (error) {
                 console.error('❌ VaultIntegration initialization failed:', error);
                 console.log('Continuing with limited functionality...');
@@ -3398,6 +3840,20 @@
                 }
             }
         }
+        
+        // Final attempt to refresh strategy percentages after everything is loaded
+        setTimeout(async () => {
+            if (typeof refreshStrategyPercentages === 'function') {
+                console.log('🔄 Final attempt to refresh strategy percentages...');
+                try {
+                    await refreshStrategyPercentages();
+                    console.log('✅ Final strategy percentages refresh completed');
+                } catch (error) {
+                    console.error('❌ Final strategy percentages refresh failed:', error);
+                }
+            }
+        }, 3000); // Wait 3 seconds after everything is loaded
+        
         window.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>

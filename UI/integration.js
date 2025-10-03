@@ -37,7 +37,7 @@ class VaultIntegration {
             aavePool: "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951", // AAVE V3 POOL
             
             // OTHER
-            indexSwap: "0x34C4E1883Ed95aeb100F79bdEe0291F44C214fA2",
+            indexSwap: "0x0f324147787E28b8D344ba2aA30A496a9291E603",
             ethUsdAgg: "0x497369979EfAD100F83c509a30F38dfF90d11585",
             newSwapRouter: "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E"
         };
@@ -116,6 +116,12 @@ class VaultIntegration {
                 "function withdraw(uint256 amount, bytes[] calldata swapData) external returns (uint256)",
                 "function harvest(bytes[] calldata swapData) external",
                 "function want() external view returns (address)"
+            ],
+            indexSwap: [
+                "function rebalance(uint256[] calldata withdrawAmounts, bytes[][] calldata withdrawSwapData, bytes[][] calldata investSwapData) external",
+                "function vault() external view returns (address)",
+                "function access() external view returns (address)",
+                "function cooldown() external view returns (uint256)"
             ]
         };
 
@@ -133,7 +139,9 @@ class VaultIntegration {
                 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161', // Infura
                 'https://rpc.sepolia.org',
                 'https://sepolia.gateway.tenderly.co',
-                'https://ethereum-sepolia.publicnode.com'
+                'https://ethereum-sepolia.publicnode.com',
+                'https://sepolia.drpc.org', // Additional fallback
+                'https://sepolia.blockpi.network/v1/rpc/public' // Another fallback
             ];
             
             let provider = null;
@@ -200,6 +208,7 @@ class VaultIntegration {
             this.contracts.aaveStrategy = new ethers.Contract(this.CONTRACTS.aaveStrategy, this.ABIS.strategy, contractSigner);
             this.contracts.uniStrategy = new ethers.Contract(this.CONTRACTS.uniStrategy, this.ABIS.strategy, contractSigner);
             this.contracts.oracle = new ethers.Contract(this.CONTRACTS.oracle, this.ABIS.oracle, this.provider);
+            this.contracts.indexSwap = new ethers.Contract(this.CONTRACTS.indexSwap, this.ABIS.indexSwap, contractSigner);
             
             console.log('✅ All contracts initialized successfully');
             console.log('Vault contract ready:', !!this.contracts.vault);
@@ -220,6 +229,19 @@ class VaultIntegration {
             
             // Load manager allocations and vault info
             await this.refreshManagerUI();
+            
+            // Load strategy percentages by calling the UI function if available
+            console.log('Loading strategy percentages...');
+            if (typeof window.refreshStrategyPercentages === 'function') {
+                try {
+                    await window.refreshStrategyPercentages();
+                    console.log('Strategy percentages loaded successfully');
+                } catch (error) {
+                    console.error('Failed to load strategy percentages:', error);
+                }
+            } else {
+                console.log('refreshStrategyPercentages function not available yet');
+            }
             
             // Load fee earnings (this will show 0 without wallet connection, but that's okay)
             await this.refreshFeeEarnings();
@@ -372,6 +394,17 @@ class VaultIntegration {
             }
             
             console.log('Manager UI refresh completed successfully');
+            
+            // Also refresh strategy percentages if the function is available
+            if (typeof window.refreshStrategyPercentages === 'function') {
+                console.log('Calling refreshStrategyPercentages from refreshManagerUI...');
+                try {
+                    await window.refreshStrategyPercentages();
+                    console.log('Strategy percentages refreshed successfully');
+                } catch (error) {
+                    console.error('Failed to refresh strategy percentages:', error);
+                }
+            }
         } catch (e) {
             console.error('refreshManagerUI failed:', e?.message || e);
             console.error('Full error:', e);
@@ -1903,6 +1936,206 @@ class VaultIntegration {
         } catch (error) {
             console.error('Swap failed:', error);
             throw error;
+        }
+    }
+
+    // Rebalance strategies to target allocations
+    async rebalanceStrategies() {
+        try {
+            console.log('🔄 Starting strategy rebalance...');
+            
+            if (!this.contracts.vault || !this.contracts.indexSwap) {
+                throw new Error('Contracts not initialized');
+            }
+
+            // Get strategy addresses and current allocations
+            const strategiesLength = await this.contracts.vault.strategiesLength();
+            console.log(`Number of strategies: ${strategiesLength}`);
+
+            const strategies = [];
+            const currentAssets = [];
+            let totalStrategyAssets = 0n;
+
+            // Get all strategies and their current assets
+            for (let i = 0; i < strategiesLength; i++) {
+                const strategyAddress = await this.contracts.vault.strategies(i);
+                const strategyContract = new ethers.Contract(strategyAddress, this.ABIS.strategy, this.signer);
+                const assets = await strategyContract.totalAssets();
+                
+                strategies.push({
+                    address: strategyAddress,
+                    contract: strategyContract,
+                    assets: assets
+                });
+                currentAssets.push(assets);
+                totalStrategyAssets += assets;
+                
+                console.log(`Strategy ${i}: ${strategyAddress} - ${ethers.formatEther(assets)} AAVE`);
+            }
+
+            if (totalStrategyAssets === 0n) {
+                throw new Error('No assets in strategies to rebalance');
+            }
+
+            // Hardcoded target allocations (same as test file)
+            const TARGET_AAVE_ALLOCATION = 60; // 60%
+            const TARGET_UNISWAP_ALLOCATION = 40; // 40%
+            
+            // Get target allocations based on strategy addresses (same logic as test file)
+            const targetAllocations = [];
+            for (const strategy of strategies) {
+                let targetPercentage;
+                if (strategy.address.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
+                    targetPercentage = TARGET_AAVE_ALLOCATION;
+                } else if (strategy.address.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
+                    targetPercentage = TARGET_UNISWAP_ALLOCATION;
+                } else {
+                    targetPercentage = 50; // Default for unknown strategies
+                }
+                targetAllocations.push(targetPercentage);
+                console.log(`Target allocation for ${strategy.address}: ${targetPercentage}%`);
+            }
+
+            // Calculate target amounts and withdrawal requirements
+            const withdrawAmounts = [];
+            const withdrawSwapData = [];
+            const investSwapData = [];
+
+            for (let i = 0; i < strategies.length; i++) {
+                const targetAmount = (totalStrategyAssets * BigInt(targetAllocations[i])) / BigInt(100);
+                const currentAmount = currentAssets[i];
+                
+                // If current amount > target, we need to withdraw the excess
+                const withdrawAmount = currentAmount > targetAmount ? currentAmount - targetAmount : 0n;
+                
+                withdrawAmounts.push(withdrawAmount);
+                withdrawSwapData.push([]); // Empty swap data for withdrawals
+                investSwapData.push([]);   // Empty swap data for investments
+                
+                console.log(`Strategy ${i}: Current ${ethers.formatEther(currentAmount)}, Target ${ethers.formatEther(targetAmount)}, Withdraw ${ethers.formatEther(withdrawAmount)}`);
+            }
+
+            // Check if rebalancing is needed
+            const totalWithdraw = withdrawAmounts.reduce((sum, amount) => sum + amount, 0n);
+            if (totalWithdraw === 0n) {
+                console.log('✅ Strategies are already balanced!');
+                return { success: true, message: 'Strategies are already balanced' };
+            }
+
+            console.log(`Total amount to withdraw for rebalancing: ${ethers.formatEther(totalWithdraw)} AAVE`);
+
+            // Execute rebalance
+            console.log('Executing rebalance transaction...');
+            const rebalanceTx = await this.contracts.indexSwap.rebalance(
+                withdrawAmounts,
+                withdrawSwapData,
+                investSwapData,
+                { gasLimit: 2000000 } // Higher gas limit for rebalancing
+            );
+
+            console.log(`🔄 Rebalance transaction sent: ${rebalanceTx.hash}`);
+            const receipt = await rebalanceTx.wait();
+            console.log(`✅ Rebalance transaction confirmed in block: ${receipt.blockNumber}`);
+
+            // Verify final allocations
+            const finalAssets = [];
+            let finalTotalAssets = 0n;
+            
+            for (const strategy of strategies) {
+                const assets = await strategy.contract.totalAssets();
+                finalAssets.push(assets);
+                finalTotalAssets += assets;
+            }
+
+            console.log('Final allocations:');
+            for (let i = 0; i < strategies.length; i++) {
+                const percentage = finalTotalAssets > 0 ? (Number(finalAssets[i]) / Number(finalTotalAssets)) * 100 : 0;
+                const targetPercentage = targetAllocations[i];
+                console.log(`Strategy ${i}: ${ethers.formatEther(finalAssets[i])} AAVE (${percentage.toFixed(2)}%, target: ${targetPercentage}%)`);
+            }
+
+            return {
+                success: true,
+                txHash: receipt.hash,
+                finalAllocations: finalAssets.map(assets => ethers.formatEther(assets))
+            };
+
+        } catch (error) {
+            console.error('Rebalance failed:', error);
+            throw error;
+        }
+    }
+
+    // Get strategy allocations with percentages
+    async getStrategyAllocations() {
+        try {
+            console.log('🔍 Getting strategy allocations...');
+            
+            if (!this.contracts.vault) {
+                console.log('❌ Vault contract not initialized');
+                return { strategies: [], totalAssets: '0', percentages: [] };
+            }
+
+            const strategiesLength = await this.contracts.vault.strategiesLength();
+            console.log(`📊 Found ${strategiesLength} strategies`);
+            
+            const strategies = [];
+            const percentages = [];
+            let totalStrategyAssets = 0n;
+
+            // Hardcoded target allocations (same as test file)
+            const TARGET_AAVE_ALLOCATION = 60; // 60%
+            const TARGET_UNISWAP_ALLOCATION = 40; // 40%
+
+            // Get all strategies and their assets
+            for (let i = 0; i < strategiesLength; i++) {
+                const strategyAddress = await this.contracts.vault.strategies(i);
+                console.log(`📋 Strategy ${i}: ${strategyAddress}`);
+                
+                const strategyContract = new ethers.Contract(strategyAddress, this.ABIS.strategy, this.signer || this.provider);
+                const assets = await strategyContract.totalAssets();
+                
+                // Determine target allocation based on strategy address (same logic as test file)
+                let targetPercentage;
+                if (strategyAddress.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
+                    targetPercentage = TARGET_AAVE_ALLOCATION;
+                } else if (strategyAddress.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
+                    targetPercentage = TARGET_UNISWAP_ALLOCATION;
+                } else {
+                    targetPercentage = 50; // Default for unknown strategies
+                }
+                
+                console.log(`💰 Assets: ${ethers.formatEther(assets)} AAVE, Target: ${targetPercentage}%`);
+                
+                strategies.push({
+                    address: strategyAddress,
+                    assets: ethers.formatEther(assets),
+                    targetBps: targetPercentage * 100, // Convert to basis points
+                    targetPercentage: targetPercentage
+                });
+                
+                totalStrategyAssets += assets;
+            }
+            
+            console.log(`📊 Total strategy assets: ${ethers.formatEther(totalStrategyAssets)} AAVE`);
+
+            // Calculate percentages
+            for (let i = 0; i < strategies.length; i++) {
+                const strategyAssets = BigInt(ethers.parseEther(strategies[i].assets));
+                const percentage = totalStrategyAssets > 0 ? (Number(strategyAssets) / Number(totalStrategyAssets)) * 100 : 0;
+                percentages.push(percentage);
+                strategies[i].percentage = percentage;
+            }
+
+            return {
+                strategies: strategies,
+                totalAssets: ethers.formatEther(totalStrategyAssets),
+                percentages: percentages
+            };
+
+        } catch (error) {
+            console.error('Failed to get strategy allocations:', error);
+            return { strategies: [], totalAssets: '0', percentages: [] };
         }
     }
 }
