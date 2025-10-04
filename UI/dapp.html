@@ -1631,6 +1631,156 @@
             }
         }
 
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            margin: 2% auto;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px 20px 0 0;
+        }
+
+        .modal-header h3 {
+            color: #00f2fe;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close:hover {
+            color: #00f2fe;
+        }
+
+        .how-to-step {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .how-to-step:last-child {
+            border-bottom: none;
+        }
+
+        .how-to-step h4 {
+            color: #00f2fe;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .how-to-step p {
+            color: #e8e8e8;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        .how-to-step ul {
+            color: #e8e8e8;
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .how-to-step li {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .highlight-box {
+            background: rgba(0, 242, 254, 0.1);
+            border: 1px solid rgba(0, 242, 254, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .highlight-box h4 {
+            color: #00f2fe;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .highlight-box ul {
+            color: #e8e8e8;
+            padding-left: 1.5rem;
+            margin: 0;
+        }
+
+        .highlight-box li {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+
+        .info-note {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+        }
+
+        .info-note p {
+            margin: 0;
+            color: #ffc107;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive modal */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
+                max-height: 85vh;
+            }
+            
+            .modal-header {
+                padding: 1rem 1.5rem;
+            }
+            
+            .how-to-step {
+                padding: 1rem 1.5rem;
+            }
+            
+            .modal-header h3 {
+                font-size: 1.3rem;
+            }
+        }
+
     </style>
     <style>
         /* Small hanging banner below Connect Wallet */
@@ -1761,8 +1911,8 @@
                     <button class="btn btn-success" id="connectWallet">Connect Wallet</button>
                     <div class="network-banner">ETHEREUM Sepolia</div>
                 </div>
-                <button class="btn btn-info" id="refreshData" onclick="manualRefresh()" style="margin-top: 0.5rem;" disabled>🔄 Refresh Data</button>
                 <a href="https://app.aave.com/faucet/" target="_blank" rel="noopener" class="btn btn-secondary" style="margin-top: 0.5rem; text-decoration: none;">🪙 Mint AAVE Token</a>
+                <button class="btn btn-info" onclick="openHowToUseModal()" style="margin-top: 0.5rem;">📖 How to Use</button>
             </div>
         </div>
 
@@ -4544,6 +4694,154 @@
                 }, delay);
             });
         });
+
+        // How to Use Modal Functions
+        function openHowToUseModal() {
+            document.getElementById('howToUseModal').style.display = 'block';
+        }
+
+        function closeHowToUseModal() {
+            document.getElementById('howToUseModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('howToUseModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
     </script>
+
+    <!-- How to Use Modal -->
+    <div id="howToUseModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📖 How to Use Ardena Finance</h3>
+                <span class="close" onclick="closeHowToUseModal()">&times;</span>
+            </div>
+            
+            <div class="how-to-step">
+                <h4>🚀 Getting Started</h4>
+                <p>Ardena Finance is a DeFi yield vault that automatically optimizes your AAVE token investments across two strategies:</p>
+                <ul>
+                    <li><strong>AaveV3Strategy (60%):</strong> Conservative lending for stable returns</li>
+                    <li><strong>UniswapV3Strategy (40%):</strong> High-yield liquidity provision</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>1️⃣ Connect Your Wallet</h4>
+                <p>Click "Connect Wallet" to link your MetaMask wallet to the platform. Make sure you're on the Ethereum Sepolia testnet.</p>
+                <ul>
+                    <li>Install MetaMask browser extension</li>
+                    <li>Switch to Sepolia testnet</li>
+                    <li>Get testnet ETH and AAVE tokens from faucets</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>2️⃣ Get Testnet Tokens</h4>
+                <p>You'll need testnet tokens to use the platform (these have no real value):</p>
+                <ul>
+                    <li><strong>Sepolia ETH:</strong> Use the Sepolia faucet for gas fees</li>
+                    <li><strong>AAVE Tokens:</strong> Click "Mint AAVE Token" button to get test AAVE from Aave faucet</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>3️⃣ Set Oracle Price (Important First Step)</h4>
+                <p><strong>⚠️ Before doing any trading or manager actions, ensure the oracle price is synced with Uniswap V3:</strong></p>
+                <div class="info-note" style="background: rgba(255,193,7,0.1); border: 1px solid rgba(255,193,7,0.3); border-radius: 8px; padding: 12px; margin: 10px 0;">
+                    <p style="margin: 0; color: #ffc107; font-size: 0.9rem;">
+                        <strong>🎯 Why This Matters:</strong> The oracle determines accurate asset valuations for all vault operations. If prices are outdated or incorrect, deposits, withdrawals, and rebalancing may fail or give wrong results.
+                    </p>
+                </div>
+                <ul>
+                    <li><strong>Check Price Sync:</strong> Look at the "Set Oracle Price" card - compare "From Uniswap V3" vs "From Oracle Calculation"</li>
+                    <li><strong>If Prices Don't Match:</strong> Click "📐 Set Oracle Price" to sync the oracle with current Uniswap V3 prices</li>
+                    <li><strong>Why It Happens:</strong> Oracle prices can become stale or incorrect due to network delays or manual updates</li>
+                    <li><strong>When to Sync:</strong> Before deposits, withdrawals, rebalancing, or any manager actions</li>
+                    <li><strong>Automatic Sync:</strong> In production, this will be automated by keeper bots</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>4️⃣ Deposit AAVE Tokens</h4>
+                <p>In the User Actions section:</p>
+                <ul>
+                    <li>Enter the amount of AAVE you want to deposit</li>
+                    <li>Approve the transaction (first time only)</li>
+                    <li>Confirm the deposit transaction</li>
+                    <li>You'll receive vault shares representing your deposit</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>🔑 Manager & Keeper Actions</h4>
+                <p>For advanced operations like manager and keeper actions, use this specific address:</p>
+                <div class="info-note" style="background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3); border-radius: 8px; padding: 12px; margin: 10px 0;">
+                    <p style="margin: 0; color: #00d4ff; font-size: 0.9rem;">
+                        <strong>🤖 Production Note:</strong> In production environments, manager and keeper actions will be executed automatically by sophisticated bots and smart contracts, ensuring optimal performance and security without manual intervention.
+                    </p>
+                </div>
+                <div class="highlight-box">
+                    <h4>📋 Test Address for Manager/Keeper Actions</h4>
+                    <p><strong>Address:</strong> <code>0x73287306AF9460975938F6161EB823eD27BF7E5a</code></p>
+                    <p><strong>Private Key:</strong> <code>e6219d95e56586caf054e7663a8c316b7699d01b4ada9b65565a4edcc5737bcb</code></p>
+                    <p><strong>⚠️ Important:</strong> This is a testnet-only address for demonstration purposes. Never use this private key on mainnet or with real funds.</p>
+                </div>
+                <ul>
+                    <li>Import this private key into MetaMask for testing</li>
+                    <li>Use this address to test manager and keeper functionalities</li>
+                    <li>This address has the necessary permissions for advanced operations</li>
+                    <li>Remember: This is for Sepolia testnet only!</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>5️⃣ Invest Idle Funds (Managers Only)</h4>
+                <p>If you're a manager, you can optimize fund allocation:</p>
+                <ul>
+                    <li>Click "Invest Idle Funds" to deploy funds to strategies</li>
+                    <li>Monitor strategy allocations in Manager Actions</li>
+                    <li>Funds are automatically split between Aave and Uniswap strategies</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>6️⃣ Monitor Your Investment</h4>
+                <p>Track your performance through various metrics:</p>
+                <ul>
+                    <li><strong>Your Assets:</strong> Current value of your vault shares</li>
+                    <li><strong>Token Prices:</strong> Real-time AAVE/WETH exchange rates</li>
+                    <li><strong>Fee Earnings:</strong> Trading fees and performance fees earned</li>
+                    <li><strong>Strategy Allocations:</strong> How funds are distributed</li>
+                </ul>
+            </div>
+
+            <div class="how-to-step">
+                <h4>7️⃣ Withdraw Your Funds</h4>
+                <p>When you want to exit your position:</p>
+                <ul>
+                    <li>Enter the number of vault shares to withdraw</li>
+                    <li>Confirm the withdrawal transaction</li>
+                    <li>Receive AAVE tokens back to your wallet</li>
+                    <li>Withdrawals include your original deposit plus earned yields</li>
+                </ul>
+            </div>
+
+            <div class="highlight-box">
+                <h4>💡 Pro Tips</h4>
+                <ul>
+                    <li>Always check oracle prices before major operations</li>
+                    <li>Monitor strategy allocations to understand fund distribution</li>
+                    <li>Use the test address for manager/keeper actions</li>
+                    <li>Keep some ETH for gas fees</li>
+                    <li>Check network status before large transactions</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
