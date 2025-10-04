@@ -1397,12 +1397,33 @@ class VaultIntegration {
             const harvestData = await this.createSwapDataForHarvest();
             const allHarvestData = [[], harvestData]; // Empty for Aave, swap data for Uniswap
 
-            const tx = await this.contracts.vault.harvestAll(allHarvestData, { gasLimit: 90_000_000 });
+            // Estimate gas first, then add 20% buffer
+            let gasLimit;
+            try {
+                console.log('🔄 Estimating gas for harvestAll...');
+                console.log('Harvest data:', allHarvestData);
+                const gasEstimate = await this.contracts.vault.harvestAll.estimateGas(allHarvestData);
+                gasLimit = Math.floor(Number(gasEstimate) * 1.2); // 20% buffer
+                console.log('✅ Gas estimate:', gasEstimate.toString());
+                console.log('✅ Gas limit with buffer:', gasLimit);
+                console.log('✅ Gas limit hex:', '0x' + gasLimit.toString(16));
+            } catch (gasError) {
+                console.warn('⚠️ Gas estimation failed, using fallback:', gasError.message);
+                gasLimit = 500000; // Fallback gas limit
+                console.log('🔄 Using fallback gas limit:', gasLimit);
+            }
+
+            console.log('🚀 About to send harvestAll transaction with gas limit:', gasLimit);
+            console.log('🚀 Gas limit hex:', '0x' + gasLimit.toString(16));
+            const tx = await this.contracts.vault.harvestAll(allHarvestData, { gasLimit });
             const receipt = await tx.wait();
 
             return { success: true, txHash: receipt.hash };
         } catch (error) {
             console.error('Harvest failed:', error);
+            if (error.message.includes('exceeds block gas limit')) {
+                throw new Error('Transaction requires too much gas. Try reducing the harvest amount or wait for network conditions to improve.');
+            }
             throw error;
         }
     }
@@ -2046,11 +2067,28 @@ class VaultIntegration {
 
             // Execute rebalance
             console.log('Executing rebalance transaction...');
+            
+            // Estimate gas first, then add 20% buffer
+            let gasLimit;
+            try {
+                const gasEstimate = await this.contracts.indexSwap.rebalance.estimateGas(
+                    withdrawAmounts,
+                    withdrawSwapData,
+                    investSwapData
+                );
+                gasLimit = Math.floor(Number(gasEstimate) * 1.2); // 20% buffer
+                console.log('Rebalance gas estimate:', gasEstimate.toString());
+                console.log('Rebalance gas limit with buffer:', gasLimit);
+            } catch (gasError) {
+                console.warn('Gas estimation failed, using fallback:', gasError.message);
+                gasLimit = 1000000; // Fallback gas limit for rebalancing
+            }
+            
             const rebalanceTx = await this.contracts.indexSwap.rebalance(
                 withdrawAmounts,
                 withdrawSwapData,
                 investSwapData,
-                { gasLimit: 2000000 } // Higher gas limit for rebalancing
+                { gasLimit }
             );
 
             console.log(`🔄 Rebalance transaction sent: ${rebalanceTx.hash}`);
@@ -2082,6 +2120,9 @@ class VaultIntegration {
 
         } catch (error) {
             console.error('Rebalance failed:', error);
+            if (error.message.includes('exceeds block gas limit')) {
+                throw new Error('Transaction requires too much gas. Try reducing the rebalance amount or wait for network conditions to improve.');
+            }
             throw error;
         }
     }
