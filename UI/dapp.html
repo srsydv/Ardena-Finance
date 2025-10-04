@@ -301,7 +301,7 @@
         /* Manager Actions Grid Layout */
         .manager-actions-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(3, 1fr);
             gap: 1.5rem;
             align-items: stretch;
             margin-bottom: 2rem;
@@ -394,7 +394,14 @@
         }
 
         /* Responsive Design for Manager Actions */
-        @media (max-width: 1200px) {
+        @media (max-width: 1400px) {
+            .manager-actions-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1.25rem;
+            }
+        }
+
+        @media (max-width: 1000px) {
             .manager-actions-grid {
                 grid-template-columns: 1fr;
                 gap: 1rem;
@@ -2097,7 +2104,7 @@
                     </div>
                 </div>
                 
-                <h3><span class="icon">🎯</span> Manager Actions</h3>
+                <h3><span class="icon">🎯</span> Manager & Keeper Actions</h3>
                 <div class="manager-actions-grid">
                     
                     <!-- Section 1: Invest Idle Funds -->
@@ -2122,6 +2129,18 @@
                             </div>
                             <button class="btn btn-primary" id="rebalanceBtn" onclick="rebalanceStrategies()">Rebalance</button>
                             <div id="rebalanceStatus"></div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Harvest All Strategies -->
+                    <div class="manager-section">
+                        <h4>⚡ Harvest All Strategies</h4>
+                        <div class="section-content">
+                            <p><strong>Last Harvest:</strong> <span id="lastHarvest">Never</span></p>
+                            <p><strong>Min Harvest Interval:</strong> <span id="minHarvestInterval">3600</span> seconds</p>
+                            <p><strong>Can Harvest:</strong> <span id="canHarvest">Yes</span></p>
+                            <button class="btn btn-warning" id="harvestBtn" onclick="harvestAll()">Harvest All Strategies</button>
+                            <div id="harvestStatus"></div>
                         </div>
                     </div>
 
@@ -2246,26 +2265,6 @@
                 </div>
             </div>
 
-            <!-- Keeper Actions -->
-            <div class="card">
-                <h3><span class="icon">⚡</span> Keeper Actions</h3>
-                <div class="flex-row" style="display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap;">
-                <div class="vault-info" style="flex:1 1 360px; min-width:300px;">
-                    <h4>Harvest Information</h4>
-                    <p><strong>Last Harvest:</strong> <span id="lastHarvest">Never</span></p>
-                    <p><strong>Min Harvest Interval:</strong> <span id="minHarvestInterval">3600</span> seconds</p>
-                    <p><strong>Can Harvest:</strong> <span id="canHarvest">Yes</span></p>
-                </div>
-                <div class="actions-col" style="flex:1 1 360px; min-width:300px;">
-                <button class="btn btn-warning" id="harvestBtn" onclick="harvestAll()">Harvest All Strategies</button>
-                <div class="form-group" style="margin-top:1rem;">
-                    <label for="harvestInterval">Set Harvest Interval (seconds)</label>
-                    <input type="number" id="harvestInterval" placeholder="3600" min="60">
-                </div>
-                <button class="btn btn-secondary" id="setHarvestIntervalBtn" onclick="setHarvestInterval()">Set Interval</button>
-                </div>
-            </div>
-        </div>
 
         <!-- Status Messages -->
         <div id="statusMessages"></div>
@@ -3135,12 +3134,16 @@
 
             try {
                 showLoading(true);
+                document.getElementById('harvestStatus').innerHTML = '<p style="color: #00d4ff;">🔄 Harvesting strategies...</p>';
+                
                 const result = await vaultIntegration.harvestAll();
 
+                document.getElementById('harvestStatus').innerHTML = `<p style="color: #28a745;">✅ Harvest successful! TX: ${result.txHash}</p>`;
                 showStatus(`Successfully harvested all strategies! Transaction: ${result.txHash}`, 'success');
                 await loadVaultInfo();
 
             } catch (error) {
+                document.getElementById('harvestStatus').innerHTML = `<p style="color: #dc3545;">❌ Harvest failed: ${error.message}</p>`;
                 showStatus('Harvest failed: ' + error.message, 'error');
             } finally {
                 showLoading(false);
@@ -3177,32 +3180,6 @@
             }
         }
 
-        async function setHarvestInterval() {
-            if (!vaultIntegration) {
-                showStatus('Please connect your wallet first', 'error');
-                return;
-            }
-
-            const interval = document.getElementById('harvestInterval').value;
-            if (!interval || interval < 60) {
-                showStatus('Please enter a valid interval (minimum 60 seconds)', 'error');
-                return;
-            }
-
-            try {
-                showLoading(true);
-                const result = await vaultIntegration.setHarvestInterval(interval);
-
-                showStatus(`Successfully set harvest interval! Transaction: ${result.txHash}`, 'success');
-                document.getElementById('harvestInterval').value = '';
-                await loadVaultInfo();
-
-            } catch (error) {
-                showStatus('Set harvest interval failed: ' + error.message, 'error');
-            } finally {
-                showLoading(false);
-            }
-        }
 
         async function performSwap() {
             if (!vaultIntegration) {

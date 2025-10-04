@@ -1444,21 +1444,6 @@ class VaultIntegration {
         }
     }
 
-    async setHarvestInterval(interval) {
-        if (this.userRole !== 'manager') {
-            throw new Error('Only managers can set harvest interval');
-        }
-
-        try {
-            const tx = await this.contracts.vault.setMinHarvestInterval(interval);
-            const receipt = await tx.wait();
-
-            return { success: true, txHash: receipt.hash };
-        } catch (error) {
-            console.error('Set harvest interval failed:', error);
-            throw error;
-        }
-    }
 
     async createSwapDataForInvest(totalIdleAmount) {
         try {
