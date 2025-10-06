@@ -30,7 +30,7 @@
 import "@nomicfoundation/hardhat-toolbox";
 import dotenv from "dotenv";
 import "@openzeppelin/hardhat-upgrades";
-// import "hardhat-tracer"; // Disabled to remove verbose output
+import "hardhat-tracer"; // Disabled to remove verbose output
 
 dotenv.config();
 

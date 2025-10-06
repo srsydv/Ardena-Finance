@@ -3,6 +3,17 @@ import dotenv from "dotenv";
 dotenv.config();
 import hre from "hardhat";
 const { ethers } = hre;
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Read the SwapRouter02 artifact
+const SwapRouter02Artifact = JSON.parse(
+    readFileSync(join(__dirname, "node_modules/@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json"), "utf8")
+);
 
 // Latest deployed contract addresses
 const VAULT_ADDRESS = "0x92EA77BA5Cd9b47EBe84e09A7b90b253F845eD11"; // Latest vault proxy
@@ -212,18 +223,100 @@ describe("Rebalance Flow Test", function () {
                     withdrawAmounts.push(0);
                     withdrawSwapData.push([]);
                 }
-                
-                investSwapData.push([]); // Empty invest swap data for now
+
+                // Generate invest swap data for each strategy
+                if (strategyAddress.toLowerCase() === AAVE_STRATEGY_ADDRESS.toLowerCase()) {
+                    // AaveV3Strategy doesn't need swap data - it directly deposits AAVE
+                    investSwapData.push([]);
+                    console.log("✅ No swap data needed for AaveV3Strategy");
+                } else if (strategyAddress.toLowerCase() === UNISWAP_STRATEGY_ADDRESS.toLowerCase()) {
+                    // Only generate swap data for UniswapV3Strategy if we have idle funds to invest
+                    const totalIdle = aaveWithdrawAmount;
+                    if (totalIdle > 0) {
+                        console.log("🔧 Generating swap calldata for UniswapV3Strategy...");
+                        
+                        // Calculate amount to swap (half of the total idle funds)
+                        const amountToSwap = totalIdle / 2n; // Swap half AAVE to WETH
+                        
+                        console.log(`Amount to swap AAVE -> WETH: ${ethers.formatEther(amountToSwap)} AAVE`);
+                        
+                        // Uniswap V3 SwapRouter02 address on Sepolia
+                        const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
+                        const poolFee = 500; // 0.05% fee tier
+                        
+                        // Create swap calldata for AAVE -> WETH
+                        const iface = new ethers.Interface(SwapRouter02Artifact.abi);
+                        const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
+                        
+                        const params = {
+                            tokenIn: AAVE_TOKEN_ADDRESS,
+                            tokenOut: WETH_TOKEN_ADDRESS,
+                            fee: poolFee,
+                            recipient: UNISWAP_STRATEGY_ADDRESS, // deliver WETH to the strategy
+                            deadline,
+                            amountIn: amountToSwap,
+                            amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
+                            sqrtPriceLimitX96: 0n,
+                        };
+                        
+                        const routerCalldata = iface.encodeFunctionData("exactInputSingle", [params]);
+                        
+                        // Pack payload for ExchangeHandler.swap(bytes)
+                        // abi.encode(address router, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address to, bytes routerCalldata)
+                        const payload = ethers.AbiCoder.defaultAbiCoder().encode(
+                            [
+                                "address",
+                                "address", 
+                                "address",
+                                "uint256",
+                                "uint256",
+                                "address",
+                                "bytes",
+                            ],
+                            [
+                                UNISWAP_V3_ROUTER,
+                                AAVE_TOKEN_ADDRESS,
+                                WETH_TOKEN_ADDRESS,
+                                amountToSwap,
+                                0n,
+                                UNISWAP_STRATEGY_ADDRESS,
+                                routerCalldata,
+                            ]
+                        );
+                        
+                        investSwapData.push([payload]); // Array of swap calldata
+                        console.log("✅ Swap calldata generated for UniswapV3Strategy");
+                    } else {
+                        investSwapData.push([]);
+                        console.log("⚠️ No idle funds to invest in UniswapV3Strategy");
+                    }
+                } else {
+                    investSwapData.push([]); // Empty invest swap data for other strategies
+                }
             }
 
             console.log(`Withdraw amounts: ${withdrawAmounts.map(a => ethers.formatEther(a)).join(", ")} AAVE`);
             console.log(`Withdraw swap data arrays: ${withdrawSwapData.length} arrays`);
             console.log(`Invest swap data arrays: ${investSwapData.length} arrays`);
 
-            console.log("\n🚀 STEP 5: Execute Rebalance");
-            console.log("-" .repeat(50));
+        console.log("\n🚀 STEP 5: Execute Rebalance");
+        console.log("-" .repeat(50));
 
-            try {
+        // Setup ExchangeHandler to allow Uniswap V3 router
+        // console.log("🔧 Setting up ExchangeHandler for Uniswap V3 router...");
+        // const EXCHANGE_HANDLER = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF"; // From DEPLOYEDCONTRACT.me
+        // const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
+        
+        // try {
+        //     const exchangeHandler = await ethers.getContractAt("ExchangeHandler", EXCHANGE_HANDLER, wallet);
+        //     await exchangeHandler.setRouter(UNISWAP_V3_ROUTER, true);
+        //     console.log("✅ Uniswap V3 router enabled in ExchangeHandler");
+        // } catch (error) {
+        //     console.log("⚠️ Could not setup ExchangeHandler:", error.message);
+        //     console.log("Proceeding with rebalance anyway...");
+        // }
+
+        try {
                 // Call rebalance function with explicit gas limit to avoid estimation issues
                 const rebalanceTx = await indexSwap.rebalance(
                     withdrawAmounts,

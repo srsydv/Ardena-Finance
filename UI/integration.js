@@ -48,6 +48,7 @@ class VaultIntegration {
                 "function deposit(uint256 assets, address receiver) external returns (uint256 shares)",
                 "function withdraw(uint256 shares, address receiver, bytes[][] calldata allSwapData) external returns (uint256 assets)",
                 "function investIdle(bytes[][] calldata allSwapData) external",
+                "function rebalanceInvestIdle(uint256 strategyIndex, bytes[] calldata swapData, uint256 amount) external",
                 "function harvestAll(bytes[][] calldata allSwapData) external",
                 "function setStrategy(address strategy, uint16 bps) external",
                 "function setMinHarvestInterval(uint256 interval) external",
@@ -121,7 +122,8 @@ class VaultIntegration {
                 "function rebalance(uint256[] calldata withdrawAmounts, bytes[][] calldata withdrawSwapData, bytes[][] calldata investSwapData) external",
                 "function vault() external view returns (address)",
                 "function access() external view returns (address)",
-                "function cooldown() external view returns (uint256)"
+                "function cooldown() external view returns (uint256)",
+                "function lastRebalance() external view returns (uint256)"
             ]
         };
 
@@ -1985,6 +1987,26 @@ class VaultIntegration {
     }
 
     // Rebalance strategies to target allocations
+    async rebalanceInvestIdle(strategyIndex, swapData, amount = 0) {
+        try {
+            console.log(`💰 Investing ${amount === 0 ? 'all idle funds' : ethers.formatEther(amount) + ' AAVE'} into strategy ${strategyIndex}...`);
+            
+            if (!this.contracts.vault) {
+                throw new Error('Vault contract not initialized');
+            }
+
+            // Call the new rebalanceInvestIdle function
+            const tx = await this.contracts.vault.rebalanceInvestIdle(strategyIndex, swapData, amount);
+            await tx.wait();
+            
+            console.log('✅ Investment successful!');
+            return { success: true, txHash: tx.hash };
+        } catch (error) {
+            console.error('❌ Investment failed:', error);
+            throw error;
+        }
+    }
+
     async rebalanceStrategies() {
         try {
             console.log('🔄 Starting strategy rebalance...');
@@ -2041,11 +2063,10 @@ class VaultIntegration {
                 console.log(`Target allocation for ${strategy.address}: ${targetPercentage}%`);
             }
 
-            // Calculate target amounts and withdrawal requirements
-            const withdrawAmounts = [];
-            const withdrawSwapData = [];
-            const investSwapData = [];
-
+            // Calculate withdrawal amounts for each strategy (like test file)
+            let aaveWithdrawAmount = 0n;
+            let uniswapWithdrawAmount = 0n;
+            
             for (let i = 0; i < strategies.length; i++) {
                 const targetAmount = (totalStrategyAssets * BigInt(targetAllocations[i])) / BigInt(100);
                 const currentAmount = currentAssets[i];
@@ -2053,11 +2074,94 @@ class VaultIntegration {
                 // If current amount > target, we need to withdraw the excess
                 const withdrawAmount = currentAmount > targetAmount ? currentAmount - targetAmount : 0n;
                 
-                withdrawAmounts.push(withdrawAmount);
-                withdrawSwapData.push([]); // Empty swap data for withdrawals
-                investSwapData.push([]);   // Empty swap data for investments
+                // Store withdrawal amounts by strategy type (like test file)
+                if (strategies[i].address.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
+                    aaveWithdrawAmount = withdrawAmount;
+                    console.log(`AaveV3Strategy needs to withdraw: ${ethers.formatEther(withdrawAmount)} AAVE`);
+                } else if (strategies[i].address.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
+                    uniswapWithdrawAmount = withdrawAmount;
+                    console.log(`UniswapV3Strategy needs to withdraw: ${ethers.formatEther(withdrawAmount)} AAVE`);
+                }
+            }
+
+            // Prepare arrays in vault strategy order (EXACTLY like test file)
+            const withdrawAmounts = [];
+            const withdrawSwapData = [];
+            const investSwapData = [];
+
+            for (let i = 0; i < strategiesLength; i++) {
+                const strategyAddress = await this.contracts.vault.strategies(i);
                 
-                console.log(`Strategy ${i}: Current ${ethers.formatEther(currentAmount)}, Target ${ethers.formatEther(targetAmount)}, Withdraw ${ethers.formatEther(withdrawAmount)}`);
+                if (strategyAddress.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
+                    withdrawAmounts.push(aaveWithdrawAmount);
+                    withdrawSwapData.push([]); // No swap needed for Aave withdrawal
+                } else if (strategyAddress.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
+                    withdrawAmounts.push(uniswapWithdrawAmount);
+                    withdrawSwapData.push([]); // No swap needed for Uniswap withdrawal
+                } else {
+                    withdrawAmounts.push(0);
+                    withdrawSwapData.push([]);
+                }
+                
+                // Generate swap calldata for UniswapV3Strategy investment
+                if (strategyAddress.toLowerCase() === '0xa33A3662d8750a90f14792B4908E95695b11E374'.toLowerCase()) {
+                    console.log("🔧 Generating swap calldata for UniswapV3Strategy...");
+                    
+                    try {
+                        // Calculate amount to swap (half of the total idle funds)
+                        const totalIdle = withdrawAmounts.reduce((sum, amount) => sum + amount, 0n);
+                        const amountToSwap = totalIdle / 2n; // Swap half AAVE to WETH
+                        
+                        console.log(`Amount to swap AAVE -> WETH: ${ethers.formatEther(amountToSwap)} AAVE`);
+                        
+                        // Uniswap V3 SwapRouter02 address on Sepolia
+                        const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
+                        const AAVE_TOKEN_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a";
+                        const WETH_TOKEN_ADDRESS = "0x4530fABea7444674a775aBb920924632c669466e";
+                        const poolFee = 500; // 0.05% fee tier
+                        
+                        // Create swap calldata for AAVE -> WETH
+                        const params = {
+                            tokenIn: AAVE_TOKEN_ADDRESS,
+                            tokenOut: WETH_TOKEN_ADDRESS,
+                            fee: poolFee,
+                            recipient: strategyAddress, // deliver WETH to the strategy
+                            deadline: Math.floor(Date.now() / 1000) + 1200, // 20 minutes from now
+                            amountIn: amountToSwap,
+                            amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
+                            sqrtPriceLimitX96: 0n,
+                        };
+                        
+                        // Encode exactInputSingle function call
+                        const routerCalldata = this.ethers.AbiCoder.defaultAbiCoder().encode(
+                            ["tuple(address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)"],
+                            [params]
+                        );
+                        
+                        // Pack payload for ExchangeHandler.swap(bytes)
+                        // abi.encode(address router, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address to, bytes routerCalldata)
+                        const payload = this.ethers.AbiCoder.defaultAbiCoder().encode(
+                            ["address", "address", "address", "uint256", "uint256", "address", "bytes"],
+                            [
+                                UNISWAP_V3_ROUTER,
+                                AAVE_TOKEN_ADDRESS,
+                                WETH_TOKEN_ADDRESS,
+                                amountToSwap,
+                                0n,
+                                strategyAddress,
+                                routerCalldata,
+                            ]
+                        );
+                        
+                        investSwapData.push([payload]); // Array of swap calldata
+                        console.log("✅ Swap calldata generated for UniswapV3Strategy");
+                    } catch (error) {
+                        console.error("❌ Failed to generate swap calldata:", error);
+                        investSwapData.push([]); // Fallback to empty array
+                    }
+                } else {
+                    investSwapData.push([]); // Empty invest swap data for other strategies
+                }
             }
 
             // Check if rebalancing is needed
@@ -2069,23 +2173,145 @@ class VaultIntegration {
 
             console.log(`Total amount to withdraw for rebalancing: ${ethers.formatEther(totalWithdraw)} AAVE`);
 
+            // Debug: Log the arrays being sent to rebalance (EXACTLY like test file)
+            console.log('🔍 DEBUG: Arrays being sent to rebalance:');
+            console.log('WithdrawAmounts:', withdrawAmounts.map(a => ethers.formatEther(a)).join(", "));
+            console.log('WithdrawSwapData arrays:', withdrawSwapData.length);
+            console.log('InvestSwapData arrays:', investSwapData.length);
+
             // Execute rebalance
             console.log('Executing rebalance transaction...');
+            
+            // Debug: Check prerequisites before executing
+            console.log('🔍 DEBUG: Checking rebalance prerequisites...');
+            try {
+                const isManager = await this.contracts.accessController.managers(this.userAddress);
+                const cooldown = await this.contracts.indexSwap.cooldown();
+                const lastRebalance = await this.contracts.indexSwap.lastRebalance();
+                const currentTimestamp = Math.floor(Date.now() / 1000);
+                const canRebalance = Number(lastRebalance) + Number(cooldown) <= currentTimestamp;
+                
+                console.log('User is manager:', isManager);
+                console.log('Cooldown (seconds):', cooldown.toString());
+                console.log('Last rebalance timestamp:', lastRebalance.toString());
+                console.log('Current timestamp:', currentTimestamp);
+                console.log('Can rebalance (cooldown passed):', canRebalance);
+                
+                if (!isManager) {
+                    throw new Error('User is not a manager');
+                }
+                if (!canRebalance) {
+                    throw new Error('Rebalance is in cooldown period');
+                }
+                
+                console.log('✅ All prerequisites passed');
+                
+                // Debug: Check strategy liquidity before rebalance
+                console.log('🔍 DEBUG: Checking strategy liquidity...');
+                const strategyABI = [
+                    "function totalAssets() external view returns (uint256)",
+                    "function deposit(uint256 amount, bytes[] calldata swapData) external",
+                    "function withdraw(uint256 amount, bytes[] calldata swapData) external returns (uint256)",
+                    "function harvest(bytes[] calldata swapData) external",
+                    "function want() external view returns (address)",
+                    "function tokenId() external view returns (uint256)"
+                ];
+                
+                for (let i = 0; i < withdrawAmounts.length; i++) {
+                    if (withdrawAmounts[i] > 0) {
+                        const strategyAddress = await this.contracts.vault.strategies(i);
+                        const strategy = new ethers.Contract(strategyAddress, strategyABI, this.provider);
+                        const totalAssets = await strategy.totalAssets();
+                        const withdrawAmount = withdrawAmounts[i];
+                        
+                        console.log(`Strategy ${i} (${strategyAddress}):`);
+                        console.log(`  Total Assets: ${ethers.formatEther(totalAssets)} AAVE`);
+                        console.log(`  Requested Withdraw: ${ethers.formatEther(withdrawAmount)} AAVE`);
+                        console.log(`  Can withdraw: ${withdrawAmount <= totalAssets ? '✅ YES' : '❌ NO - Insufficient liquidity'}`);
+                        
+                        // Additional debugging for UniswapV3Strategy
+                        if (strategyAddress.toLowerCase() === '0xa33A3662d8750a90f14792B4908E95695b11E374'.toLowerCase()) {
+                            try {
+                                const tokenId = await strategy.tokenId();
+                                console.log(`  UniswapV3Strategy Details:`);
+                                console.log(`    Token ID: ${tokenId.toString()}`);
+                                console.log(`    Has Position: ${tokenId > 0 ? '✅ YES' : '❌ NO'}`);
+                                
+                                if (tokenId === 0) {
+                                    console.log(`    ❌ CRITICAL: UniswapV3Strategy has no position (tokenId = 0)`);
+                                    console.log(`    This will cause "NO_POS" revert in withdraw()`);
+                                }
+                            } catch (e) {
+                                console.log(`  UniswapV3Strategy Details: ❌ Error reading details - ${e.message}`);
+                            }
+                        }
+                        
+                        if (withdrawAmount > totalAssets) {
+                            throw new Error(`Strategy ${i} cannot withdraw ${ethers.formatEther(withdrawAmount)} AAVE (only has ${ethers.formatEther(totalAssets)} AAVE)`);
+                        }
+                    }
+                }
+                
+            } catch (prereqError) {
+                console.error('❌ Prerequisite check failed:', prereqError.message);
+                throw prereqError;
+            }
             
             // Estimate gas first, then add 20% buffer
             let gasLimit;
             try {
+                console.log('🔍 DEBUG: Attempting gas estimation...');
                 const gasEstimate = await this.contracts.indexSwap.rebalance.estimateGas(
                     withdrawAmounts,
                     withdrawSwapData,
                     investSwapData
                 );
                 gasLimit = Math.floor(Number(gasEstimate) * 1.2); // 20% buffer
-                console.log('Rebalance gas estimate:', gasEstimate.toString());
+                console.log('✅ Gas estimation successful:', gasEstimate.toString());
                 console.log('Rebalance gas limit with buffer:', gasLimit);
             } catch (gasError) {
-                console.warn('Gas estimation failed, using fallback:', gasError.message);
-                gasLimit = 1000000; // Fallback gas limit for rebalancing
+                console.error('❌ Gas estimation failed:', gasError.message);
+                console.error('Gas estimation error details:', gasError);
+                console.warn('Using fallback gas limit');
+                gasLimit = 2000000; // Higher fallback gas limit for complex rebalancing
+            }
+            
+            console.log('🔍 DEBUG: Sending rebalance transaction...');
+            console.log('Transaction parameters:');
+            console.log('- Gas limit:', gasLimit);
+            console.log('- Withdraw amounts:', withdrawAmounts);
+            console.log('- User address:', this.userAddress);
+            
+            // Debug: Test vault.withdrawFromStrategy directly
+            console.log('🔍 DEBUG: Testing vault.withdrawFromStrategy directly...');
+            try {
+                const uniswapStrategyAddress = '0xa33A3662d8750a90f14792B4908E95695b11E374';
+                const testWithdrawAmount = ethers.parseEther('1'); // Test with 1 AAVE
+                console.log(`Testing withdraw of ${ethers.formatEther(testWithdrawAmount)} AAVE from UniswapV3Strategy...`);
+                
+                // This will fail if there's an issue with the strategy's withdraw function
+                await this.contracts.vault.withdrawFromStrategy.staticCall(
+                    uniswapStrategyAddress,
+                    testWithdrawAmount,
+                    [] // empty swap data
+                );
+                console.log('✅ Direct withdrawFromStrategy call succeeded');
+            } catch (directError) {
+                console.error('❌ Direct withdrawFromStrategy call failed:', directError.message);
+                console.error('This explains why the rebalance is failing!');
+            }
+            
+            // Debug: Test vault.investIdle directly
+            console.log('🔍 DEBUG: Testing vault.investIdle directly...');
+            try {
+                const emptyInvestSwapData = [[], []]; // Empty swap data for both strategies
+                console.log('Testing investIdle with empty swap data...');
+                
+                await this.contracts.vault.investIdle.staticCall(emptyInvestSwapData);
+                console.log('✅ Direct investIdle call succeeded');
+            } catch (investError) {
+                console.error('❌ Direct investIdle call failed:', investError.message);
+                console.error('This could be why the rebalance is failing!');
             }
             
             const rebalanceTx = await this.contracts.indexSwap.rebalance(

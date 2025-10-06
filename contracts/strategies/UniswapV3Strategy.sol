@@ -328,6 +328,8 @@ contract UniswapV3Strategy is Initializable, UUPSUpgradeable, OwnableUpgradeable
     ) external override onlyVault {
         if (amountWant > 0) {
             IERC20(wantToken).transferFrom(vault, address(this), amountWant);
+        } else {
+            return;
         }
 
         _executeSwaps(swaps);
