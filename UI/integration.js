@@ -231,6 +231,19 @@ class VaultIntegration {
             // Load manager allocations and vault info
             await this.refreshManagerUI();
             
+            // Load vault information (name, symbol, total assets, user shares, etc.)
+            console.log('Loading vault information...');
+            if (typeof window.loadVaultInfo === 'function') {
+                try {
+                    await window.loadVaultInfo();
+                    console.log('Vault information loaded successfully');
+                } catch (error) {
+                    console.error('Failed to load vault information:', error);
+                }
+            } else {
+                console.log('loadVaultInfo function not available yet');
+            }
+            
             // Load strategy percentages by calling the UI function if available
             console.log('Loading strategy percentages...');
             if (typeof window.refreshStrategyPercentages === 'function') {
@@ -489,8 +502,22 @@ class VaultIntegration {
                 this.contracts.vault.decimals()
             ]);
 
-            const userShares = await this.contracts.vault.balanceOf(this.userAddress);
-            const userAssets = await this.contracts.vault.convertToAssets(userShares);
+            // Get user-specific data only if userAddress is available (wallet connected)
+            let userShares = "0";
+            let userAssets = "0";
+            
+            if (this.userAddress && this.userAddress !== "0x0000000000000000000000000000000000000000") {
+                try {
+                    userShares = await this.contracts.vault.balanceOf(this.userAddress);
+                    userAssets = await this.contracts.vault.convertToAssets(userShares);
+                } catch (error) {
+                    console.log('Could not get user-specific data (likely read-only mode):', error.message);
+                    userShares = "0";
+                    userAssets = "0";
+                }
+            } else {
+                console.log('No user address available, showing 0 for user-specific data');
+            }
 
             return {
                 name,

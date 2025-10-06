@@ -2315,7 +2315,7 @@
     <!-- Include Configuration -->
     <script src="config.js?v=71&t=1738683000"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=80&t=1738689000"></script>
+    <script src="integration.js?v=81&t=1738690000"></script>
     
     <script>
         // Global integration instance
@@ -2532,13 +2532,14 @@
         }
 
         async function loadVaultInfo() {
-            if (!vaultIntegration) {
+            const vi = window.vaultIntegration;
+            if (!vi) {
                 console.log('VaultIntegration not initialized, skipping vault info load');
                 return;
             }
 
             // Check if contracts are initialized
-            if (!vaultIntegration.contracts || !vaultIntegration.contracts.vault) {
+            if (!vi.contracts || !vi.contracts.vault) {
                 console.log('Contracts not initialized, skipping vault info load');
                 return;
             }
@@ -2551,11 +2552,11 @@
                 
                 // Load all data in parallel for faster loading
                 const [vaultInfo, strategyInfo, feeInfo, feeEarnings, tokenPrice] = await Promise.all([
-                    vaultIntegration.getVaultInfo(),
-                    vaultIntegration.getStrategyInfo(),
-                    vaultIntegration.getFeeInfo(),
-                    vaultIntegration.getUserFeeEarnings(),
-                    vaultIntegration.getTokenPrice()
+                    vi.getVaultInfo(),
+                    vi.getStrategyInfo(),
+                    vi.getFeeInfo(),
+                    vi.getUserFeeEarnings(),
+                    vi.getTokenPrice()
                 ]);
 
                 console.log('Vault info loaded:', vaultInfo);
@@ -3902,6 +3903,9 @@
         
         // Make refreshStrategyPercentages available globally for integration.js
         window.refreshStrategyPercentages = refreshStrategyPercentages;
+        
+        // Make loadVaultInfo available globally for integration.js
+        window.loadVaultInfo = loadVaultInfo;
         
         // Function to force load all public data
         async function forceLoadPublicData() {
