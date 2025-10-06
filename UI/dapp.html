@@ -2315,7 +2315,7 @@
     <!-- Include Configuration -->
     <script src="config.js?v=71&t=1738683000"></script>
     <!-- Include Integration Module -->
-    <script src="integration.js?v=81&t=1738690000"></script>
+    <script src="integration.js?v=82&t=1738691000"></script>
     
     <script>
         // Global integration instance
@@ -2436,19 +2436,32 @@
                     }
                 }
 
-                // Check if VaultIntegration class is available
-                if (typeof VaultIntegration === 'undefined') {
-                    showStatus('VaultIntegration class not loaded. Please refresh the page.', 'error');
-                    console.error('VaultIntegration class not found in connectWallet');
+                // Check if VaultIntegration instance is available
+                if (!window.vaultIntegration) {
+                    showStatus('VaultIntegration not initialized. Please refresh the page.', 'error');
+                    console.error('VaultIntegration instance not found in connectWallet');
                     return;
                 }
                 
-                // Initialize integration
-                vaultIntegration = new VaultIntegration();
-                await vaultIntegration.initialize();
-                userRole = vaultIntegration.userRole;
+                // Connect wallet to existing VaultIntegration instance
+                console.log('Connecting wallet to existing VaultIntegration instance...');
+                window.vaultIntegration.provider = new ethers.BrowserProvider(window.ethereum);
+                window.vaultIntegration.signer = await window.vaultIntegration.provider.getSigner();
+                window.vaultIntegration.userAddress = userAddress;
+                
+                // Initialize wallet-specific functionality
+                await window.vaultIntegration.initializeWithWallet();
+                userRole = window.vaultIntegration.userRole;
+                
+                // Update global reference
+                vaultIntegration = window.vaultIntegration;
 
                 console.log('Integration initialized, user role:', userRole);
+
+                // Refresh vault information to show user-specific data
+                console.log('Refreshing vault information with user data...');
+                await loadVaultInfo();
+                await refreshStrategyPercentages();
 
                 // Update connection status
                 const connectionStatus = document.getElementById('connectionStatus');

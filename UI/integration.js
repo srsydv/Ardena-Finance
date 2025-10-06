@@ -337,24 +337,9 @@ class VaultIntegration {
                 console.log('⚠️ Read-only initialization failed:', readOnlyError.message);
             }
             
-            // Then try wallet initialization if MetaMask is available
-            if (typeof window.ethereum !== 'undefined') {
-                console.log('MetaMask detected, attempting wallet initialization...');
-                try {
-                    this.provider = new ethers.BrowserProvider(window.ethereum);
-                    this.signer = await this.provider.getSigner();
-                    this.userAddress = await this.signer.getAddress();
-                    
-                    // Continue with wallet-specific initialization
-                    await this.initializeWithWallet();
-                    console.log('✅ Wallet initialization successful');
-                } catch (walletError) {
-                    console.log('⚠️ Wallet initialization failed, continuing with read-only mode:', walletError.message);
-                    // Don't throw error, just continue with read-only mode
-                }
-            } else {
-                console.log('MetaMask not available, continuing with read-only mode...');
-            }
+            // Do NOT auto-connect wallet - only initialize read-only mode
+            // Wallet connection should only happen when user explicitly clicks "Connect Wallet"
+            console.log('Read-only initialization completed. Wallet connection available via Connect Wallet button.');
             
             console.log('User role set to:', this.userRole);
 
@@ -506,17 +491,24 @@ class VaultIntegration {
             let userShares = "0";
             let userAssets = "0";
             
+            console.log('🔍 DEBUG: Current userAddress:', this.userAddress);
+            console.log('🔍 DEBUG: Wallet connected?', !!this.signer);
+            console.log('🔍 DEBUG: Provider type:', this.provider?.constructor?.name);
+            
             if (this.userAddress && this.userAddress !== "0x0000000000000000000000000000000000000000") {
                 try {
+                    console.log('🔍 DEBUG: Getting user data for address:', this.userAddress);
                     userShares = await this.contracts.vault.balanceOf(this.userAddress);
                     userAssets = await this.contracts.vault.convertToAssets(userShares);
+                    console.log('🔍 DEBUG: Raw userShares:', userShares.toString());
+                    console.log('🔍 DEBUG: Raw userAssets:', userAssets.toString());
                 } catch (error) {
                     console.log('Could not get user-specific data (likely read-only mode):', error.message);
                     userShares = "0";
                     userAssets = "0";
                 }
             } else {
-                console.log('No user address available, showing 0 for user-specific data');
+                console.log('🔍 DEBUG: No user address available, showing 0 for user-specific data');
             }
 
             return {
