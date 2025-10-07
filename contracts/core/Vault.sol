@@ -197,7 +197,11 @@ vault.withdraw(shares, receiver, allSwapData[][])
             // If still short, do a second pass pulling from any strategy with remaining funds
             if (totalGot < assets) {
                 uint256 remaining = assets - totalGot;
-                for (uint256 i2; i2 < strategies.length && remaining > 0; i2++) {
+                for (
+                    uint256 i2;
+                    i2 < strategies.length && remaining > 0;
+                    i2++
+                ) {
                     IStrategy s2 = strategies[i2];
                     uint16 bps2 = targetBps[s2];
                     if (bps2 == 0) continue;
@@ -306,6 +310,65 @@ vault.withdraw(shares, receiver, allSwapData[][])
                 s.deposit(toSend, allSwapData[i]);
             }
         }
+    }
+
+    /// @notice Automatically rebalances funds across strategies to match targetBps
+    /// @dev Withdraws from overweight strategies and deposits into underweight ones
+    ///      in a single atomic transaction.
+    function rebalance(
+        bytes[][] calldata withdrawSwapData,
+        bytes[][] calldata investSwapData
+    ) external onlyManager {
+        uint256 stratCount = strategies.length;
+        require(stratCount > 0, "NO_STRATEGIES");
+        require(investSwapData.length == stratCount, "BAD_SWAPDATA_LEN");
+
+        uint256 tvl = totalAssets();
+        require(tvl > 0, "NO_TVL");
+
+        // Step 1: Gather each strategy’s current balance
+        uint256[] memory stratBalances = new uint256[](stratCount);
+        uint256[] memory targetAmounts = new uint256[](stratCount);
+
+        for (uint256 i; i < stratCount; i++) {
+            stratBalances[i] = strategies[i].totalAssets();
+            targetAmounts[i] = (tvl * targetBps[strategies[i]]) / 1e4;
+        }
+
+        // Step 2: Identify total excess funds to withdraw
+        uint256 totalExcess;
+        for (uint256 i; i < stratCount; i++) {
+            if (stratBalances[i] > targetAmounts[i]) {
+                uint256 excess = stratBalances[i] - targetAmounts[i];
+                if (excess > 0) {
+                    uint256 got = strategies[i].withdraw(
+                        excess,
+                        withdrawSwapData[i]
+                    );
+                    totalExcess += got;
+                }
+            }
+        }
+
+        // Step 3: Get updated idle funds in Vault
+        uint256 idle = _assetBal();
+        if (idle == 0) return;
+
+        // Step 4: Deposit idle funds into underweight strategies
+        for (uint256 i; i < stratCount; i++) {
+            if (stratBalances[i] < targetAmounts[i]) {
+                uint256 deficit = targetAmounts[i] - stratBalances[i];
+                uint256 toDeposit = deficit > idle ? idle : deficit;
+                if (toDeposit > 0) {
+                    asset.approve(address(strategies[i]), 0);
+                    asset.approve(address(strategies[i]), toDeposit);
+                    strategies[i].deposit(toDeposit, investSwapData[i]);
+                    idle -= toDeposit;
+                }
+            }
+        }
+
+        emit Harvest(0, 0, 0, totalAssets()); // optional reuse of event
     }
 
     /*
