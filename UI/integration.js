@@ -2101,24 +2101,33 @@ class VaultIntegration {
                         console.log(`Deficit: ${ethers.formatEther(deficit)} AAVE`);
                         console.log(`Amount to swap AAVE -> WETH: ${ethers.formatEther(swapAmount)} AAVE`);
                         
+                        // Check if swap amount is too small (less than 0.001 AAVE)
+                        if (swapAmount < ethers.parseEther("0.001")) {
+                            console.log("⚠️ Swap amount too small, skipping swap data generation");
+                            investSwapData.push([]);
+                            continue;
+                        }
+                        
                         try {
-                            // Uniswap V3 SwapRouter02 address on Sepolia
+                            // Uniswap V3 SwapRouter02 address on Sepolia (EXACTLY like test file)
                             const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
                             const AAVE_TOKEN_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a";
                             const WETH_TOKEN_ADDRESS = "0x4530fABea7444674a775aBb920924632c669466e";
                             const poolFee = 500; // 0.05% fee tier
                             
                             // Create swap calldata for AAVE -> WETH (EXACTLY like test file)
-                            const iface = new ethers.Interface([
-                                "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
-                            ]);
+                            // Use the same SwapRouter02 artifact as elsewhere in the code
+                            const swapRouterModule = await import("@uniswap/swap-router-contracts/artifacts/contracts/SwapRouter02.sol/SwapRouter02.json", { with: { type: "json" } });
+                            const artifact = swapRouterModule.default;
+                            const iface = new ethers.Interface(artifact.abi);
+                            console.log('✅ Using SwapRouter02 artifact for rebalance swap calldata');
                             const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
                             
                             const params = {
                                 tokenIn: AAVE_TOKEN_ADDRESS,
                                 tokenOut: WETH_TOKEN_ADDRESS,
                                 fee: poolFee,
-                                recipient: strategyAddress, // deliver WETH to the strategy
+                                recipient: this.CONTRACTS.uniStrategy, // EXACTLY like test file - use hardcoded strategy address
                                 deadline,
                                 amountIn: swapAmount,
                                 amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
@@ -2145,7 +2154,7 @@ class VaultIntegration {
                                     WETH_TOKEN_ADDRESS,
                                     swapAmount,
                                     0n,
-                                    strategyAddress,
+                                    this.CONTRACTS.uniStrategy, // EXACTLY like test file - use hardcoded strategy address
                                     routerCalldata,
                                 ]
                             );
@@ -2171,6 +2180,20 @@ class VaultIntegration {
             console.log('Uniswap withdraw amount:', ethers.formatEther(uniswapWithdrawAmount), 'AAVE');
             console.log('WithdrawSwapData arrays:', withdrawSwapData.length);
             console.log('InvestSwapData arrays:', investSwapData.length);
+
+            // Setup ExchangeHandler to allow Uniswap V3 router (EXACTLY like test file)
+            console.log("🔧 Setting up ExchangeHandler for Uniswap V3 router...");
+            const EXCHANGE_HANDLER = "0xE3148E7e861637D84dCd7156BbbDEBD8db3D36FF"; // From DEPLOYEDCONTRACT.me
+            const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
+            
+            try {
+                const exchangeHandler = await ethers.getContractAt("ExchangeHandler", EXCHANGE_HANDLER, this.signer);
+                await exchangeHandler.setRouter(UNISWAP_V3_ROUTER, true);
+                console.log("✅ Uniswap V3 router enabled in ExchangeHandler");
+            } catch (error) {
+                console.log("⚠️ Could not setup ExchangeHandler:", error.message);
+                console.log("Proceeding with rebalance anyway...");
+            }
 
             // Execute rebalance
             console.log('Executing rebalance transaction...');
@@ -2314,10 +2337,22 @@ class VaultIntegration {
 
         } catch (error) {
             console.error('Rebalance failed:', error);
-            if (error.message.includes('exceeds block gas limit')) {
+            
+            if (error.message.includes('ROUTER_CALL_FAIL')) {
+                throw new Error('Swap execution failed. This might be due to insufficient liquidity or slippage. Try again later or with a smaller amount.');
+            } else if (error.message.includes('exceeds block gas limit')) {
                 throw new Error('Transaction requires too much gas. Try reducing the rebalance amount or wait for network conditions to improve.');
+            } else if (error.message.includes('COOLDOWN')) {
+                throw new Error('Rebalance is in cooldown period. Please wait before trying again.');
+            } else if (error.message.includes('NOT_MANAGER')) {
+                throw new Error('Only managers can perform rebalancing operations.');
+            } else if (error.message.includes('INSUFFICIENT_BALANCE')) {
+                throw new Error('Insufficient balance in strategies for rebalancing.');
+            } else if (error.message.includes('execution reverted')) {
+                throw new Error(`Transaction reverted: ${error.message}. Please check the console for more details.`);
+            } else {
+                throw new Error(`Rebalance failed: ${error.message}`);
             }
-            throw error;
         }
     }
 
