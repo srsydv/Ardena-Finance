@@ -48,7 +48,7 @@ class VaultIntegration {
                 "function deposit(uint256 assets, address receiver) external returns (uint256 shares)",
                 "function withdraw(uint256 shares, address receiver, bytes[][] calldata allSwapData) external returns (uint256 assets)",
                 "function investIdle(bytes[][] calldata allSwapData) external",
-                "function rebalanceInvestIdle(uint256 strategyIndex, bytes[] calldata swapData, uint256 amount) external",
+                "function rebalance(bytes[][] calldata withdrawSwapData, bytes[][] calldata investSwapData) external",
                 "function harvestAll(bytes[][] calldata allSwapData) external",
                 "function setStrategy(address strategy, uint16 bps) external",
                 "function setMinHarvestInterval(uint256 interval) external",
@@ -2011,171 +2011,164 @@ class VaultIntegration {
         try {
             console.log('🔄 Starting strategy rebalance...');
             
-            if (!this.contracts.vault || !this.contracts.indexSwap) {
-                throw new Error('Contracts not initialized');
+            if (!this.contracts.vault) {
+                throw new Error('Vault contract not initialized');
             }
 
-            // Get strategy addresses and current allocations
+            // Get strategy addresses and current allocations (EXACTLY like test file)
             const strategiesLength = await this.contracts.vault.strategiesLength();
             console.log(`Number of strategies: ${strategiesLength}`);
 
-            const strategies = [];
-            const currentAssets = [];
-            let totalStrategyAssets = 0n;
+            const aaveStrategy = await this.contracts.vault.strategies(0); // Assume Aave is first
+            const uniswapStrategy = await this.contracts.vault.strategies(1); // Assume Uniswap is second
+            
+            // Get current assets from each strategy (EXACTLY like test file)
+            const aaveAssets = await this.contracts.vault.totalAssets(); // This gets total vault assets
+            const uniswapAssets = await this.contracts.vault.totalAssets(); // This gets total vault assets
+            
+            // Get actual strategy assets using strategy contracts
+            const aaveStrategyContract = new ethers.Contract(aaveStrategy, this.ABIS.strategy, this.signer || this.provider);
+            const uniswapStrategyContract = new ethers.Contract(uniswapStrategy, this.ABIS.strategy, this.signer || this.provider);
+            
+            const actualAaveAssets = await aaveStrategyContract.totalAssets();
+            const actualUniswapAssets = await uniswapStrategyContract.totalAssets();
+            const totalAssets = actualAaveAssets + actualUniswapAssets;
 
-            // Get all strategies and their current assets
-            for (let i = 0; i < strategiesLength; i++) {
-                const strategyAddress = await this.contracts.vault.strategies(i);
-                const strategyContract = new ethers.Contract(strategyAddress, this.ABIS.strategy, this.signer);
-                const assets = await strategyContract.totalAssets();
-                
-                strategies.push({
-                    address: strategyAddress,
-                    contract: strategyContract,
-                    assets: assets
-                });
-                currentAssets.push(assets);
-                totalStrategyAssets += assets;
-                
-                console.log(`Strategy ${i}: ${strategyAddress} - ${ethers.formatEther(assets)} AAVE`);
-            }
+            console.log(`AaveV3Strategy totalAssets: ${ethers.formatEther(actualAaveAssets)} AAVE`);
+            console.log(`UniswapV3Strategy totalAssets: ${ethers.formatEther(actualUniswapAssets)} AAVE`);
+            console.log(`Total Strategy Assets: ${ethers.formatEther(totalAssets)} AAVE`);
 
-            if (totalStrategyAssets === 0n) {
-                throw new Error('No assets in strategies to rebalance');
-            }
-
-            // Hardcoded target allocations (same as test file)
+            // Hardcoded target allocations (EXACTLY like test file)
             const TARGET_AAVE_ALLOCATION = 60; // 60%
             const TARGET_UNISWAP_ALLOCATION = 40; // 40%
             
-            // Get target allocations based on strategy addresses (same logic as test file)
-            const targetAllocations = [];
-            for (const strategy of strategies) {
-                let targetPercentage;
-                if (strategy.address.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
-                    targetPercentage = TARGET_AAVE_ALLOCATION;
-                } else if (strategy.address.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
-                    targetPercentage = TARGET_UNISWAP_ALLOCATION;
-                } else {
-                    targetPercentage = 50; // Default for unknown strategies
-                }
-                targetAllocations.push(targetPercentage);
-                console.log(`Target allocation for ${strategy.address}: ${targetPercentage}%`);
+            // Calculate target amounts (EXACTLY like test file)
+            const targetAaveAmount = (totalAssets * BigInt(TARGET_AAVE_ALLOCATION)) / BigInt(100);
+            const targetUniswapAmount = (totalAssets * BigInt(TARGET_UNISWAP_ALLOCATION)) / BigInt(100);
+
+            console.log(`Target AaveV3Strategy amount: ${ethers.formatEther(targetAaveAmount)} AAVE`);
+            console.log(`Target UniswapV3Strategy amount: ${ethers.formatEther(targetUniswapAmount)} AAVE`);
+
+            // Calculate withdrawal amounts (EXACTLY like test file)
+            const aaveWithdrawAmount = actualAaveAssets > targetAaveAmount ? actualAaveAssets - targetAaveAmount : 0n;
+            const uniswapWithdrawAmount = actualUniswapAssets > targetUniswapAmount ? actualUniswapAssets - targetUniswapAmount : 0n;
+
+            console.log(`\nWithdrawal Requirements:`);
+            console.log(`AaveV3Strategy needs to withdraw: ${ethers.formatEther(aaveWithdrawAmount)} AAVE`);
+            console.log(`UniswapV3Strategy needs to withdraw: ${ethers.formatEther(uniswapWithdrawAmount)} AAVE`);
+
+            if (aaveWithdrawAmount === 0n && uniswapWithdrawAmount === 0n) {
+                console.log("✅ Already balanced! No rebalancing needed.");
+                return { success: true, message: 'Strategies are already balanced' };
             }
 
-            // Calculate withdrawal amounts for each strategy (like test file)
-            let aaveWithdrawAmount = 0n;
-            let uniswapWithdrawAmount = 0n;
-            
-            for (let i = 0; i < strategies.length; i++) {
-                const targetAmount = (totalStrategyAssets * BigInt(targetAllocations[i])) / BigInt(100);
-                const currentAmount = currentAssets[i];
-                
-                // If current amount > target, we need to withdraw the excess
-                const withdrawAmount = currentAmount > targetAmount ? currentAmount - targetAmount : 0n;
-                
-                // Store withdrawal amounts by strategy type (like test file)
-                if (strategies[i].address.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
-                    aaveWithdrawAmount = withdrawAmount;
-                    console.log(`AaveV3Strategy needs to withdraw: ${ethers.formatEther(withdrawAmount)} AAVE`);
-                } else if (strategies[i].address.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
-                    uniswapWithdrawAmount = withdrawAmount;
-                    console.log(`UniswapV3Strategy needs to withdraw: ${ethers.formatEther(withdrawAmount)} AAVE`);
-                }
-            }
+            console.log("\n🔄 Preparing Rebalance Calldata");
+            console.log("-".repeat(50));
 
             // Prepare arrays in vault strategy order (EXACTLY like test file)
-            const withdrawAmounts = [];
             const withdrawSwapData = [];
             const investSwapData = [];
 
             for (let i = 0; i < strategiesLength; i++) {
                 const strategyAddress = await this.contracts.vault.strategies(i);
                 
-                if (strategyAddress.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
-                    withdrawAmounts.push(aaveWithdrawAmount);
-                    withdrawSwapData.push([]); // No swap needed for Aave withdrawal
-                } else if (strategyAddress.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
-                    withdrawAmounts.push(uniswapWithdrawAmount);
-                    withdrawSwapData.push([]); // No swap needed for Uniswap withdrawal
-                } else {
-                    withdrawAmounts.push(0);
-                    withdrawSwapData.push([]);
-                }
+                // Withdraw swap data (empty for all strategies)
+                withdrawSwapData.push([]);
                 
-                // Generate swap calldata for UniswapV3Strategy investment
-                if (strategyAddress.toLowerCase() === '0xa33A3662d8750a90f14792B4908E95695b11E374'.toLowerCase()) {
-                    console.log("🔧 Generating swap calldata for UniswapV3Strategy...");
+                // Generate invest swap data for each strategy (EXACTLY like test file)
+                if (strategyAddress.toLowerCase() === this.CONTRACTS.aaveStrategy.toLowerCase()) {
+                    // AaveV3Strategy doesn't need swap data - it directly deposits AAVE
+                    investSwapData.push([]);
+                    console.log("✅ No swap data needed for AaveV3Strategy");
+                } else if (strategyAddress.toLowerCase() === this.CONTRACTS.uniStrategy.toLowerCase()) {
+                    // Check if UniswapV3Strategy is underweight and needs investment (EXACTLY like test file)
+                    const uniswapCurrentAssets = actualUniswapAssets;
+                    const uniswapTargetAmount = targetUniswapAmount;
                     
-                    try {
-                        // Calculate amount to swap (half of the total idle funds)
-                        const totalIdle = withdrawAmounts.reduce((sum, amount) => sum + amount, 0n);
-                        const amountToSwap = totalIdle / 2n; // Swap half AAVE to WETH
+                    console.log(`UniswapV3Strategy current assets: ${ethers.formatEther(uniswapCurrentAssets)} AAVE`);
+                    console.log(`UniswapV3Strategy target amount: ${ethers.formatEther(uniswapTargetAmount)} AAVE`);
+                    
+                    if (uniswapCurrentAssets >= uniswapTargetAmount) {
+                        // UniswapV3Strategy is already at or above target - no investment needed
+                        investSwapData.push([]);
+                        console.log("✅ UniswapV3Strategy is already at target allocation - no swap data needed");
+                    } else {
+                        // UniswapV3Strategy is underweight - calculate how much it needs (EXACTLY like test file)
+                        const deficit = uniswapTargetAmount - uniswapCurrentAssets;
+                        const swapAmount = deficit / 2n; // Swap half of the deficit from AAVE to WETH
                         
-                        console.log(`Amount to swap AAVE -> WETH: ${ethers.formatEther(amountToSwap)} AAVE`);
+                        console.log("🔧 UniswapV3Strategy is underweight - generating swap calldata...");
+                        console.log(`Deficit: ${ethers.formatEther(deficit)} AAVE`);
+                        console.log(`Amount to swap AAVE -> WETH: ${ethers.formatEther(swapAmount)} AAVE`);
                         
-                        // Uniswap V3 SwapRouter02 address on Sepolia
-                        const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
-                        const AAVE_TOKEN_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a";
-                        const WETH_TOKEN_ADDRESS = "0x4530fABea7444674a775aBb920924632c669466e";
-                        const poolFee = 500; // 0.05% fee tier
-                        
-                        // Create swap calldata for AAVE -> WETH
-                        const params = {
-                            tokenIn: AAVE_TOKEN_ADDRESS,
-                            tokenOut: WETH_TOKEN_ADDRESS,
-                            fee: poolFee,
-                            recipient: strategyAddress, // deliver WETH to the strategy
-                            deadline: Math.floor(Date.now() / 1000) + 1200, // 20 minutes from now
-                            amountIn: amountToSwap,
-                            amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
-                            sqrtPriceLimitX96: 0n,
-                        };
-                        
-                        // Encode exactInputSingle function call
-                        const routerCalldata = this.ethers.AbiCoder.defaultAbiCoder().encode(
-                            ["tuple(address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)"],
-                            [params]
-                        );
-                        
-                        // Pack payload for ExchangeHandler.swap(bytes)
-                        // abi.encode(address router, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address to, bytes routerCalldata)
-                        const payload = this.ethers.AbiCoder.defaultAbiCoder().encode(
-                            ["address", "address", "address", "uint256", "uint256", "address", "bytes"],
-                            [
-                                UNISWAP_V3_ROUTER,
-                                AAVE_TOKEN_ADDRESS,
-                                WETH_TOKEN_ADDRESS,
-                                amountToSwap,
-                                0n,
-                                strategyAddress,
-                                routerCalldata,
-                            ]
-                        );
-                        
-                        investSwapData.push([payload]); // Array of swap calldata
-                        console.log("✅ Swap calldata generated for UniswapV3Strategy");
-                    } catch (error) {
-                        console.error("❌ Failed to generate swap calldata:", error);
-                        investSwapData.push([]); // Fallback to empty array
+                        try {
+                            // Uniswap V3 SwapRouter02 address on Sepolia
+                            const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
+                            const AAVE_TOKEN_ADDRESS = "0x88541670E55cC00bEEFD87eB59EDd1b7C511AC9a";
+                            const WETH_TOKEN_ADDRESS = "0x4530fABea7444674a775aBb920924632c669466e";
+                            const poolFee = 500; // 0.05% fee tier
+                            
+                            // Create swap calldata for AAVE -> WETH (EXACTLY like test file)
+                            const iface = new ethers.Interface([
+                                "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 deadline, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
+                            ]);
+                            const deadline = Math.floor(Date.now() / 1000) + 1200; // 20 minutes from now
+                            
+                            const params = {
+                                tokenIn: AAVE_TOKEN_ADDRESS,
+                                tokenOut: WETH_TOKEN_ADDRESS,
+                                fee: poolFee,
+                                recipient: strategyAddress, // deliver WETH to the strategy
+                                deadline,
+                                amountIn: swapAmount,
+                                amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
+                                sqrtPriceLimitX96: 0n,
+                            };
+                            
+                            const routerCalldata = iface.encodeFunctionData("exactInputSingle", [params]);
+                            
+                            // Pack payload for ExchangeHandler.swap(bytes) (EXACTLY like test file)
+                            // abi.encode(address router, address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, address to, bytes routerCalldata)
+                            const payload = ethers.AbiCoder.defaultAbiCoder().encode(
+                                [
+                                    "address",
+                                    "address", 
+                                    "address",
+                                    "uint256",
+                                    "uint256",
+                                    "address",
+                                    "bytes",
+                                ],
+                                [
+                                    UNISWAP_V3_ROUTER,
+                                    AAVE_TOKEN_ADDRESS,
+                                    WETH_TOKEN_ADDRESS,
+                                    swapAmount,
+                                    0n,
+                                    strategyAddress,
+                                    routerCalldata,
+                                ]
+                            );
+                            
+                            investSwapData.push([payload]); // Array of swap calldata
+                            console.log("✅ Swap calldata generated for UniswapV3Strategy");
+                        } catch (error) {
+                            console.error("❌ Failed to generate swap calldata:", error);
+                            investSwapData.push([]); // Fallback to empty array
+                        }
                     }
                 } else {
                     investSwapData.push([]); // Empty invest swap data for other strategies
                 }
             }
 
-            // Check if rebalancing is needed
-            const totalWithdraw = withdrawAmounts.reduce((sum, amount) => sum + amount, 0n);
-            if (totalWithdraw === 0n) {
-                console.log('✅ Strategies are already balanced!');
-                return { success: true, message: 'Strategies are already balanced' };
-            }
-
-            console.log(`Total amount to withdraw for rebalancing: ${ethers.formatEther(totalWithdraw)} AAVE`);
+            console.log(`Withdraw swap data arrays: ${withdrawSwapData.length} arrays`);
+            console.log(`Invest swap data arrays: ${investSwapData.length} arrays`);
 
             // Debug: Log the arrays being sent to rebalance (EXACTLY like test file)
             console.log('🔍 DEBUG: Arrays being sent to rebalance:');
-            console.log('WithdrawAmounts:', withdrawAmounts.map(a => ethers.formatEther(a)).join(", "));
+            console.log('Aave withdraw amount:', ethers.formatEther(aaveWithdrawAmount), 'AAVE');
+            console.log('Uniswap withdraw amount:', ethers.formatEther(uniswapWithdrawAmount), 'AAVE');
             console.log('WithdrawSwapData arrays:', withdrawSwapData.length);
             console.log('InvestSwapData arrays:', investSwapData.length);
 
@@ -2206,52 +2199,6 @@ class VaultIntegration {
                 
                 console.log('✅ All prerequisites passed');
                 
-                // Debug: Check strategy liquidity before rebalance
-                console.log('🔍 DEBUG: Checking strategy liquidity...');
-                const strategyABI = [
-                    "function totalAssets() external view returns (uint256)",
-                    "function deposit(uint256 amount, bytes[] calldata swapData) external",
-                    "function withdraw(uint256 amount, bytes[] calldata swapData) external returns (uint256)",
-                    "function harvest(bytes[] calldata swapData) external",
-                    "function want() external view returns (address)",
-                    "function tokenId() external view returns (uint256)"
-                ];
-                
-                for (let i = 0; i < withdrawAmounts.length; i++) {
-                    if (withdrawAmounts[i] > 0) {
-                        const strategyAddress = await this.contracts.vault.strategies(i);
-                        const strategy = new ethers.Contract(strategyAddress, strategyABI, this.provider);
-                        const totalAssets = await strategy.totalAssets();
-                        const withdrawAmount = withdrawAmounts[i];
-                        
-                        console.log(`Strategy ${i} (${strategyAddress}):`);
-                        console.log(`  Total Assets: ${ethers.formatEther(totalAssets)} AAVE`);
-                        console.log(`  Requested Withdraw: ${ethers.formatEther(withdrawAmount)} AAVE`);
-                        console.log(`  Can withdraw: ${withdrawAmount <= totalAssets ? '✅ YES' : '❌ NO - Insufficient liquidity'}`);
-                        
-                        // Additional debugging for UniswapV3Strategy
-                        if (strategyAddress.toLowerCase() === '0xa33A3662d8750a90f14792B4908E95695b11E374'.toLowerCase()) {
-                            try {
-                                const tokenId = await strategy.tokenId();
-                                console.log(`  UniswapV3Strategy Details:`);
-                                console.log(`    Token ID: ${tokenId.toString()}`);
-                                console.log(`    Has Position: ${tokenId > 0 ? '✅ YES' : '❌ NO'}`);
-                                
-                                if (tokenId === 0) {
-                                    console.log(`    ❌ CRITICAL: UniswapV3Strategy has no position (tokenId = 0)`);
-                                    console.log(`    This will cause "NO_POS" revert in withdraw()`);
-                                }
-                            } catch (e) {
-                                console.log(`  UniswapV3Strategy Details: ❌ Error reading details - ${e.message}`);
-                            }
-                        }
-                        
-                        if (withdrawAmount > totalAssets) {
-                            throw new Error(`Strategy ${i} cannot withdraw ${ethers.formatEther(withdrawAmount)} AAVE (only has ${ethers.formatEther(totalAssets)} AAVE)`);
-                        }
-                    }
-                }
-                
             } catch (prereqError) {
                 console.error('❌ Prerequisite check failed:', prereqError.message);
                 throw prereqError;
@@ -2261,8 +2208,7 @@ class VaultIntegration {
             let gasLimit;
             try {
                 console.log('🔍 DEBUG: Attempting gas estimation...');
-                const gasEstimate = await this.contracts.indexSwap.rebalance.estimateGas(
-                    withdrawAmounts,
+                const gasEstimate = await this.contracts.vault.rebalance.estimateGas(
                     withdrawSwapData,
                     investSwapData
                 );
@@ -2279,7 +2225,8 @@ class VaultIntegration {
             console.log('🔍 DEBUG: Sending rebalance transaction...');
             console.log('Transaction parameters:');
             console.log('- Gas limit:', gasLimit);
-            console.log('- Withdraw amounts:', withdrawAmounts);
+            console.log('- Aave withdraw amount:', ethers.formatEther(aaveWithdrawAmount), 'AAVE');
+            console.log('- Uniswap withdraw amount:', ethers.formatEther(uniswapWithdrawAmount), 'AAVE');
             console.log('- User address:', this.userAddress);
             
             // Debug: Test vault.withdrawFromStrategy directly
@@ -2314,8 +2261,9 @@ class VaultIntegration {
                 console.error('This could be why the rebalance is failing!');
             }
             
-            const rebalanceTx = await this.contracts.indexSwap.rebalance(
-                withdrawAmounts,
+            // Use the new Vault.rebalance() function instead of IndexSwap.rebalance()
+            console.log('🔄 Using new Vault.rebalance() function...');
+            const rebalanceTx = await this.contracts.vault.rebalance(
                 withdrawSwapData,
                 investSwapData,
                 { gasLimit }
@@ -2326,26 +2274,42 @@ class VaultIntegration {
             console.log(`✅ Rebalance transaction confirmed in block: ${receipt.blockNumber}`);
 
             // Verify final allocations
-            const finalAssets = [];
-            let finalTotalAssets = 0n;
+            console.log('\n📊 STEP 6: Verify Final Allocations');
+            console.log('-'.repeat(50));
             
-            for (const strategy of strategies) {
-                const assets = await strategy.contract.totalAssets();
-                finalAssets.push(assets);
-                finalTotalAssets += assets;
-            }
+            const finalAaveAssets = await aaveStrategyContract.totalAssets();
+            const finalUniswapAssets = await uniswapStrategyContract.totalAssets();
+            const finalTotalAssets = finalAaveAssets + finalUniswapAssets;
 
-            console.log('Final allocations:');
-            for (let i = 0; i < strategies.length; i++) {
-                const percentage = finalTotalAssets > 0 ? (Number(finalAssets[i]) / Number(finalTotalAssets)) * 100 : 0;
-                const targetPercentage = targetAllocations[i];
-                console.log(`Strategy ${i}: ${ethers.formatEther(finalAssets[i])} AAVE (${percentage.toFixed(2)}%, target: ${targetPercentage}%)`);
+            console.log(`Final AaveV3Strategy totalAssets: ${ethers.formatEther(finalAaveAssets)} AAVE`);
+            console.log(`Final UniswapV3Strategy totalAssets: ${ethers.formatEther(finalUniswapAssets)} AAVE`);
+            console.log(`Final Total Strategy Assets: ${ethers.formatEther(finalTotalAssets)} AAVE`);
+
+            if (finalTotalAssets > 0) {
+                const finalAavePercentage = (Number(finalAaveAssets) / Number(finalTotalAssets)) * 100;
+                const finalUniswapPercentage = (Number(finalUniswapAssets) / Number(finalTotalAssets)) * 100;
+                console.log(`Final Allocation - Aave: ${finalAavePercentage.toFixed(2)}%, Uniswap: ${finalUniswapPercentage.toFixed(2)}%`);
+                
+                // Check if rebalancing was successful
+                const aaveDiff = Math.abs(finalAavePercentage - TARGET_AAVE_ALLOCATION);
+                const uniswapDiff = Math.abs(finalUniswapPercentage - TARGET_UNISWAP_ALLOCATION);
+                
+                if (aaveDiff < 5 && uniswapDiff < 5) {
+                    console.log("🎉 SUCCESS: Rebalancing achieved target allocations within 5%!");
+                } else {
+                    console.log("⚠️ WARNING: Rebalancing did not achieve exact target allocations");
+                    console.log(`Aave difference: ${aaveDiff.toFixed(2)}%, Uniswap difference: ${uniswapDiff.toFixed(2)}%`);
+                }
             }
 
             return {
                 success: true,
                 txHash: receipt.hash,
-                finalAllocations: finalAssets.map(assets => ethers.formatEther(assets))
+                finalAllocations: {
+                    aave: ethers.formatEther(finalAaveAssets),
+                    uniswap: ethers.formatEther(finalUniswapAssets),
+                    total: ethers.formatEther(finalTotalAssets)
+                }
             };
 
         } catch (error) {

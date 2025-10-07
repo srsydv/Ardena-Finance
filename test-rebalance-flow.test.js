@@ -230,15 +230,25 @@ describe("Rebalance Flow Test", function () {
                     investSwapData.push([]);
                     console.log("✅ No swap data needed for AaveV3Strategy");
                 } else if (strategyAddress.toLowerCase() === UNISWAP_STRATEGY_ADDRESS.toLowerCase()) {
-                    // Only generate swap data for UniswapV3Strategy if we have idle funds to invest
-                    const totalIdle = aaveWithdrawAmount;
-                    if (totalIdle > 0) {
-                        console.log("🔧 Generating swap calldata for UniswapV3Strategy...");
+                    // Check if UniswapV3Strategy is underweight and needs investment
+                    const uniswapCurrentAssets = await uniswapStrategy.totalAssets();
+                    const uniswapTargetAmount = (totalAssets * BigInt(TARGET_UNISWAP_ALLOCATION)) / BigInt(100);
+                    
+                    console.log(`UniswapV3Strategy current assets: ${ethers.formatEther(uniswapCurrentAssets)} AAVE`);
+                    console.log(`UniswapV3Strategy target amount: ${ethers.formatEther(uniswapTargetAmount)} AAVE`);
+                    
+                    if (uniswapCurrentAssets >= uniswapTargetAmount) {
+                        // UniswapV3Strategy is already at or above target - no investment needed
+                        investSwapData.push([]);
+                        console.log("✅ UniswapV3Strategy is already at target allocation - no swap data needed");
+                    } else {
+                        // UniswapV3Strategy is underweight - calculate how much it needs
+                        const deficit = uniswapTargetAmount - uniswapCurrentAssets;
+                        const swapAmount = deficit / 2n; // Swap half of the deficit from AAVE to WETH
                         
-                        // Calculate amount to swap (half of the total idle funds)
-                        const amountToSwap = totalIdle / 2n; // Swap half AAVE to WETH
-                        
-                        console.log(`Amount to swap AAVE -> WETH: ${ethers.formatEther(amountToSwap)} AAVE`);
+                        console.log("🔧 UniswapV3Strategy is underweight - generating swap calldata...");
+                        console.log(`Deficit: ${ethers.formatEther(deficit)} AAVE`);
+                        console.log(`Amount to swap AAVE -> WETH: ${ethers.formatEther(swapAmount)} AAVE`);
                         
                         // Uniswap V3 SwapRouter02 address on Sepolia
                         const UNISWAP_V3_ROUTER = "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
@@ -254,7 +264,7 @@ describe("Rebalance Flow Test", function () {
                             fee: poolFee,
                             recipient: UNISWAP_STRATEGY_ADDRESS, // deliver WETH to the strategy
                             deadline,
-                            amountIn: amountToSwap,
+                            amountIn: swapAmount,
                             amountOutMinimum: 0n, // for tests; in prod use a quoted minOut
                             sqrtPriceLimitX96: 0n,
                         };
@@ -277,7 +287,7 @@ describe("Rebalance Flow Test", function () {
                                 UNISWAP_V3_ROUTER,
                                 AAVE_TOKEN_ADDRESS,
                                 WETH_TOKEN_ADDRESS,
-                                amountToSwap,
+                                swapAmount,
                                 0n,
                                 UNISWAP_STRATEGY_ADDRESS,
                                 routerCalldata,
@@ -286,9 +296,6 @@ describe("Rebalance Flow Test", function () {
                         
                         investSwapData.push([payload]); // Array of swap calldata
                         console.log("✅ Swap calldata generated for UniswapV3Strategy");
-                    } else {
-                        investSwapData.push([]);
-                        console.log("⚠️ No idle funds to invest in UniswapV3Strategy");
                     }
                 } else {
                     investSwapData.push([]); // Empty invest swap data for other strategies
@@ -317,9 +324,9 @@ describe("Rebalance Flow Test", function () {
         // }
 
         try {
-                // Call rebalance function with explicit gas limit to avoid estimation issues
-                const rebalanceTx = await indexSwap.rebalance(
-                    withdrawAmounts,
+                // Call the new Vault.rebalance() function directly
+                console.log("🔄 Calling Vault.rebalance() function...");
+                const rebalanceTx = await vault.rebalance(
                     withdrawSwapData,
                     investSwapData,
                     { gasLimit: 1000000 } // Set explicit gas limit to avoid estimation issues
