@@ -68,6 +68,13 @@ export default {
         version: "0.7.6",
         settings: { optimizer: { enabled: true, runs: 200 } },
       },
+      "contracts/governance/VoteVerifier.sol": {
+        version: "0.8.24",
+        settings: { 
+          optimizer: { enabled: true, runs: 200 },
+          viaIR: true  // Enable IR-based compilation to avoid stack too deep
+        },
+      },
     },
   },
   networks: {

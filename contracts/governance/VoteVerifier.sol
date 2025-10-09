@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.24;
 
 /*
  * VoteVerifier.sol
@@ -15,12 +15,13 @@ pragma solidity ^0.8.17;
  * will call setProposal(...) to register votesRoot & powerRoot for a proposal.
  */
 
-import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract VoteVerifier is EIP712, Ownable {
+contract VoteVerifier is Initializable, EIP712Upgradeable, UUPSUpgradeable {
     using ECDSA for bytes32;
     using MerkleProof for bytes32[];
 
@@ -34,6 +35,9 @@ contract VoteVerifier is EIP712, Ownable {
         uint256 quorum;       // optional quorum weight required (0 if unused)
         uint256 deadline;     // last timestamp when votes for this proposal accepted
     }
+
+    // Owner address
+    address public owner;
 
     // mapping proposalId => Proposal
     mapping(uint256 => Proposal) public proposals;
@@ -50,8 +54,28 @@ contract VoteVerifier is EIP712, Ownable {
     event ProposalSet(uint256 indexed proposalId, bytes32 votesRoot, bytes32 powerRoot, uint256 threshold, uint256 quorum, uint256 deadline);
     event VoteCounted(uint256 indexed proposalId, address indexed voter, bool support, uint256 weight);
     event ProposalPassed(uint256 indexed proposalId, bytes32 votesRoot, bytes32 powerRoot, uint256 yesWeight, uint256 noWeight);
+    event OwnerUpdated(address indexed newOwner);
 
-    constructor(string memory name, string memory version) EIP712(name, version) {}
+    modifier onlyOwner() {
+        require(msg.sender == owner, "NOT_OWNER");
+        _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @notice Initialize the contract (replaces constructor for upgradeable contracts)
+     * @param name The EIP712 domain name
+     * @param version The EIP712 domain version
+     */
+    function initialize(string memory name, string memory version) public initializer {
+        __EIP712_init(name, version);
+        __UUPSUpgradeable_init();
+        owner = msg.sender;
+    }
 
     /**
      * @notice Owner publishes a proposal with the votesRoot and powerRoot and parameters.
@@ -113,32 +137,12 @@ contract VoteVerifier is EIP712, Ownable {
         require(!p.passed, "already passed");
         require(!counted[proposalId][voter], "vote already counted for voter");
 
-        // 1) Verify EIP-712 signature (signature must be by voter)
-        bytes32 structHash = keccak256(abi.encode(
-            VOTE_TYPEHASH,
-            proposalId,
-            voter,
-            support ? uint256(1) : uint256(0),
-            ratioAave,
-            ratioUni,
-            nonce,
-            voteDeadline
-        ));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        address signer = ECDSA.recover(digest, sig);
-        require(signer == voter, "invalid signature");
+        // Verify signature and proofs
+        _verifySignature(proposalId, voter, support, ratioAave, ratioUni, nonce, voteDeadline, sig);
+        _verifyVoteProof(p.votesRoot, voter, support, ratioAave, ratioUni, nonce, voteDeadline, votesProof);
+        _verifyPowerProof(p.powerRoot, voter, powerWeight, powerProof);
 
-        // 2) Verify the vote leaf is included in the votesRoot (prevent arbitrary forged signatures)
-        //    The off-chain aggregator should build leaves in identical format:
-        //    leaf = keccak256(abi.encodePacked(voter, support ? 1 : 0, ratioAave, ratioUni, nonce, voteDeadline))
-        bytes32 voteLeaf = keccak256(abi.encodePacked(voter, support ? uint256(1) : uint256(0), ratioAave, ratioUni, nonce, voteDeadline));
-        require(votesProof.verify(p.votesRoot, voteLeaf), "vote proof invalid");
-
-        // 3) Verify the voter's weight via powerRoot (leaf = keccak256(abi.encodePacked(voter, powerWeight)))
-        bytes32 powerLeaf = keccak256(abi.encodePacked(voter, powerWeight));
-        require(powerProof.verify(p.powerRoot, powerLeaf), "power proof invalid");
-
-        // 4) Mark as counted and tally
+        // Mark as counted and tally
         counted[proposalId][voter] = true;
         if (support) {
             p.yesWeight += powerWeight;
@@ -148,13 +152,75 @@ contract VoteVerifier is EIP712, Ownable {
 
         emit VoteCounted(proposalId, voter, support, powerWeight);
 
-        // 5) Optional: check passing condition. If yes, mark passed and emit event
-        // For simplicity, we define pass if yesWeight >= threshold OR (yesWeight > noWeight && yesWeight >= quorum)
+        // Check passing condition
         if (p.yesWeight >= p.threshold || (p.yesWeight > p.noWeight && (p.quorum == 0 || p.yesWeight >= p.quorum))) {
             p.passed = true;
             emit ProposalPassed(proposalId, p.votesRoot, p.powerRoot, p.yesWeight, p.noWeight);
         }
     }
+
+    function _verifySignature(
+        uint256 proposalId,
+        address voter,
+        bool support,
+        uint256 ratioAave,
+        uint256 ratioUni,
+        uint256 nonce,
+        uint256 voteDeadline,
+        bytes calldata sig
+    ) internal view {
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(
+            VOTE_TYPEHASH,
+            proposalId,
+            voter,
+            support ? uint256(1) : uint256(0),
+            ratioAave,
+            ratioUni,
+            nonce,
+            voteDeadline
+        )));
+        require(ECDSA.recover(digest, sig) == voter, "invalid signature");
+    }
+
+    function _verifyVoteProof(
+        bytes32 votesRoot,
+        address voter,
+        bool support,
+        uint256 ratioAave,
+        uint256 ratioUni,
+        uint256 nonce,
+        uint256 voteDeadline,
+        bytes32[] calldata votesProof
+    ) internal pure {
+        bytes32 voteLeaf = keccak256(abi.encodePacked(voter, support ? uint256(1) : uint256(0), ratioAave, ratioUni, nonce, voteDeadline));
+        require(votesProof.verify(votesRoot, voteLeaf), "vote proof invalid");
+    }
+
+    function _verifyPowerProof(
+        bytes32 powerRoot,
+        address voter,
+        uint256 powerWeight,
+        bytes32[] calldata powerProof
+    ) internal pure {
+        bytes32 powerLeaf = keccak256(abi.encodePacked(voter, powerWeight));
+        require(powerProof.verify(powerRoot, powerLeaf), "power proof invalid");
+    }
+
+    /**
+     * @notice Transfer ownership to a new owner
+     * @param newOwner The address of the new owner
+     */
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "ZERO_ADDRESS");
+        owner = newOwner;
+        emit OwnerUpdated(newOwner);
+    }
+
+    /**
+     * @notice UUPS upgrade authorization
+     * @dev Only owner can authorize upgrades
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @notice Admin can update threshold/quorum/proposal deadline or cancel (not shown for simplicity).
@@ -162,4 +228,9 @@ contract VoteVerifier is EIP712, Ownable {
      */
 
     // Utility read helpers are available via the public mapping and counted mapping.
+    
+    /**
+     * @dev Storage gap for future upgrades
+     */
+    uint256[50] private __gap;
 }
