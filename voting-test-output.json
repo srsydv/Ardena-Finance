@@ -1,0 +1,42 @@
+{
+  "proposalId": 1,
+  "votesRoot": "0x8ebd858984e3169287c8cf3a37965cd8c7b4b440c5de578274717c4c3c220108",
+  "powerRoot": "0x426e15776db284791886978759a4cc0d85730454d00a60ada474171f0b936a26",
+  "threshold": 750,
+  "quorum": 0,
+  "deadline": 1760100742,
+  "voters": [
+    {
+      "voter": "0xD9CD81c3435Fd3eE8D270EF2fA6d3ce7b48ab642",
+      "support": true,
+      "ratioAave": 6000,
+      "ratioUni": 4000,
+      "nonce": 1,
+      "deadline": 1760100742,
+      "signature": "0xc1a1c6742d00dd89dd50b4e14416857d05fd058494dc620e691ffbf8f564e6cf194c1b2b0ff0b9bec57fb9e4e3b3ddc9838905844a18a24d7783853ebbc62ef51c",
+      "votesProof": [
+        "0xee7ba8039852dd0bd7afc771a4311b6bd9b1468d392f9f25c11aa1446d4918ed"
+      ],
+      "powerWeight": 1000,
+      "powerProof": [
+        "0x4922852a799a6ea4aadcb146861fee91b997c7845eea7d9814595c6ca1657b5a"
+      ]
+    },
+    {
+      "voter": "0xA5e0c84b2503376195c167419BD80499a810e7a2",
+      "support": false,
+      "ratioAave": 3000,
+      "ratioUni": 7000,
+      "nonce": 1,
+      "deadline": 1760100742,
+      "signature": "0x65e9c3e09618f4af19267a406bcbdabdab87d4ac952b63443afc504b4438bcc8087ab4babbd20658e3c520c0cfb467d7f937802a2f0d7891b1e73be25b077bc61b",
+      "votesProof": [
+        "0xae7a97e27d342fcb67f3e4145eab962ecf21c57aebdd950156f12c741a9d78ae"
+      ],
+      "powerWeight": 500,
+      "powerProof": [
+        "0x4fa8703c8ef97d4c77d7d04da82a223c7bf00d92094c461fc8bc1a706efd84e9"
+      ]
+    }
+  ]
+}
