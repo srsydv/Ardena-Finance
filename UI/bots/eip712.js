@@ -4,11 +4,12 @@ const { MerkleTree } = require("merkletreejs");
 const keccak256 = require("keccak256");
 
 // EIP-712 Domain & types
+// IMPORTANT: Must match VoteVerifier.sol initialize() parameters
 const domain = {
-  name: "Aconomy Vote",
+  name: "Ardena Finance", // Must match VoteVerifier initialize() name parameter
   version: "1",
-  chainId: 137, // chain id of Chain B for signing context; can be any value used by EIP-712
-  verifyingContract: "0x0000000000000000000000000000000000000000" // not used for off-chain aggregator, but part of domain
+  chainId: 11155111, // Sepolia testnet chain ID
+  verifyingContract: "0xf37A4CA4608c1F6A5Fb944086Ce7526D39d90657" // VoteVerifier Proxy address on Sepolia
 };
 
 const types = {
@@ -33,8 +34,9 @@ async function signVote(wallet, vote) {
 // 2) Aggregator builds merkle tree of votes
 function buildVotesTree(signedVotes) {
   // Each leaf MUST use the same encoding as the on-chain voteLeaf
+  // VoteVerifier.sol line 195: keccak256(abi.encodePacked(voter, support ? uint256(1) : uint256(0), ratioAave, ratioUni, nonce, voteDeadline))
   const leaves = signedVotes.map(v => {
-    // v has fields: voter,bool support, ratioAave, ratioUni, nonce, deadline
+    // v has fields: voter, bool support, ratioAave, ratioUni, nonce, deadline
     return keccak256(Buffer.from(
       ethers.utils.solidityPack(
         ["address","uint256","uint256","uint256","uint256","uint256"],
@@ -48,6 +50,7 @@ function buildVotesTree(signedVotes) {
 
 // 3) Aggregator builds power tree: leaves = keccak(voter, power)
 function buildPowerTree(powerRecords) {
+  // VoteVerifier.sol line 205: keccak256(abi.encodePacked(voter, powerWeight))
   const leaves = powerRecords.map(p => keccak256(Buffer.from(
     ethers.utils.solidityPack(["address","uint256"], [p.voter, p.weight]).slice(2),
     'hex'
