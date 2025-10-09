@@ -31,6 +31,8 @@
     "@uniswap/v3-core": "^1.0.1",
     "dotenv": "^17.2.2",
     "hardhat-tracer": "^3.3.0",
+    "keccak256": "^1.0.6",
+    "merkletreejs": "^0.6.0",
     "node-fetch": "^3.3.2"
   }
 }
